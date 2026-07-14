@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.insilicopop.clinical.hpo_models import PhenotypeCurationRequest
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditRequest
+from app.insilicopop.clinical.variant_models import VariantIntelligenceRequest
 
 
 SCHEMA_VERSION = "0.27"
@@ -150,6 +151,7 @@ class ClinicalCaseIntake(FrozenModel):
     requested_actions: list[str] = Field(default_factory=list, max_length=30)
     phenotype_curation: PhenotypeCurationRequest | None = None
     pedigree_inheritance_audit: PedigreeInheritanceAuditRequest | None = None
+    variant_intelligence: VariantIntelligenceRequest | None = None
 
 
 class ClinicalIntakeIssue(FrozenModel):

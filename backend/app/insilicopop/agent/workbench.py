@@ -36,6 +36,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/clinical_case_intake.json",
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
+    "reproducibility/variant_intelligence.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -76,6 +77,11 @@ class AgentRunSummary(BaseModel):
     mendelian_inconsistency_count: int = 0
     evaluable_parent_child_transmission_count: int = 0
     pedigree_inheritance_audit_artifact_available: bool = False
+    variant_intelligence_request_count: int = 0
+    variant_validation_status_counts: dict[str, int] = Field(default_factory=dict)
+    variant_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
+    variant_equivalence_status_counts: dict[str, int] = Field(default_factory=dict)
+    variant_intelligence_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -98,6 +104,7 @@ class AgentRunDetail(AgentRunSummary):
     clinical_case_intake: dict[str, Any] | None = None
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
+    variant_intelligence: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
 
@@ -152,6 +159,7 @@ class WorkbenchRunStore:
             clinical_case_intake=state.get("clinical_case_intake") if isinstance(state.get("clinical_case_intake"), dict) else None,
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
+            variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
 
@@ -221,6 +229,8 @@ class WorkbenchRunStore:
         phenotype_hpo_curation = phenotype_hpo_curation if isinstance(phenotype_hpo_curation, dict) else {}
         pedigree_inheritance_audit = state.get("pedigree_inheritance_audit", {}) if isinstance(state, dict) else {}
         pedigree_inheritance_audit = pedigree_inheritance_audit if isinstance(pedigree_inheritance_audit, dict) else {}
+        variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
+        variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
         inheritance_status_counts: dict[str, int] = {}
         for item in inheritance_audits:
@@ -258,6 +268,11 @@ class WorkbenchRunStore:
             mendelian_inconsistency_count=len(pedigree_inheritance_audit.get("mendelian_inconsistencies", []) or []),
             evaluable_parent_child_transmission_count=int(transmission_summary.get("evaluable_transmission_count", 0) or 0) if isinstance(transmission_summary, dict) else 0,
             pedigree_inheritance_audit_artifact_available=(run_dir / "reproducibility" / "pedigree_inheritance_audit.json").is_file(),
+            variant_intelligence_request_count=len(variant_intelligence.get("normalization_results", []) or []),
+            variant_validation_status_counts=_safe_count_dict(variant_intelligence.get("validation_status_counts", {})),
+            variant_normalization_status_counts=_safe_count_dict(variant_intelligence.get("normalization_status_counts", {})),
+            variant_equivalence_status_counts=_safe_count_dict(variant_intelligence.get("equivalence_status_counts", {})),
+            variant_intelligence_artifact_available=(run_dir / "reproducibility" / "variant_intelligence.json").is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),
             selected_recipe_maturity_tier=selected_recipe.get("maturity_tier"),
@@ -362,3 +377,15 @@ def _string_dict(value: Any) -> dict[str, str]:
     if not isinstance(value, dict):
         return {}
     return {str(key): str(item) for key, item in value.items()}
+
+
+def _safe_count_dict(value: Any) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, item in value.items():
+        try:
+            result[str(key)] = int(item)
+        except (TypeError, ValueError):
+            continue
+    return {key: result[key] for key in sorted(result)}

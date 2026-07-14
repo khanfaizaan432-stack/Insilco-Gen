@@ -387,6 +387,8 @@
           <div id="phenotype-hpo-curation" class="muted">No phenotype/HPO curation loaded.</div>
           <h3>Pedigree and Inheritance Audit Preview</h3>
           <div id="pedigree-inheritance-audit" class="muted">No pedigree/inheritance audit loaded.</div>
+          <h3>Variant Intelligence Workspace</h3>
+          <div id="variant-intelligence" class="muted">No variant intelligence data loaded.</div>
           <h3>Results-only audit preview</h3>
           <div id="results-audit" class="muted">No results-only audit loaded.</div>
         </section>
@@ -794,6 +796,74 @@
         <h3>Supplied-record issue codes</h3><ul>${issueCodes}</ul>`;
     }
 
+    function renderVariantIntelligence(variantIntelligence) {
+      const target = document.getElementById("variant-intelligence");
+      if (!variantIntelligence || typeof variantIntelligence !== "object" || Object.keys(variantIntelligence).length === 0) {
+        target.className = "muted";
+        target.textContent = "No variant intelligence data loaded. This is expected for stored runs created before v0.30.";
+        return;
+      }
+      const results = (variantIntelligence.normalization_results || []).slice(0, 100);
+      const candidateRows = results.map((item) => {
+        const snapshot = item.supplied_request_snapshot || {};
+        return `<li><strong>${escapeHtml(item.candidate_variant_id || "unknown")}</strong> — ${escapeHtml(snapshot.supplied_representation || "not supplied")} — ${escapeHtml(snapshot.representation_type || "unknown")} — VALIDATED: ${escapeHtml(item.validation_status || "cannot_validate")} — NORMALIZED: ${escapeHtml(item.normalization_status || "cannot_normalize")} — ${escapeHtml(item.equivalence_status || "unresolved_equivalence")} — review ${escapeHtml(snapshot.review_state || "pending")}</li>`;
+      }).join("") || "<li>No variant normalization requests recorded.</li>";
+      const details = results.map((item) => {
+        const snapshot = item.supplied_request_snapshot || {};
+        const allele = snapshot.structured_allele || {};
+        const outputMap = {};
+        (item.normalized_outputs || []).forEach((output) => { outputMap[output.output_type] = output; });
+        const outputValue = (name) => {
+          const output = outputMap[name];
+          if (!output) return "not requested";
+          if (output.value === null || output.value === undefined) return `${output.status}: ${output.reason_code || "not generated"}`;
+          return typeof output.value === "string" ? output.value : asJson(output.value);
+        };
+        const operations = (item.normalization_operations || []).map((operation) => `<li>${escapeHtml(operation.operation_name || "operation")} — ${escapeHtml(operation.status || "unknown")} — input ${escapeHtml(operation.input_hash || "unknown")} — output ${escapeHtml(operation.output_hash || "none")}</li>`).join("") || "<li>No normalization operation recorded.</li>";
+        const issueRows = [
+          ...(item.validation_errors || []),
+          ...(item.warnings || []),
+          ...(item.missing_information || []),
+          ...(item.unsupported_reasons || []),
+          ...(item.conflicts || []),
+          ...(item.review_actions || []),
+        ].map((issue) => `<li>${escapeHtml(issue.code || "review_required")} — ${escapeHtml(issue.message || "Human review required.")}</li>`).join("") || "<li>No issues recorded.</li>";
+        return `<details>
+          <summary>${escapeHtml(item.candidate_variant_id || "candidate")} — REVIEW REQUIRED</summary>
+          <div class="badge-row"><span class="badge">SUPPLIED</span><span class="badge safe">VALIDATED</span><span class="badge">NORMALIZED</span><span class="badge warn">UNRESOLVED</span><span class="badge warn">UNSUPPORTED</span><span class="badge warn">REVIEW REQUIRED</span></div>
+          <p><strong>Supplied value:</strong> ${escapeHtml(snapshot.supplied_representation || "not supplied")}</p>
+          <p><strong>Genome build:</strong> ${escapeHtml(snapshot.supplied_genome_build || allele.genome_build || "not supplied")}</p>
+          <p><strong>Reference accession:</strong> ${escapeHtml(snapshot.supplied_reference_accession || allele.reference_accession || "not supplied")}</p>
+          <p><strong>Transcript accession:</strong> ${escapeHtml(snapshot.supplied_transcript_accession || "not supplied")}</p>
+          <p><strong>Gene identifier:</strong> ${escapeHtml(snapshot.supplied_gene_id || "not supplied")}</p>
+          <p><strong>Normalized HGVS:</strong> ${escapeHtml(outputValue("normalized_hgvs"))}</p>
+          <p><strong>SPDI:</strong> ${escapeHtml(outputValue("spdi"))}</p>
+          <p><strong>VRS:</strong> ${escapeHtml(outputValue("vrs"))}</p>
+          <p><strong>Supplied CAID:</strong> ${escapeHtml(snapshot.supplied_caid || "not supplied")}</p>
+          <p><strong>Canonical internal representation:</strong></p><pre>${escapeHtml(outputValue("canonical_internal_allele"))}</pre>
+          <p><strong>Algorithm:</strong> ${escapeHtml(item.algorithm_version || "unknown")}</p>
+          <p><strong>Provenance:</strong> ${escapeHtml((item.provenance_source_ids || []).join(", ") || "not supplied")}</p>
+          <h4>Operations performed</h4><ul>${operations}</ul>
+          <h4>Warnings, missing context, unsupported reasons, and review actions</h4><ul>${issueRows}</ul>
+        </details>`;
+      }).join("");
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(variantIntelligence.schema_version))}</div>
+          <div class="metric"><strong>algorithm</strong>${escapeHtml(notAvailable(variantIntelligence.algorithm_version))}</div>
+          <div class="metric"><strong>requests</strong>${escapeHtml(results.length)}</div>
+          <div class="metric safe"><strong>research use only</strong>true</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+          <div class="metric safe"><strong>pathogenicity interpretation</strong>false</div>
+          <div class="metric safe"><strong>transcript selection</strong>false</div>
+          <div class="metric safe"><strong>raw genomic parsing</strong>false</div>
+        </div>
+        <p class="note"><strong>Variant normalization establishes representation consistency only. It does not establish pathogenicity, causality, diagnosis, or transcript relevance.</strong></p>
+        <h3>Candidate list</h3><ul>${candidateRows}</ul>
+        <h3>Candidate detail</h3>${details || "<p>No candidate detail available.</p>"}`;
+    }
+
     function renderOrchestrationTrace(orchestrationTrace) {
       const target = document.getElementById("orchestration-trace");
       if (!orchestrationTrace || typeof orchestrationTrace !== "object" || Object.keys(orchestrationTrace).length === 0) {
@@ -837,6 +907,7 @@
       renderClinicalCaseIntake(data.clinical_case_intake || data.final_state?.clinical_case_intake);
       renderPhenotypeHpoCuration(data.phenotype_hpo_curation || data.final_state?.phenotype_hpo_curation);
       renderPedigreeInheritanceAudit(data.pedigree_inheritance_audit || data.final_state?.pedigree_inheritance_audit);
+      renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
       renderResultsAudit(data.results_audit || data.final_state?.results_audit);
       renderCommandPreviews(data.command_previews || [], recipe);
       document.getElementById("final-report").textContent = "Loading final report...";
@@ -889,6 +960,7 @@
         renderClinicalCaseIntake(detail?.clinical_case_intake);
         renderPhenotypeHpoCuration(detail?.phenotype_hpo_curation);
         renderPedigreeInheritanceAudit(detail?.pedigree_inheritance_audit);
+        renderVariantIntelligence(detail?.variant_intelligence);
         renderResultsAudit(detail?.results_audit);
         const workflowTarget = document.getElementById("workflow-selection");
         workflowTarget.className = "";

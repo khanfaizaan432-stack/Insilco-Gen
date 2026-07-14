@@ -16,7 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_bundle
+from app.insilicopop.clinical.service import build_clinical_case_extended_bundle
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
 from app.insilicopop.llm.provider_factory import build_llm_provider
@@ -303,7 +303,12 @@ class AgentLoop:
             clinical_intake_declared=True,
         ).model_dump()
         self._select_recipe_preview(state)
-        state.clinical_case_intake, state.phenotype_hpo_curation, state.pedigree_inheritance_audit = build_clinical_case_bundle(payload, request_text=state.query)
+        (
+            state.clinical_case_intake,
+            state.phenotype_hpo_curation,
+            state.pedigree_inheritance_audit,
+            state.variant_intelligence,
+        ) = build_clinical_case_extended_bundle(payload, request_text=state.query)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -374,6 +379,29 @@ class AgentLoop:
                     "raw_genomic_files_parsed": False,
                 }
             )
+        if state.variant_intelligence:
+            variant_intelligence = state.variant_intelligence
+            state.decision_trace.append(
+                {
+                    "event": "variant_intelligence_completed",
+                    "schema_version": variant_intelligence.schema_version,
+                    "algorithm_version": variant_intelligence.algorithm_version,
+                    "request_ids": [item.request_id for item in variant_intelligence.normalization_results],
+                    "candidate_variant_ids": [item.candidate_variant_id for item in variant_intelligence.normalization_results],
+                    "validation_statuses": [item.validation_status.value for item in variant_intelligence.normalization_results],
+                    "normalization_statuses": [item.normalization_status.value for item in variant_intelligence.normalization_results],
+                    "equivalence_statuses": [item.equivalence_status.value for item in variant_intelligence.normalization_results],
+                    "variant_validation_performed": True,
+                    "variant_normalization_performed": variant_intelligence.variant_normalization_performed,
+                    "variant_pathogenicity_interpretation_performed": False,
+                    "transcript_selection_performed": False,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                    "raw_genomic_files_parsed": False,
+                }
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -406,6 +434,7 @@ class AgentLoop:
             "clinical_case_intake": state.clinical_case_intake.model_dump() if state.clinical_case_intake else None,
             "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
             "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
+            "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),
             "generated_files": generated_files,

@@ -19,6 +19,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/clinical_case_intake.json",
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
+    "reproducibility/variant_intelligence.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -54,6 +55,7 @@ class AgentInterpreter:
         clinical_case_intake: dict[str, Any] | None = None,
         phenotype_hpo_curation: dict[str, Any] | None = None,
         pedigree_inheritance_audit: dict[str, Any] | None = None,
+        variant_intelligence: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
         external_llm_called: bool = False,
@@ -78,6 +80,7 @@ class AgentInterpreter:
         clinical_case_intake = clinical_case_intake or {}
         phenotype_hpo_curation = phenotype_hpo_curation or {}
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
+        variant_intelligence = variant_intelligence or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
 
@@ -156,6 +159,8 @@ class AgentInterpreter:
             *_phenotype_hpo_curation_lines(phenotype_hpo_curation),
             "",
             *_pedigree_inheritance_audit_lines(pedigree_inheritance_audit),
+            "",
+            *_variant_intelligence_lines(variant_intelligence),
             "",
             *_results_audit_section_lines(results_audit),
             "Population-genetics guardrails:",
@@ -746,6 +751,46 @@ def _results_audit_section_lines(results_audit: dict[str, Any]) -> list[str]:
     lines.extend(["", "Human review flags:"])
     lines.extend(_list_lines(results_audit.get("human_review_flags", []), none_text="No human review flags recorded."))
     lines.append("")
+    return lines
+
+
+def _variant_intelligence_lines(variant_intelligence: dict[str, Any]) -> list[str]:
+    if not variant_intelligence:
+        return []
+    results = variant_intelligence.get("normalization_results", []) or []
+    lines = [
+        "## Variant Intelligence Preview",
+        "",
+        "Variant normalization establishes representation consistency only. It does not establish pathogenicity, causality, diagnosis, or transcript relevance.",
+        f"- schema_version: `{_redact(str(variant_intelligence.get('schema_version', 'unknown')))}`",
+        f"- algorithm_version: `{_redact(str(variant_intelligence.get('algorithm_version', 'unknown')))}`",
+        f"- request_count: `{len(results)}`",
+        f"- variant_validation_performed: `{str(bool(variant_intelligence.get('variant_validation_performed', False))).lower()}`",
+        f"- variant_normalization_performed: `{str(bool(variant_intelligence.get('variant_normalization_performed', False))).lower()}`",
+        "- variant_pathogenicity_interpretation_performed: `false`",
+        "- transcript_selection_performed: `false`",
+        "- raw_genomic_files_parsed: `false`",
+        "- human_review_required: `true`",
+        "",
+        "Bounded request summaries (exact biological strings are retained in the allowlisted reproducibility artifact, not repeated here):",
+    ]
+    if not results:
+        lines.append("- No variant normalization requests were supplied.")
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        output_types = sorted(
+            str(output.get("output_type", "unknown"))
+            for output in item.get("normalized_outputs", []) or []
+            if isinstance(output, dict)
+        )
+        lines.append(
+            f"- request `{_redact(str(item.get('request_id', 'unknown')))}` / candidate `{_redact(str(item.get('candidate_variant_id', 'unknown')))}`: "
+            f"validation `{_redact(str(item.get('validation_status', 'cannot_validate')))}`, "
+            f"normalization `{_redact(str(item.get('normalization_status', 'cannot_normalize')))}`, "
+            f"equivalence `{_redact(str(item.get('equivalence_status', 'unresolved_equivalence')))}`, "
+            f"outputs `{_redact(', '.join(output_types) or 'none')}`"
+        )
     return lines
 
 

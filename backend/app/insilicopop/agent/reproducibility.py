@@ -43,6 +43,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_clinical_case_intake": "clinical_case_intake.json",
     "repro_phenotype_hpo_curation": "phenotype_hpo_curation.json",
     "repro_pedigree_inheritance_audit": "pedigree_inheritance_audit.json",
+    "repro_variant_intelligence": "variant_intelligence.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -86,6 +87,9 @@ def write_reproducibility_bundle(
     if state.pedigree_inheritance_audit:
         paths["repro_pedigree_inheritance_audit"] = optional_paths["repro_pedigree_inheritance_audit"]
         _write_json(paths["repro_pedigree_inheritance_audit"], state.pedigree_inheritance_audit.model_dump())
+    if state.variant_intelligence:
+        paths["repro_variant_intelligence"] = optional_paths["repro_variant_intelligence"]
+        _write_json(paths["repro_variant_intelligence"], state.variant_intelligence.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -263,6 +267,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "results_audit": state.results_audit,
         "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
         "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
+        "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -503,6 +508,14 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "pedigree_inheritance_audit_artifact_available": state.pedigree_inheritance_audit is not None,
         "inheritance_consistency_audit_performed": state.pedigree_inheritance_audit is not None,
         "inheritance_clinically_established": False,
+        "variant_intelligence_schema_version": state.variant_intelligence.schema_version if state.variant_intelligence else None,
+        "variant_intelligence_algorithm_version": state.variant_intelligence.algorithm_version if state.variant_intelligence else None,
+        "variant_intelligence_artifact_available": state.variant_intelligence is not None,
+        "variant_validation_performed": state.variant_intelligence is not None,
+        "variant_normalization_performed": state.variant_intelligence.variant_normalization_performed if state.variant_intelligence else False,
+        "variant_pathogenicity_interpretation_performed": False,
+        "transcript_selection_performed": False,
+        "raw_genomic_files_parsed": False,
         "human_review_required": True,
         "generated_artifact_list": sorted(_relative_to_run(run_dir, path) for path in generated_artifacts.values()),
         "reproducibility_bundle_file_list": sorted(_relative_to_run(run_dir, path) for path in repro_paths.values()),

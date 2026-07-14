@@ -16,6 +16,8 @@ from app.insilicopop.clinical.hpo_models import PhenotypeHpoCurationResult
 from app.insilicopop.clinical.phenotype_curation import build_phenotype_hpo_curation
 from app.insilicopop.clinical.inheritance_audit import build_pedigree_inheritance_audit
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditResult
+from app.insilicopop.clinical.variant_models import VariantIntelligenceResult
+from app.insilicopop.clinical.variant_service import build_variant_intelligence
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -33,6 +35,18 @@ def build_clinical_case_with_curation(
 def build_clinical_case_bundle(
     payload: dict[str, Any], *, request_text: str | None = None
 ) -> tuple[ClinicalCaseIntakeResult, PhenotypeHpoCurationResult | None, PedigreeInheritanceAuditResult | None]:
+    intake, curation, inheritance_audit, _ = build_clinical_case_extended_bundle(payload, request_text=request_text)
+    return intake, curation, inheritance_audit
+
+
+def build_clinical_case_extended_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+]:
     try:
         case = ClinicalCaseIntake.model_validate(payload)
     except ValidationError as exc:
@@ -44,7 +58,7 @@ def build_clinical_case_bundle(
             )
             for error in exc.errors(include_url=False, include_input=False)
         ]
-        return _invalid_result(payload, issues), None, None
+        return _invalid_result(payload, issues), None, None, None
 
     errors, warnings, missing, blocks = validate_clinical_case(case, request_text=request_text)
     completeness = "blocked" if blocks else "incomplete" if errors or warnings or missing else "complete"
@@ -93,7 +107,8 @@ def build_clinical_case_bundle(
         missing_information=missing,
         policy_blocks=blocks,
     )
-    return result, curation, inheritance_audit
+    variant_intelligence = build_variant_intelligence(case)
+    return result, curation, inheritance_audit, variant_intelligence
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:

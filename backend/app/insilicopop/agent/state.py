@@ -8,6 +8,7 @@ from app.insilicopop.agent.actions import AgentAction
 from app.insilicopop.clinical.models import ClinicalCaseIntakeResult
 from app.insilicopop.clinical.hpo_models import PhenotypeHpoCurationResult
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditResult
+from app.insilicopop.clinical.variant_models import VariantIntelligenceResult
 
 
 class AgentState(BaseModel):
@@ -45,6 +46,7 @@ class AgentState(BaseModel):
     clinical_case_intake: ClinicalCaseIntakeResult | None = None
     phenotype_hpo_curation: PhenotypeHpoCurationResult | None = None
     pedigree_inheritance_audit: PedigreeInheritanceAuditResult | None = None
+    variant_intelligence: VariantIntelligenceResult | None = None
 
     def record_action(self, action: AgentAction) -> None:
         self.planned_actions.append(action)
