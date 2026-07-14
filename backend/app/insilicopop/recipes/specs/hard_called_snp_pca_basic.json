@@ -1,0 +1,152 @@
+{
+  "recipe_id": "hard_called_snp_pca_basic",
+  "version": "0.1.0",
+  "workflow_family": "hard_called_snp",
+  "status": "dry_run_only",
+  "maturity_tier": "dry_run_template",
+  "intent_triggers": [
+    "PLINK PCA",
+    "hard-called SNP population structure",
+    "PED/MAP population genetics",
+    "PGEN/PVAR/PSAM PCA planning"
+  ],
+  "declared_input_requirements": {
+    "accepted_hard_called_inputs": [
+      "PLINK BED/BIM/FAM path/name inventory",
+      "PED/MAP path/name inventory",
+      "PGEN/PVAR/PSAM path/name inventory"
+    ],
+    "recommended": [
+      "sample metadata",
+      "population label provenance",
+      "genotyping array/build notes"
+    ],
+    "raw_genomic_files": "inventory-only; raw hard-called SNP contents are not parsed"
+  },
+  "missing_input_rules": [
+    "If metadata is absent, allow dry-run technical planning but block population-label interpretation.",
+    "If only one file from a paired/trio format is declared, flag missing companion files.",
+    "If hard-called SNP inputs are absent, do not select this recipe."
+  ],
+  "preflight_checks": [
+    "Confirm external_llm_called=false by default.",
+    "Confirm external_tools_executed=false.",
+    "Confirm raw genomic files remain inventory-only.",
+    "Require human expert review before interpreting PCA, relatedness, outlier, ADMIXTURE, FST, ROH, or selection outputs."
+  ],
+  "dry_run_steps": [
+    {
+      "step_id": "inventory_hard_called_inputs",
+      "title": "Inventory hard-called SNP inputs",
+      "description": "Record declared PLINK, PED/MAP, or PGEN/PVAR/PSAM path/name inventory without parsing raw genotype contents.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "preview_qc",
+      "title": "Preview sample and SNP QC",
+      "description": "Render dry-run missingness, heterozygosity, HWE, relatedness, and outlier caution notes.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "preview_ld_pruned_pca",
+      "title": "Preview LD pruning and PCA",
+      "description": "Render non-executed LD pruning and PCA previews plus report artifact expectations.",
+      "dry_run_only": true
+    }
+  ],
+  "command_preview_templates": [
+    {
+      "template_id": "plink_qc_preview",
+      "description": "Dry-run preview for hard-called SNP QC.",
+      "preview": "plink --bfile {declared_plink_prefix} --missing --het --hardy --out {dry_run_prefix} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    },
+    {
+      "template_id": "ld_pca_preview",
+      "description": "Dry-run preview for LD pruning and PCA.",
+      "preview": "plink --bfile {declared_plink_prefix} --indep-pairwise 50 5 0.2 --out {dry_run_prefix}; smartpca -p {dry_run_parfile} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    }
+  ],
+  "expected_outputs": [
+    "input_inventory.json",
+    "command_previews.yaml",
+    "qc_caution_notes.md",
+    "researcher_report.md"
+  ],
+  "reproducibility_artifacts": [
+    "recipe_selection.json",
+    "recipe_snapshot.json",
+    "command_previews.yaml",
+    "runtime_lock.json",
+    "checksums.sha256 for generated artifacts only"
+  ],
+  "claim_audit_rules": {
+    "allowed_with_review": [
+      "Hard-called SNP PCA workflow planning can be previewed for human review."
+    ],
+    "soften": [
+      "Convert PCA, relatedness, outlier, ROH, and FST assertions into cautious review notes."
+    ],
+    "block": [
+      "clinical diagnosis",
+      "treatment recommendation",
+      "consumer ancestry claims",
+      "caste/community/religion inference",
+      "genetic purity/superiority claims",
+      "literal ancestry interpretation from ADMIXTURE components",
+      "PCA cluster identity claims",
+      "unsupported selection claims",
+      "unsupported endogamy claims"
+    ]
+  },
+  "blocked_interpretations": [
+    "clinical diagnosis",
+    "treatment recommendation",
+    "consumer ancestry claims",
+    "caste/community/religion inference",
+    "genetic purity/superiority claims",
+    "literal ancestry interpretation from ADMIXTURE components",
+    "PCA cluster identity claims",
+    "unsupported selection claims",
+    "unsupported endogamy claims"
+  ],
+  "scientific_validity_notes": [
+    "Dry-run command previews do not imply that PLINK, ADMIXTURE, smartpca, vcftools, or any external genomics tool was executed.",
+    "external_llm_called=false by default; external_tools_executed=false; raw genomic files are inventory-only.",
+    "Hard-called SNP PCA requires QC, LD pruning, relatedness/outlier caution, metadata context, and human expert review before interpretation."
+  ],
+  "human_review_checklist": [
+    "Human expert review required: confirm paired/trio inputs, build, missingness, relatedness, LD pruning, and metadata.",
+    "Confirm PCA clusters are not identity labels and ADMIXTURE components are not literal ancestry.",
+    "Confirm clinical diagnosis, treatment recommendation, consumer ancestry, caste/community/religion, genetic purity/superiority, unsupported selection, and unsupported endogamy claims are blocked."
+  ],
+  "provenance_sources": [
+    {
+      "title": "PLINK PCA/QC documentation",
+      "source_type": "method_documentation",
+      "note": "Supports hard-called SNP QC, LD pruning, and PCA preview structure."
+    },
+    {
+      "title": "EIGENSOFT/smartpca documentation",
+      "source_type": "method_documentation",
+      "note": "Supports PCA preview and caution around cluster interpretation."
+    },
+    {
+      "title": "BioAgents prior-art architecture",
+      "source_type": "prior_art",
+      "url": "https://arxiv.org/abs/2501.06314",
+      "note": "Supports explicit missing-information handling and source-grounded workflow guidance."
+    }
+  ],
+  "tests_required": [
+    "catalog loading",
+    "workflow family compatibility",
+    "paired/trio input missing rule check",
+    "dry-run command preview check",
+    "no external tool execution",
+    "no raw genotype parsing"
+  ]
+}

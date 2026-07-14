@@ -1,0 +1,5 @@
+# synthetic FST matrix example
+population,Iyer,North_Indian,Chembu
+Iyer,0,0.042,0.018
+North_Indian,0.042,0,0.031
+Chembu,0.018,0.031,0

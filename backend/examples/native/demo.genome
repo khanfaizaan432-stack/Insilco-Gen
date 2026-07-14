@@ -1,0 +1,4 @@
+# synthetic PLINK .genome example
+FID1 IID1 FID2 IID2 PI_HAT Z0 Z1 Z2
+F1 S1 F1 S2 0.020 0.96 0.04 0.00
+F1 S2 F1 S3 0.180 0.70 0.25 0.05

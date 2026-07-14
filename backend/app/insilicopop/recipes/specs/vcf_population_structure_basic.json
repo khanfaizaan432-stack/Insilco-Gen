@@ -1,0 +1,155 @@
+{
+  "recipe_id": "vcf_population_structure_basic",
+  "version": "0.1.0",
+  "workflow_family": "vcf_population_structure",
+  "status": "dry_run_only",
+  "maturity_tier": "dry_run_template",
+  "intent_triggers": [
+    "VCF population structure",
+    "plan PCA from VCF",
+    "plan ADMIXTURE from VCF",
+    "variant call cohort QC"
+  ],
+  "declared_input_requirements": {
+    "required": [
+      "VCF or VCF.GZ path/name inventory"
+    ],
+    "recommended": [
+      "sample metadata",
+      "population labels for audit only",
+      "reference genome/build notes"
+    ],
+    "raw_genomic_files": "inventory-only; raw VCF contents are not parsed or checksummed"
+  },
+  "missing_input_rules": [
+    "If metadata is absent, allow dry-run QC/PCA planning but block population-label interpretation.",
+    "If reference build is absent, flag reproducibility uncertainty.",
+    "If VCF is absent, do not select this recipe."
+  ],
+  "preflight_checks": [
+    "Confirm external_llm_called=false by default.",
+    "Confirm external_tools_executed=false.",
+    "Confirm raw genomic files remain inventory-only.",
+    "Require human expert review before interpreting any PCA, ADMIXTURE, FST, ROH, or selection output."
+  ],
+  "dry_run_steps": [
+    {
+      "step_id": "inventory_vcf",
+      "title": "Inventory declared VCF",
+      "description": "Record declared VCF path/name and metadata path/name without parsing raw VCF contents.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "preview_vcf_to_plink",
+      "title": "Preview VCF-to-PLINK conversion",
+      "description": "Render a non-executed conversion preview for later human review.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "preview_qc_ld_pca_admixture",
+      "title": "Preview QC, LD pruning, PCA, and optional ADMIXTURE K sweep",
+      "description": "Render dry-run planning steps for sample/SNP QC, LD pruning, PCA, optional ADMIXTURE, reproducibility notes, and safety interpretation notes.",
+      "dry_run_only": true
+    }
+  ],
+  "command_preview_templates": [
+    {
+      "template_id": "plink_convert_preview",
+      "description": "Dry-run preview for VCF conversion.",
+      "preview": "plink --vcf {vcf_inventory_name} --make-bed --out {dry_run_prefix} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    },
+    {
+      "template_id": "pca_preview",
+      "description": "Dry-run preview for QC, LD pruning, and PCA.",
+      "preview": "plink --bfile {dry_run_prefix} --indep-pairwise 50 5 0.2 --out {dry_run_prefix}; smartpca -p {dry_run_parfile} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    }
+  ],
+  "expected_outputs": [
+    "input_inventory.json",
+    "command_previews.yaml",
+    "workflow_safety_notes.md",
+    "researcher_report.md"
+  ],
+  "reproducibility_artifacts": [
+    "recipe_selection.json",
+    "recipe_snapshot.json",
+    "command_previews.yaml",
+    "runtime_lock.json",
+    "checksums.sha256 for generated artifacts only"
+  ],
+  "claim_audit_rules": {
+    "allowed_with_review": [
+      "A VCF-derived population-structure workflow can be planned as dry-run previews."
+    ],
+    "soften": [
+      "Convert structure claims into tentative exploratory patterns requiring metadata and human review."
+    ],
+    "block": [
+      "clinical diagnosis",
+      "treatment recommendation",
+      "consumer ancestry claims",
+      "caste/community/religion inference",
+      "genetic purity/superiority claims",
+      "literal ancestry interpretation from ADMIXTURE components",
+      "PCA cluster identity claims",
+      "unsupported selection claims",
+      "unsupported endogamy claims"
+    ]
+  },
+  "blocked_interpretations": [
+    "clinical diagnosis",
+    "treatment recommendation",
+    "consumer ancestry claims",
+    "caste/community/religion inference",
+    "genetic purity/superiority claims",
+    "literal ancestry interpretation from ADMIXTURE components",
+    "PCA cluster identity claims",
+    "unsupported selection claims",
+    "unsupported endogamy claims"
+  ],
+  "scientific_validity_notes": [
+    "Dry-run command previews do not imply that PLINK, ADMIXTURE, smartpca, vcftools, or any external genomics tool was executed.",
+    "external_llm_called=false by default; external_tools_executed=false; raw genomic files are inventory-only.",
+    "PCA and ADMIXTURE require LD pruning, sample metadata, QC context, and human expert review before interpretation."
+  ],
+  "human_review_checklist": [
+    "Human expert review required: confirm VCF build, cohort design, metadata, and QC assumptions.",
+    "Confirm PCA clusters are not identity labels and ADMIXTURE components are not literal ancestry.",
+    "Confirm clinical diagnosis, treatment recommendation, consumer ancestry, caste/community/religion, genetic purity/superiority, unsupported selection, and unsupported endogamy claims are blocked."
+  ],
+  "provenance_sources": [
+    {
+      "title": "PLINK PCA/QC documentation",
+      "source_type": "method_documentation",
+      "note": "Supports QC, conversion, LD pruning, and PCA preview structure."
+    },
+    {
+      "title": "EIGENSOFT/smartpca documentation",
+      "source_type": "method_documentation",
+      "note": "Supports PCA preview and interpretation caveats."
+    },
+    {
+      "title": "ADMIXTURE documentation",
+      "source_type": "method_documentation",
+      "note": "Supports optional K sweep preview and CV caution."
+    },
+    {
+      "title": "AutoBA prior-art architecture",
+      "source_type": "prior_art",
+      "url": "https://github.com/JoshuaChou2018/AutoBA",
+      "note": "Supports separating planning from execution while rejecting generated-shell execution."
+    }
+  ],
+  "tests_required": [
+    "catalog loading",
+    "workflow family compatibility",
+    "dry-run command preview check",
+    "no external tool execution",
+    "no raw VCF parsing",
+    "human review checklist presence"
+  ]
+}

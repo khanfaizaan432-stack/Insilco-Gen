@@ -1,0 +1,133 @@
+{
+  "recipe_id": "results_only_audit_basic",
+  "version": "0.1.0",
+  "workflow_family": "results_only_audit",
+  "status": "dry_run_only",
+  "maturity_tier": "dry_run_template",
+  "intent_triggers": [
+    "audit existing PCA results",
+    "audit ADMIXTURE Q/P/CV files",
+    "review PLINK summary outputs",
+    "check manuscript population-genetics claims"
+  ],
+  "declared_input_requirements": {
+    "accepted_existing_results": [
+      "PCA/eigenvec/eigenval-style outputs",
+      "ADMIXTURE Q/P/CV-style outputs",
+      "PLINK summary outputs",
+      "FST, ROH, selection, notes, reports, or manuscript claims"
+    ],
+    "raw_genomic_files": "inventory-only; raw genomic contents are not parsed"
+  },
+  "missing_input_rules": [
+    "If metadata is absent, allow technical audit but block group-level interpretation.",
+    "If raw genotype inputs are absent, do not propose raw-data execution.",
+    "If provenance is missing, require uncertainty language in the final report."
+  ],
+  "preflight_checks": [
+    "Confirm external_llm_called=false by default.",
+    "Confirm external_tools_executed=false.",
+    "Confirm raw genomic files remain inventory-only.",
+    "Require human expert review before any result claim is used."
+  ],
+  "dry_run_steps": [
+    {
+      "step_id": "inventory_results",
+      "title": "Inventory existing result files",
+      "description": "List declared PCA, ADMIXTURE, PLINK summary, FST, ROH, selection, and claim documents without raw genomic parsing.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "audit_claims",
+      "title": "Audit interpretation claims",
+      "description": "Compare declared result types to allowed cautious claims and block unsafe identity, clinical, ancestry, selection, and endogamy interpretations.",
+      "dry_run_only": true
+    }
+  ],
+  "command_preview_templates": [
+    {
+      "template_id": "results_audit_placeholder",
+      "description": "Dry-run only reminder that already-generated outputs may be audited but genomics tools are not executed.",
+      "preview": "# DRY-RUN ONLY: audit declared result files and claims; do not execute PLINK, ADMIXTURE, smartpca, vcftools, or other tools.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    }
+  ],
+  "expected_outputs": [
+    "result_inventory.json",
+    "claim_audit.json",
+    "blocked_interpretations.md",
+    "researcher_report.md"
+  ],
+  "reproducibility_artifacts": [
+    "recipe_selection.json",
+    "recipe_snapshot.json",
+    "claim_audit.json",
+    "runtime_lock.json"
+  ],
+  "claim_audit_rules": {
+    "allowed_with_review": [
+      "Existing results can be reviewed for provenance, missing metadata, and overclaim risk."
+    ],
+    "soften": [
+      "Convert PCA or ADMIXTURE assertions into cautious statements about exploratory structure patterns."
+    ],
+    "block": [
+      "clinical diagnosis",
+      "treatment recommendation",
+      "consumer ancestry claims",
+      "caste/community/religion inference",
+      "genetic purity/superiority claims",
+      "literal ancestry interpretation from ADMIXTURE components",
+      "PCA cluster identity claims",
+      "unsupported selection claims",
+      "unsupported endogamy claims"
+    ]
+  },
+  "blocked_interpretations": [
+    "clinical diagnosis",
+    "treatment recommendation",
+    "consumer ancestry claims",
+    "caste/community/religion inference",
+    "genetic purity/superiority claims",
+    "literal ancestry interpretation from ADMIXTURE components",
+    "PCA cluster identity claims",
+    "unsupported selection claims",
+    "unsupported endogamy claims"
+  ],
+  "scientific_validity_notes": [
+    "Existing results are not biological proof without provenance, metadata, sample-size context, and human expert review.",
+    "external_llm_called=false by default; external_tools_executed=false; raw genomic files are inventory-only."
+  ],
+  "human_review_checklist": [
+    "Human expert review required: confirm input provenance and whether metadata supports the audit.",
+    "Check that PCA clusters are not treated as identity labels.",
+    "Check that ADMIXTURE components are not treated as literal ancestry.",
+    "Confirm clinical diagnosis, treatment recommendation, consumer ancestry, caste/community/religion, genetic purity/superiority, unsupported selection, and unsupported endogamy claims are blocked."
+  ],
+  "provenance_sources": [
+    {
+      "title": "InSilicoPop safety policy",
+      "source_type": "internal_policy",
+      "note": "Blocks unsafe population-genetics overinterpretation."
+    },
+    {
+      "title": "ADMIXTURE documentation",
+      "source_type": "method_documentation",
+      "note": "Supports cautious treatment of Q matrices and CV outputs as model summaries, not literal ancestry."
+    },
+    {
+      "title": "BioAgent Bench failure-mode benchmark",
+      "source_type": "prior_art",
+      "url": "https://arxiv.org/abs/2601.21800",
+      "note": "Motivates result artifact and claim-validity checks."
+    }
+  ],
+  "tests_required": [
+    "catalog loading",
+    "result-only recipe load",
+    "blocked PCA/ADMIXTURE overinterpretation",
+    "no execution authorization",
+    "human review checklist presence"
+  ]
+}

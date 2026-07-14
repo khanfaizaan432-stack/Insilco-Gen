@@ -1,0 +1,90 @@
+# Frozen release archives and packaged artifacts
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.rar
+
+# Python bytecode, test output, and tool caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+.tox/
+.nox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+virtualenv/
+
+# Generated runs, reports, and reproducibility bundles
+backend/app/generated/
+generated/
+run_outputs/
+reproducibility_bundles/
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Environment files, credentials, tokens, and private keys
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Logs, temporary files, and editor/OS artifacts
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Raw genomic and sequencing data
+*.vcf
+*.vcf.gz
+*.bcf
+*.bam
+*.bai
+*.cram
+*.crai
+*.sam
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+
+# Local Codex/agent/project metadata and non-release planning material
+.agents/
+.codex/
+.serena/
+/AGENTS.md
+/InSilicoPop Development Plan.pdf
+/README_BOOTSTRAP.md
+/v026_clinical_intake_prompt.md

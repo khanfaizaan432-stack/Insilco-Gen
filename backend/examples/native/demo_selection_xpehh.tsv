@@ -1,0 +1,4 @@
+# synthetic XP-EHH-like selection scan example
+chrom	start	end	gene	xpehh	q_value
+1	10000	20000	LCT	3.1	0.03
+3	50000	60000	GENE3	-2.4	0.20

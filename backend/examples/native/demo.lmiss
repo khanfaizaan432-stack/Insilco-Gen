@@ -1,0 +1,4 @@
+# synthetic PLINK .lmiss example
+CHR SNP N_MISS N_GENO F_MISS
+1 rs1 4 100 0.040
+1 rs2 8 100 0.080

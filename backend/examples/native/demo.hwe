@@ -1,0 +1,4 @@
+# synthetic PLINK .hwe example
+CHR SNP TEST A1 A2 GENO O_HET E_HET P
+1 rs1 ALL A G 10/80/10 0.20 0.21 0.60
+1 rs2 ALL C T 2/90/8 0.10 0.35 0.00001

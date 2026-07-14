@@ -1,0 +1,31 @@
+{
+  "version": "0.18.0",
+  "description": "Dry-run-only deterministic population-genetics recipe catalog. Not wired into runtime in v0.18.",
+  "recipes": [
+    {
+      "recipe_id": "insufficient_inputs_basic",
+      "workflow_family": "insufficient_inputs",
+      "path": "specs/insufficient_inputs_basic.json"
+    },
+    {
+      "recipe_id": "results_only_audit_basic",
+      "workflow_family": "results_only_audit",
+      "path": "specs/results_only_audit_basic.json"
+    },
+    {
+      "recipe_id": "vcf_population_structure_basic",
+      "workflow_family": "vcf_population_structure",
+      "path": "specs/vcf_population_structure_basic.json"
+    },
+    {
+      "recipe_id": "hard_called_snp_pca_basic",
+      "workflow_family": "hard_called_snp",
+      "path": "specs/hard_called_snp_pca_basic.json"
+    },
+    {
+      "recipe_id": "genotype_likelihood_low_depth_basic",
+      "workflow_family": "genotype_likelihood_low_depth",
+      "path": "specs/genotype_likelihood_low_depth_basic.json"
+    }
+  ]
+}

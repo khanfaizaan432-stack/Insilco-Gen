@@ -1,0 +1,154 @@
+{
+  "recipe_id": "genotype_likelihood_low_depth_basic",
+  "version": "0.1.0",
+  "workflow_family": "genotype_likelihood_low_depth",
+  "status": "dry_run_only",
+  "maturity_tier": "dry_run_template",
+  "intent_triggers": [
+    "low-depth sequencing population structure",
+    "ancient DNA genotype likelihood workflow",
+    "ANGSD PCAngsd NGSadmix planning",
+    "BAM CRAM population genetics"
+  ],
+  "declared_input_requirements": {
+    "accepted_low_depth_inputs": [
+      "BAM/CRAM path/name inventory",
+      "genotype likelihood file path/name inventory",
+      "Beagle-like likelihood file path/name inventory"
+    ],
+    "recommended": [
+      "depth and missingness context",
+      "sequencing platform/library notes",
+      "sample metadata",
+      "contamination/damage notes where relevant"
+    ],
+    "raw_genomic_files": "inventory-only; BAM/CRAM and likelihood contents are not parsed"
+  },
+  "missing_input_rules": [
+    "If depth context is absent, warn against hard-call assumptions.",
+    "If metadata is absent, block group-level interpretation.",
+    "If only hard-called SNP data is declared, do not select this recipe unless the query indicates low-depth or genotype likelihood context."
+  ],
+  "preflight_checks": [
+    "Confirm external_llm_called=false by default.",
+    "Confirm external_tools_executed=false.",
+    "Confirm raw genomic files remain inventory-only.",
+    "Require human expert review before interpreting genotype-likelihood population-structure outputs."
+  ],
+  "dry_run_steps": [
+    {
+      "step_id": "inventory_low_depth_inputs",
+      "title": "Inventory low-depth inputs",
+      "description": "Record declared BAM/CRAM, genotype likelihood, or Beagle-like likelihood path/name inventory without parsing raw contents.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "warn_against_hard_calls",
+      "title": "Warn against default hard-call assumptions",
+      "description": "Flag low-depth and ancient-DNA contexts where hard-called SNP PCA can be misleading.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "preview_likelihood_methods",
+      "title": "Preview genotype-likelihood-aware method path",
+      "description": "Render non-executed ANGSD/PCAngsd/NGSadmix-style planning notes, depth/missingness caveats, and reproducibility requirements.",
+      "dry_run_only": true
+    }
+  ],
+  "command_preview_templates": [
+    {
+      "template_id": "angsd_preview",
+      "description": "Dry-run preview for genotype-likelihood estimation.",
+      "preview": "angsd -bam {bam_list_inventory_name} -GL 2 -doGlf 2 -out {dry_run_prefix} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    },
+    {
+      "template_id": "pcangsd_ngsadmix_preview",
+      "description": "Dry-run preview for PCAngsd/NGSadmix-style analysis.",
+      "preview": "pcangsd -b {beagle_inventory_name} -o {dry_run_prefix}; NGSadmix -likes {beagle_inventory_name} -K {k} -o {dry_run_prefix} # DRY-RUN ONLY: preview, do not execute.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    }
+  ],
+  "expected_outputs": [
+    "input_inventory.json",
+    "low_depth_caveats.md",
+    "command_previews.yaml",
+    "researcher_report.md"
+  ],
+  "reproducibility_artifacts": [
+    "recipe_selection.json",
+    "recipe_snapshot.json",
+    "command_previews.yaml",
+    "runtime_lock.json",
+    "checksums.sha256 for generated artifacts only"
+  ],
+  "claim_audit_rules": {
+    "allowed_with_review": [
+      "Low-depth inputs should be planned with genotype-likelihood-aware methods and reviewed by a human expert."
+    ],
+    "soften": [
+      "Convert hard-call or cluster identity claims into low-depth caveats requiring likelihood-aware analysis."
+    ],
+    "block": [
+      "clinical diagnosis",
+      "treatment recommendation",
+      "consumer ancestry claims",
+      "caste/community/religion inference",
+      "genetic purity/superiority claims",
+      "literal ancestry interpretation from ADMIXTURE components",
+      "PCA cluster identity claims",
+      "unsupported selection claims",
+      "unsupported endogamy claims"
+    ]
+  },
+  "blocked_interpretations": [
+    "clinical diagnosis",
+    "treatment recommendation",
+    "consumer ancestry claims",
+    "caste/community/religion inference",
+    "genetic purity/superiority claims",
+    "literal ancestry interpretation from ADMIXTURE components",
+    "PCA cluster identity claims",
+    "unsupported selection claims",
+    "unsupported endogamy claims"
+  ],
+  "scientific_validity_notes": [
+    "Dry-run command previews do not imply that ANGSD, PCAngsd, NGSadmix, PLINK, ADMIXTURE, smartpca, vcftools, or any external genomics tool was executed.",
+    "external_llm_called=false by default; external_tools_executed=false; raw genomic files are inventory-only.",
+    "Low-depth population-structure interpretation requires depth, missingness, damage/contamination context where relevant, metadata, and human expert review."
+  ],
+  "human_review_checklist": [
+    "Human expert review required: confirm low-depth assumptions, depth/missingness context, likelihood method choice, and metadata.",
+    "Confirm PCA clusters are not identity labels and ADMIXTURE/NGSadmix components are not literal ancestry.",
+    "Confirm clinical diagnosis, treatment recommendation, consumer ancestry, caste/community/religion, genetic purity/superiority, unsupported selection, and unsupported endogamy claims are blocked."
+  ],
+  "provenance_sources": [
+    {
+      "title": "ANGSD/PCAngsd/NGSadmix method conventions",
+      "source_type": "method_convention",
+      "note": "Supports genotype-likelihood-aware planning for low-depth sequencing contexts."
+    },
+    {
+      "title": "InSilicoPop safety policy",
+      "source_type": "internal_policy",
+      "note": "Preserves dry-run-only, inventory-only, no-execution constraints."
+    },
+    {
+      "title": "BioAgent Bench failure-mode benchmark",
+      "source_type": "prior_art",
+      "url": "https://arxiv.org/abs/2601.21800",
+      "note": "Motivates robustness checks for misleading input assumptions."
+    }
+  ],
+  "tests_required": [
+    "catalog loading",
+    "workflow family compatibility",
+    "low-depth caveat check",
+    "dry-run command preview check",
+    "no ANGSD execution",
+    "no BAM/CRAM parsing",
+    "human review checklist presence"
+  ]
+}

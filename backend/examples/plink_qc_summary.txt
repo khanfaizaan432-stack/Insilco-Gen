@@ -1,0 +1,3 @@
+ld_pruning: not documented
+missingness_rate: 0.02
+relatedness_removed: false

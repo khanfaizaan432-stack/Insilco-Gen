@@ -1,0 +1,16 @@
+{
+  "registry_version": "insilicopop-hpo-mini-2026-07-v1",
+  "source": "Human Phenotype Ontology identifiers and labels; bounded local InSilicoPop test registry",
+  "terms": [
+    {"hpo_id": "HP:0000252", "canonical_label": "Microcephaly", "synonyms": ["Small head circumference"]},
+    {"hpo_id": "HP:0000365", "canonical_label": "Hearing impairment", "synonyms": ["Hearing loss"]},
+    {"hpo_id": "HP:0000717", "canonical_label": "Autism", "synonyms": ["Autistic features"]},
+    {"hpo_id": "HP:0001249", "canonical_label": "Intellectual disability", "synonyms": ["Cognitive impairment"]},
+    {"hpo_id": "HP:0001250", "canonical_label": "Seizure", "synonyms": ["Seizures", "Convulsion"]},
+    {"hpo_id": "HP:0001252", "canonical_label": "Hypotonia", "synonyms": ["Low muscle tone"]},
+    {"hpo_id": "HP:0001262", "canonical_label": "Developmental delay", "synonyms": ["Delayed development"]},
+    {"hpo_id": "HP:0001263", "canonical_label": "Global developmental delay", "synonyms": ["GDD"]},
+    {"hpo_id": "HP:0002015", "canonical_label": "Dysphagia", "synonyms": ["Difficulty swallowing"]},
+    {"hpo_id": "HP:0004322", "canonical_label": "Short stature", "synonyms": ["Reduced height"]}
+  ]
+}

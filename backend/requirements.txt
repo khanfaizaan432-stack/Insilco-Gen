@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+biopython
+pandas
+pydantic
+pytest
+pyyaml
+python-multipart

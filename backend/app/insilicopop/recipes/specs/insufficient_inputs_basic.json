@@ -1,0 +1,124 @@
+{
+  "recipe_id": "insufficient_inputs_basic",
+  "version": "0.1.0",
+  "workflow_family": "insufficient_inputs",
+  "status": "dry_run_only",
+  "maturity_tier": "dry_run_template",
+  "intent_triggers": [
+    "population genetics goal without usable input files",
+    "ambiguous request for PCA, ADMIXTURE, FST, ROH, or selection without declared inputs"
+  ],
+  "declared_input_requirements": {
+    "required_any": [
+      "VCF path/name inventory plus metadata",
+      "PLINK BED/BIM/FAM, PED/MAP, or PGEN/PVAR/PSAM path/name inventory plus metadata",
+      "BAM/CRAM or genotype-likelihood path/name inventory plus sequencing context",
+      "existing PCA, ADMIXTURE, PLINK summary, FST, ROH, or selection result files"
+    ],
+    "raw_genomic_files": "inventory-only; raw genomic contents are not parsed"
+  },
+  "missing_input_rules": [
+    "If no usable input signal is declared, return missing input notes and recommended next inputs only.",
+    "If only a broad goal is present, ask for inventory-only file paths/names before workflow planning.",
+    "Do not generate executable commands; command previews are dry-run only explanatory placeholders."
+  ],
+  "preflight_checks": [
+    "Confirm external_llm_called=false by default.",
+    "Confirm external_tools_executed=false.",
+    "Confirm raw genomic files remain inventory-only.",
+    "Require human expert review before any scientific decision."
+  ],
+  "dry_run_steps": [
+    {
+      "step_id": "collect_inventory",
+      "title": "Collect declared input inventory",
+      "description": "List missing VCF, PLINK, BAM/CRAM, genotype-likelihood, metadata, or existing-result inputs without parsing raw genomic contents.",
+      "dry_run_only": true
+    },
+    {
+      "step_id": "explain_block",
+      "title": "Explain blocked planning",
+      "description": "Block population-genetics workflow claims until at least one usable input signal is declared.",
+      "dry_run_only": true
+    }
+  ],
+  "command_preview_templates": [
+    {
+      "template_id": "no_command_until_inputs",
+      "description": "Dry-run only placeholder explaining that no command is appropriate before inputs are declared.",
+      "preview": "# DRY-RUN ONLY: no genomics command preview is generated until concrete input inventory is provided.",
+      "dry_run_only": true,
+      "external_tools_executed": false
+    }
+  ],
+  "expected_outputs": [
+    "missing_input_notes.md",
+    "recommended_input_inventory.md",
+    "safety_block_summary.md"
+  ],
+  "reproducibility_artifacts": [
+    "recipe_selection.json",
+    "recipe_snapshot.json",
+    "command_previews.yaml",
+    "claim_audit.json"
+  ],
+  "claim_audit_rules": {
+    "allowed_with_review": [
+      "The declared inputs are insufficient for population-genetics workflow planning."
+    ],
+    "soften": [
+      "Convert confident scientific interpretations into requests for missing inputs."
+    ],
+    "block": [
+      "clinical diagnosis",
+      "treatment recommendation",
+      "consumer ancestry claims",
+      "caste/community/religion inference",
+      "genetic purity/superiority claims",
+      "literal ancestry interpretation from ADMIXTURE components",
+      "PCA cluster identity claims",
+      "unsupported selection claims",
+      "unsupported endogamy claims"
+    ]
+  },
+  "blocked_interpretations": [
+    "clinical diagnosis",
+    "treatment recommendation",
+    "consumer ancestry claims",
+    "caste/community/religion inference",
+    "genetic purity/superiority claims",
+    "literal ancestry interpretation from ADMIXTURE components",
+    "PCA cluster identity claims",
+    "unsupported selection claims",
+    "unsupported endogamy claims"
+  ],
+  "scientific_validity_notes": [
+    "No population-genetics conclusion is valid without declared inputs and human expert review.",
+    "external_llm_called=false by default; external_tools_executed=false; raw genomic files are inventory-only."
+  ],
+  "human_review_checklist": [
+    "Human expert review required: confirm that the research goal is appropriate and non-clinical.",
+    "Confirm that no clinical diagnosis or treatment recommendation is requested.",
+    "Confirm that any caste/community/religion, consumer ancestry, genetic purity/superiority, PCA cluster identity, ADMIXTURE ancestry, unsupported selection, or unsupported endogamy claim is blocked."
+  ],
+  "provenance_sources": [
+    {
+      "title": "InSilicoPop safety policy",
+      "source_type": "internal_policy",
+      "note": "Core dry-run, inventory-only, no clinical/consumer identity inference constraints."
+    },
+    {
+      "title": "BioAgent Bench failure-mode benchmark",
+      "source_type": "prior_art",
+      "url": "https://arxiv.org/abs/2601.21800",
+      "note": "Motivates missing-input and perturbation-aware tests for agentic bioinformatics."
+    }
+  ],
+  "tests_required": [
+    "catalog loading",
+    "missing-input safety block",
+    "no execution authorization",
+    "no raw genomic parsing",
+    "human review checklist presence"
+  ]
+}

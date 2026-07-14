@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://insilicopop.local/schemas/recipe_schema_draft.json",
+  "title": "InSilicoPop Recipe Draft",
+  "description": "Draft schema for dry-run-only deterministic workflow recipes. Not wired into runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "recipe_id",
+    "version",
+    "workflow_family",
+    "status",
+    "maturity_tier",
+    "intent_triggers",
+    "declared_input_requirements",
+    "missing_input_rules",
+    "preflight_checks",
+    "dry_run_steps",
+    "command_preview_templates",
+    "expected_outputs",
+    "reproducibility_artifacts",
+    "claim_audit_rules",
+    "blocked_interpretations",
+    "scientific_validity_notes",
+    "human_review_checklist",
+    "provenance_sources",
+    "tests_required"
+  ],
+  "properties": {
+    "recipe_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_\\-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "workflow_family": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "dry_run_only", "guardrail_tested"]
+    },
+    "maturity_tier": {
+      "type": "string",
+      "enum": [
+        "spec_only",
+        "dry_run_template",
+        "guardrail_tested",
+        "demo_tested",
+        "execution_ready_later"
+      ]
+    },
+    "intent_triggers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "declared_input_requirements": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "missing_input_rules": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "preflight_checks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dry_run_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "title", "dry_run_only"],
+        "properties": {
+          "step_id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "dry_run_only": { "const": true }
+        }
+      }
+    },
+    "command_preview_templates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["template_id", "preview", "dry_run_only"],
+        "properties": {
+          "template_id": { "type": "string" },
+          "preview": { "type": "string" },
+          "dry_run_only": { "const": true }
+        }
+      }
+    },
+    "expected_outputs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "reproducibility_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "claim_audit_rules": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "blocked_interpretations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "scientific_validity_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "human_review_checklist": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provenance_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "url"],
+        "properties": {
+          "title": { "type": "string" },
+          "url": { "type": "string" },
+          "license_note": { "type": "string" }
+        }
+      }
+    },
+    "tests_required": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

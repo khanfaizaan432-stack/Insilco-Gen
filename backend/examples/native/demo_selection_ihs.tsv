@@ -1,0 +1,4 @@
+# synthetic iHS-like selection scan example
+chr	position	gene	ihs	p_value
+1	12345	LCT	2.8	0.001
+2	22345	GENE2	-1.2	0.20

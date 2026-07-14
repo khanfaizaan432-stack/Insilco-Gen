@@ -1,0 +1,3 @@
+region,statistic,score,multiple_testing_corrected
+chr2:1000-2000,iHS,4.2,false
+chr6:3000-4200,XP-EHH,3.8,false

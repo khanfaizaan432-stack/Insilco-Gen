@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InSilicoPop Local Workbench</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --line: #d9dee7;
+      --text: #18202a;
+      --muted: #5a6675;
+      --accent: #126c5a;
+      --danger: #9a3412;
+      --soft: #edf7f4;
+      --warn: #fff7ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+    }
+    header {
+      padding: 20px 24px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+    }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px 20px 40px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    h3 { margin: 16px 0 8px; font-size: 15px; }
+    p { margin: 0 0 10px; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--soft);
+      color: var(--accent);
+      font-weight: 700;
+      padding: 5px 8px;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .badge.warn {
+      background: var(--warn);
+      color: var(--danger);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-weight: 700;
+      margin: 10px 0 4px;
+      font-size: 13px;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 9px 10px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    button {
+      border: 1px solid #0e5d4d;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--accent);
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 6px 0 12px;
+    }
+    .status {
+      border-left: 4px solid var(--accent);
+      background: var(--soft);
+      padding: 9px 10px;
+      margin-top: 12px;
+      min-height: 40px;
+    }
+    .status.error {
+      border-left-color: var(--danger);
+      background: var(--warn);
+    }
+    .panel-error {
+      border-left: 4px solid var(--danger);
+      background: var(--warn);
+      padding: 9px 10px;
+      color: var(--danger);
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px;
+      background: #fbfcfe;
+    }
+    .metric strong {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+    .metric.safe {
+      background: var(--soft);
+      border-color: #a9d8cd;
+    }
+    .human-review {
+      border-left: 4px solid var(--danger);
+      background: var(--warn);
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #101820;
+      color: #f4f7fb;
+      border-radius: 4px;
+      padding: 12px;
+      max-height: 360px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .list {
+      border-top: 1px solid var(--line);
+      margin-top: 8px;
+    }
+    .list-item {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 0;
+    }
+    .muted { color: var(--muted); }
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+    .artifact-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .artifact-buttons button {
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 7px 6px;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 700; }
+    @media (max-width: 860px) {
+      .grid, .two-col, .form-grid { grid-template-columns: 1fr; }
+      main { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>InSilicoPop Local Workbench</h1>
+    <p>Local-only population genetics workflow planning and audit shell.</p>
+    <p><strong>InSilicoPop is a research workflow assistant. It does not diagnose, recommend treatment, infer caste/community/religion, or make consumer ancestry claims. All outputs require human expert review.</strong></p>
+    <div class="badge-row">
+      <span class="badge warn">DRY-RUN ONLY — external genomics tools are not executed.</span>
+      <span class="badge">Mock LLM provider by default</span>
+      <span class="badge">Research use only</span>
+      <span class="badge">Human review required</span>
+      <span class="badge">No genomics tools executed</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <div>
+        <section aria-labelledby="goal-heading">
+          <h2 id="goal-heading">1. Research Goal Form</h2>
+          <form id="run-form">
+            <label for="query">Research goal / query</label>
+            <textarea id="query" name="query">Plan a PCA and ADMIXTURE population structure workflow from a VCF.</textarea>
+            <p class="note">Uses <code>query</code> for the existing backend API. Provider is fixed to <code>mock</code> for this local UI skeleton.</p>
+
+            <label for="data_use_agreement_scope">Data governance declaration JSON</label>
+            <textarea id="data_use_agreement_scope" name="data_use_agreement_scope" placeholder='{"dataset_source":"public_reference","managed_access":false,"approved_use_summary":"research workflow planning only","consent_type":"unknown","ethics_approval_declared":false,"data_access_credential_model":"not_applicable"}'></textarea>
+            <p class="note">Optional declared scope only. InSilicoPop records caveats and blocks unsafe governance requests, but does not verify legal compliance or replace institutional review.</p>
+
+            <label for="metadata_registry">Metadata registry declaration JSON</label>
+            <textarea id="metadata_registry" name="metadata_registry" placeholder='{"project_metadata":{"data_access_level":"unknown"},"sample_metadata":{"sample_count_declared":false},"sequencing_metadata":{"genome_build_declared":false},"clinical_metadata":{"hpo_terms_declared":false},"population_genetics_metadata":{"qc_steps_declared":false}}'></textarea>
+            <p class="note">Optional metadata declaration only. The audit records missing fields and caveats for population genetics or clinical genetics research curation; it does not make biological or clinical decisions.</p>
+
+            <label for="clinical_case_intake">Structured clinical case intake JSON</label>
+            <textarea id="clinical_case_intake" name="clinical_case_intake" placeholder='{"schema_version":"0.27","pseudonymous_case_id":"CASE-001","intended_use":"clinical_genetics_research_curation","redaction_declared":true,"reviewer_status":"pending","human_review_required":true,"pedigree_inheritance_audit":{"schema_version":"0.29","proband_member_id":"MEM-P","relationships":[],"variant_observations":[],"audit_targets":[],"phase_declarations":[],"human_review_required":true}}'></textarea>
+            <p class="note">Optional structured, redacted research-curation intake. Supplying this declaration explicitly selects the clinical intake lane. No diagnosis, classification, treatment recommendation, or external data transmission is performed.</p>
+
+            <h3>2. Input Inventory Form</h3>
+            <p class="note">These are inventoried as declared inputs. The local demo does not upload, parse, or checksum raw genomic files. The UI sends tiny placeholder multipart parts named after these paths so the backend can inventory filenames. Commands are previews only.</p>
+            <div class="form-grid">
+              <div>
+                <label for="metadata_file">Metadata/sample sheet path/name</label>
+                <input id="metadata_file" data-api-field="metadata_file" placeholder="metadata.csv">
+              </div>
+              <div>
+                <label for="vcf_file">VCF path/name</label>
+                <input id="vcf_file" data-api-field="vcf_file" placeholder="cohort.vcf.gz">
+              </div>
+              <div>
+                <label for="plink_bed_file">PLINK BED path/name</label>
+                <input id="plink_bed_file" data-api-field="plink_bed_file" placeholder="cohort.bed">
+              </div>
+              <div>
+                <label for="plink_bim_file">PLINK BIM path/name</label>
+                <input id="plink_bim_file" data-api-field="plink_bim_file" placeholder="cohort.bim">
+              </div>
+              <div>
+                <label for="plink_fam_file">PLINK FAM path/name</label>
+                <input id="plink_fam_file" data-api-field="plink_fam_file" placeholder="cohort.fam">
+              </div>
+              <div>
+                <label for="ped_file">PED path/name</label>
+                <input id="ped_file" data-api-field="ped_file" placeholder="cohort.ped">
+              </div>
+              <div>
+                <label for="map_file">MAP path/name</label>
+                <input id="map_file" data-api-field="map_file" placeholder="cohort.map">
+              </div>
+              <div>
+                <label for="pgen_file">PGEN path/name</label>
+                <input id="pgen_file" data-api-field="pgen_file" placeholder="cohort.pgen">
+              </div>
+              <div>
+                <label for="pvar_file">PVAR path/name</label>
+                <input id="pvar_file" data-api-field="pvar_file" placeholder="cohort.pvar">
+              </div>
+              <div>
+                <label for="psam_file">PSAM path/name</label>
+                <input id="psam_file" data-api-field="psam_file" placeholder="cohort.psam">
+              </div>
+              <div>
+                <label for="bam_file">BAM path/name</label>
+                <input id="bam_file" data-api-field="bam_file" placeholder="sample.bam">
+              </div>
+              <div>
+                <label for="cram_file">CRAM path/name</label>
+                <input id="cram_file" data-api-field="cram_file" placeholder="sample.cram">
+              </div>
+              <div>
+                <label for="pca_file">Existing PCA result file path/name</label>
+                <input id="pca_file" data-api-field="pca_file" placeholder="demo.evec or pca_results.csv">
+              </div>
+              <div>
+                <label for="admixture_file">Existing ADMIXTURE result file path/name</label>
+                <input id="admixture_file" data-api-field="admixture_file" placeholder="demo.2.Q">
+              </div>
+              <div>
+                <label for="fst_file">Existing FST result file path/name</label>
+                <input id="fst_file" data-api-field="fst_file" placeholder="fst_matrix.csv">
+              </div>
+              <div>
+                <label for="roh_file">Existing ROH result file path/name</label>
+                <input id="roh_file" data-api-field="roh_file" placeholder="roh_summary.csv">
+              </div>
+              <div>
+                <label for="plink_qc_file">PLINK QC summary file path/name</label>
+                <input id="plink_qc_file" data-api-field="plink_qc_file" placeholder="plink_qc_summary.txt">
+              </div>
+              <div>
+                <label for="selection_file">Selection scan result file path/name</label>
+                <input id="selection_file" data-api-field="selection_file" placeholder="selection_scan_results.csv">
+              </div>
+            </div>
+            <div class="badge-row">
+              <button type="submit" id="run-button">Start Mock Agent Run</button>
+              <button type="button" class="secondary" id="refresh-runs">Refresh Run History</button>
+            </div>
+            <div id="status" class="status">Ready. This UI is local-only and dry-run only.</div>
+          </form>
+        </section>
+
+        <section aria-labelledby="history-heading">
+          <h2 id="history-heading">9. Run History List</h2>
+          <div id="run-history" class="muted">Run history has not been loaded yet.</div>
+        </section>
+
+        <section class="human-review" aria-labelledby="human-review-heading">
+          <h2 id="human-review-heading">Human Review Required</h2>
+          <p>The system proposes workflow steps and audits outputs, but a qualified researcher must approve interpretations and decide whether any commands should ever be executed outside the dry-run demo.</p>
+        </section>
+      </div>
+
+      <div>
+        <section aria-labelledby="summary-heading">
+          <h2 id="summary-heading">3. Run Result Summary</h2>
+          <div id="run-summary" class="muted">Submit a run or select a run from history.</div>
+        </section>
+
+        <section aria-labelledby="workflow-heading">
+          <h2 id="workflow-heading">4. Workflow Selection Panel</h2>
+          <pre id="workflow-selection">No workflow selection loaded.</pre>
+        </section>
+
+        <section aria-labelledby="recipe-heading">
+          <h2 id="recipe-heading">Recipe Preview</h2>
+          <div class="badge-row">
+            <span class="badge warn">Dry-run recipe preview only</span>
+            <span class="badge">Human review required</span>
+          </div>
+          <div id="recipe-preview" class="muted">No selected recipe loaded.</div>
+        </section>
+
+        <section aria-labelledby="actions-heading">
+          <h2 id="actions-heading">5. Planned Actions / Dry-Run Command Preview Panel</h2>
+          <div class="two-col">
+            <div>
+              <h3>Planned actions</h3>
+              <div id="planned-actions" class="muted">No planned actions loaded.</div>
+            </div>
+            <div>
+              <h3>Dry-run command previews</h3>
+              <p class="note">Recipe-aware previews are commented, non-executing, and tied to the selected deterministic recipe when available.</p>
+              <pre id="command-previews">No command previews loaded.</pre>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="blocked-heading">
+          <h2 id="blocked-heading">6. Blocked Actions / Safety Notes Panel</h2>
+          <div id="blocked-actions" class="muted">No blocked actions loaded.</div>
+          <h3>Recipe-aware claim audit</h3>
+          <div id="claim-audit" class="muted">No claim audit loaded.</div>
+          <h3>Data governance audit</h3>
+          <div id="data-governance-audit" class="muted">No data governance audit loaded.</div>
+          <h3>Metadata registry audit</h3>
+          <div id="metadata-registry-audit" class="muted">No metadata registry audit loaded.</div>
+          <h3>Evidence retrieval preview</h3>
+          <div id="evidence-retrieval" class="muted">No evidence retrieval preview loaded.</div>
+          <h3>Controlled orchestration preview</h3>
+          <div id="orchestration-trace" class="muted">No controlled orchestration trace loaded.</div>
+          <h3>Clinical case intake preview</h3>
+          <div id="clinical-case-intake" class="muted">No structured clinical intake loaded.</div>
+          <h3>Phenotype and HPO curation preview</h3>
+          <div id="phenotype-hpo-curation" class="muted">No phenotype/HPO curation loaded.</div>
+          <h3>Pedigree and Inheritance Audit Preview</h3>
+          <div id="pedigree-inheritance-audit" class="muted">No pedigree/inheritance audit loaded.</div>
+          <h3>Results-only audit preview</h3>
+          <div id="results-audit" class="muted">No results-only audit loaded.</div>
+        </section>
+
+        <section aria-labelledby="report-heading">
+          <h2 id="report-heading">7. Final Report Viewer</h2>
+          <pre id="final-report">No final report loaded.</pre>
+        </section>
+
+        <section aria-labelledby="repro-heading">
+          <h2 id="repro-heading">8. Reproducibility Bundle Viewer/List</h2>
+          <div id="reproducibility" class="muted">No reproducibility bundle loaded.</div>
+          <h3>Generated artifact browser</h3>
+          <div id="artifacts" class="artifact-buttons">No artifacts loaded.</div>
+          <pre id="artifact-content">Select an artifact to inspect allowlisted generated content.</pre>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const form = document.getElementById("run-form");
+    const runButton = document.getElementById("run-button");
+    const refreshRunsButton = document.getElementById("refresh-runs");
+    const statusBox = document.getElementById("status");
+
+    const apiFields = Array.from(document.querySelectorAll("[data-api-field]"));
+
+    function setStatus(message, isError = false) {
+      statusBox.textContent = message;
+      statusBox.classList.toggle("error", isError);
+    }
+
+    function panelError(targetId, message) {
+      const target = document.getElementById(targetId);
+      target.className = "panel-error";
+      target.textContent = message;
+    }
+
+    function panelText(targetId, message, className = "muted") {
+      const target = document.getElementById(targetId);
+      target.className = className;
+      target.textContent = message;
+    }
+
+    function notAvailable(value) {
+      return value === undefined || value === null || value === "" ? "not available" : String(value);
+    }
+
+    function friendlyError(error, fallback) {
+      const message = error && error.message ? String(error.message) : "";
+      return message && message.length < 220 ? message : fallback;
+    }
+
+    function basename(value) {
+      const trimmed = value.trim();
+      const parts = trimmed.split(/[\\/]+/).filter(Boolean);
+      return parts[parts.length - 1] || trimmed;
+    }
+
+    function appendInventoryFiles(formData) {
+      for (const input of apiFields) {
+        const value = input.value.trim();
+        if (!value) continue;
+        const filename = basename(value);
+        const placeholder = "InSilicoPop v0.16 inventory placeholder only. Raw genomic contents are not parsed by this UI.\n";
+        formData.append(input.dataset.apiField, new File([placeholder], filename, { type: "text/plain" }));
+      }
+    }
+
+    function asJson(value) {
+      return JSON.stringify(value ?? null, null, 2);
+    }
+
+    function appendGovernanceScope(formData) {
+      appendJsonObjectField(formData, "data_use_agreement_scope", "Data governance declaration");
+    }
+
+    function appendMetadataRegistry(formData) {
+      appendJsonObjectField(formData, "metadata_registry", "Metadata registry declaration");
+    }
+
+    function appendClinicalCaseIntake(formData) {
+      appendJsonObjectField(formData, "clinical_case_intake", "Clinical case intake");
+    }
+
+    function appendJsonObjectField(formData, fieldId, label) {
+      const field = document.getElementById(fieldId);
+      const raw = field.value.trim();
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error(`${label} must be a JSON object.`);
+        }
+        formData.append(fieldId, JSON.stringify(parsed));
+      } catch (error) {
+        throw new Error(`${label} must be valid JSON object text.`);
+      }
+    }
+
+    function renderActionList(targetId, actions) {
+      const target = document.getElementById(targetId);
+      if (!actions || actions.length === 0) {
+        target.textContent = "None recorded.";
+        target.className = "muted";
+        return;
+      }
+      target.className = "list";
+      target.innerHTML = actions.map((action) => {
+        const reason = action.blocked_reason ? `<div class="muted">Reason: ${escapeHtml(action.blocked_reason)}</div>` : "";
+        return `<div class="list-item"><strong>${escapeHtml(action.action_id || "")}: ${escapeHtml(action.title || action.action_type || "action")}</strong><div>${escapeHtml(action.status || "planned")}</div>${reason}</div>`;
+      }).join("");
+    }
+
+    function renderRunSummary(data, detail) {
+      const summary = document.getElementById("run-summary");
+      const state = data.final_state || detail || {};
+      const workflow = data.workflow_selection || state.workflow_selection || {};
+      const recipe = data.selected_recipe || state.selected_recipe || detail?.selected_recipe || {};
+      const evidence = data.evidence_retrieval || state.evidence_retrieval || detail?.evidence_retrieval || {};
+      const orchestration = data.orchestration_trace || state.orchestration_trace || detail?.orchestration_trace || {};
+      const artifactCount = detail?.artifact_count ?? Object.keys(data.generated_files || {}).length || "not available";
+      const humanReview = "required";
+      summary.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>run_id</strong>${escapeHtml(notAvailable(data.run_id || detail?.run_id))}</div>
+          <div class="metric"><strong>workflow_family</strong>${escapeHtml(notAvailable(workflow.workflow_family || detail?.workflow_family))}</div>
+          <div class="metric"><strong>selected_recipe</strong>${escapeHtml(notAvailable(recipe.recipe_id || detail?.selected_recipe_id))}</div>
+          <div class="metric"><strong>recipe_status</strong>${escapeHtml(notAvailable(recipe.status || detail?.selected_recipe_status))}</div>
+          <div class="metric"><strong>recipe_maturity_tier</strong>${escapeHtml(notAvailable(recipe.maturity_tier || detail?.selected_recipe_maturity_tier))}</div>
+          <div class="metric"><strong>confidence</strong>${escapeHtml(notAvailable(workflow.confidence))}</div>
+          <div class="metric"><strong>current_step</strong>${escapeHtml(notAvailable(state.current_step || detail?.current_step))}</div>
+          <div class="metric"><strong>retrieval_mode</strong>${escapeHtml(notAvailable(evidence.retrieval_mode || detail?.evidence_retrieval_mode))}</div>
+          <div class="metric"><strong>retrieval_snippets</strong>${escapeHtml(notAvailable(evidence.snippets_returned ?? detail?.evidence_snippet_count))}</div>
+          <div class="metric"><strong>orchestration_backend</strong>${escapeHtml(notAvailable(orchestration.orchestration_backend || detail?.orchestration_backend))}</div>
+          <div class="metric"><strong>orchestration_nodes</strong>${escapeHtml(notAvailable((orchestration.graph_nodes_executed || []).length || detail?.orchestration_node_count))}</div>
+          <div class="metric safe"><strong>orchestration_fallback</strong>${String(orchestration.fallback_used ?? detail?.orchestration_fallback_used ?? true)}</div>
+          <div class="metric safe"><strong>external_llm_called</strong>${String(data.external_llm_called ?? detail?.external_llm_called ?? false)}</div>
+          <div class="metric safe"><strong>external_tools_executed</strong>${String(data.external_tools_executed ?? detail?.external_tools_executed ?? false)}</div>
+          <div class="metric"><strong>human_review_required</strong>${humanReview}</div>
+          <div class="metric"><strong>artifact_count</strong>${escapeHtml(artifactCount)}</div>
+        </div>
+      `;
+    }
+
+    function renderRecipePreview(recipe) {
+      const target = document.getElementById("recipe-preview");
+      if (!recipe || !recipe.recipe_id) {
+        target.className = "muted";
+        target.textContent = "No deterministic dry-run recipe preview selected.";
+        return;
+      }
+      target.className = "";
+      const sources = (recipe.provenance_sources || []).map((source) => {
+        const title = source.title || "source";
+        const type = source.source_type || "unknown";
+        return `<li>${escapeHtml(title)} <span class="muted">(${escapeHtml(type)})</span></li>`;
+      }).join("") || "<li>No provenance sources recorded.</li>";
+      const checklist = (recipe.human_review_checklist || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No human review checklist recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>selected recipe ID</strong>${escapeHtml(notAvailable(recipe.recipe_id))}</div>
+          <div class="metric"><strong>maturity tier</strong>${escapeHtml(notAvailable(recipe.maturity_tier))}</div>
+          <div class="metric"><strong>status</strong>${escapeHtml(notAvailable(recipe.status))}</div>
+          <div class="metric safe"><strong>dry_run_only</strong>${String(recipe.dry_run_only ?? true)}</div>
+        </div>
+        <h3>Provenance sources</h3>
+        <ul>${sources}</ul>
+        <h3>Human review checklist</h3>
+        <ul>${checklist}</ul>
+      `;
+    }
+
+    function renderCommandPreviews(previews, recipe) {
+      const target = document.getElementById("command-previews");
+      const list = Array.isArray(previews) ? previews : [];
+      const recipeId = recipe?.recipe_id || list.find((item) => item && item.selected_recipe_id)?.selected_recipe_id || "not available";
+      const recipeAwareCount = list.filter((item) => item && item.recipe_aware_preview).length;
+      target.textContent = [
+        `selected_recipe_id: ${recipeId}`,
+        `command_preview_count: ${list.length}`,
+        `recipe_aware_preview_count: ${recipeAwareCount}`,
+        "dry_run_only: true",
+        "external_tools_executed: false",
+        "raw_genomic_files_parsed: false",
+        "human_review_required: true",
+        "",
+        asJson(list),
+      ].join("\n");
+    }
+
+    function renderClaimAudit(claimAudit) {
+      const target = document.getElementById("claim-audit");
+      if (!claimAudit || typeof claimAudit !== "object" || Object.keys(claimAudit).length === 0) {
+        target.className = "muted";
+        target.textContent = "No recipe-aware claim audit loaded.";
+        return;
+      }
+      target.className = "";
+      const blocked = (claimAudit.blocked_interpretations || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No blocked categories recorded.</li>";
+      const caveats = (claimAudit.required_caveats || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No caveats recorded.</li>";
+      const flags = (claimAudit.human_review_flags || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No human review flags recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>selected recipe ID</strong>${escapeHtml(notAvailable(claimAudit.selected_recipe_id))}</div>
+          <div class="metric"><strong>workflow family</strong>${escapeHtml(notAvailable(claimAudit.workflow_family))}</div>
+          <div class="metric safe"><strong>dry_run_only</strong>${String(claimAudit.dry_run_only ?? true)}</div>
+          <div class="metric safe"><strong>human_review_required</strong>${String(claimAudit.human_review_required ?? true)}</div>
+        </div>
+        <h3>Blocked interpretation categories</h3>
+        <ul>${blocked}</ul>
+        <h3>Required caveats</h3>
+        <ul>${caveats}</ul>
+        <h3>Human review flags</h3>
+        <ul>${flags}</ul>
+      `;
+    }
+
+    function renderResultsAudit(resultsAudit) {
+      const target = document.getElementById("results-audit");
+      if (!resultsAudit || typeof resultsAudit !== "object" || Object.keys(resultsAudit).length === 0) {
+        target.className = "muted";
+        target.textContent = "No results-only audit loaded.";
+        return;
+      }
+      target.className = "";
+      const summary = resultsAudit.results_audit_summary || {};
+      const missing = (resultsAudit.missing_result_context || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No missing context recorded.</li>";
+      const flags = (resultsAudit.human_review_flags || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No human review flags recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>selected recipe ID</strong>${escapeHtml(notAvailable(resultsAudit.selected_recipe_id))}</div>
+          <div class="metric"><strong>declared artifacts</strong>${escapeHtml(notAvailable(summary.declared_result_artifact_count))}</div>
+          <div class="metric safe"><strong>dry_run_only</strong>${String(resultsAudit.dry_run_only ?? true)}</div>
+          <div class="metric safe"><strong>raw_file_read</strong>false</div>
+        </div>
+        <h3>Missing result context</h3>
+        <ul>${missing}</ul>
+        <h3>Human review flags</h3>
+        <ul>${flags}</ul>
+      `;
+    }
+
+    function renderDataGovernanceAudit(dataGovernanceAudit) {
+      const target = document.getElementById("data-governance-audit");
+      if (!dataGovernanceAudit || typeof dataGovernanceAudit !== "object" || Object.keys(dataGovernanceAudit).length === 0) {
+        target.className = "muted";
+        target.textContent = "No data governance audit loaded.";
+        return;
+      }
+      target.className = "";
+      const scope = dataGovernanceAudit.data_use_agreement_scope || {};
+      const blocked = (dataGovernanceAudit.blocked || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No governance policy blocks recorded.</li>";
+      const caveats = (dataGovernanceAudit.caveats || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No governance caveats recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>status</strong>${escapeHtml(notAvailable(dataGovernanceAudit.status))}</div>
+          <div class="metric"><strong>dataset source</strong>${escapeHtml(notAvailable(scope.dataset_source))}</div>
+          <div class="metric safe"><strong>human_review_required</strong>${String(dataGovernanceAudit.human_review_required ?? true)}</div>
+          <div class="metric safe"><strong>dataset_terms_verified</strong>false</div>
+        </div>
+        <p class="note">Checks declared research-use scope, consent/DUA compatibility, credential model, and governance caveats. It does not verify legal compliance.</p>
+        <h3>Blocked by governance policy</h3>
+        <ul>${blocked}</ul>
+        <h3>Governance caveats</h3>
+        <ul>${caveats}</ul>
+      `;
+    }
+
+    function renderMetadataRegistryAudit(metadataAudit) {
+      const target = document.getElementById("metadata-registry-audit");
+      if (!metadataAudit || typeof metadataAudit !== "object" || Object.keys(metadataAudit).length === 0) {
+        target.className = "muted";
+        target.textContent = "No metadata registry audit loaded.";
+        return;
+      }
+      target.className = "";
+      const missing = (metadataAudit.missing_required_metadata || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No missing required metadata recorded.</li>";
+      const caveats = (metadataAudit.caveats || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No metadata caveats recorded.</li>";
+      const blocked = (metadataAudit.blocked_out_of_scope_categories || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No out-of-scope metadata requests recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>research lane</strong>${escapeHtml(notAvailable(metadataAudit.research_lane))}</div>
+          <div class="metric"><strong>status</strong>${escapeHtml(notAvailable(metadataAudit.status))}</div>
+          <div class="metric safe"><strong>human_review_required</strong>${String(metadataAudit.human_review_required ?? true)}</div>
+          <div class="metric safe"><strong>clinical_decision_made</strong>false</div>
+        </div>
+        <h3>Missing metadata</h3>
+        <ul>${missing}</ul>
+        <h3>Metadata caveats</h3>
+        <ul>${caveats}</ul>
+        <h3>Out-of-scope blocks</h3>
+        <ul>${blocked}</ul>
+      `;
+    }
+
+    function renderEvidenceRetrieval(evidenceRetrieval) {
+      const target = document.getElementById("evidence-retrieval");
+      if (!evidenceRetrieval || typeof evidenceRetrieval !== "object" || Object.keys(evidenceRetrieval).length === 0) {
+        target.className = "muted";
+        target.textContent = "No evidence retrieval preview loaded.";
+        return;
+      }
+      target.className = "";
+      const sourceIds = (evidenceRetrieval.source_ids || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No source IDs recorded.</li>";
+      const warnings = (evidenceRetrieval.warnings || evidenceRetrieval.caveats || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No retrieval warnings recorded.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>retrieval mode</strong>${escapeHtml(notAvailable(evidenceRetrieval.retrieval_mode))}</div>
+          <div class="metric"><strong>snippets</strong>${escapeHtml(notAvailable(evidenceRetrieval.snippets_returned))}</div>
+          <div class="metric safe"><strong>local_only</strong>${String(evidenceRetrieval.local_only ?? true)}</div>
+          <div class="metric safe"><strong>external_call_made</strong>${String(evidenceRetrieval.external_call_made ?? false)}</div>
+        </div>
+        <p class="note">Local source-grounded retrieval only. No external database/API call, no biological or clinical conclusion, and human review is required.</p>
+        <h3>Source IDs</h3>
+        <ul>${sourceIds}</ul>
+        <h3>Warnings and caveats</h3>
+        <ul>${warnings}</ul>
+      `;
+    }
+
+    function renderClinicalCaseIntake(clinicalIntake) {
+      const target = document.getElementById("clinical-case-intake");
+      if (!clinicalIntake || typeof clinicalIntake !== "object" || Object.keys(clinicalIntake).length === 0) {
+        target.className = "muted";
+        target.textContent = "No structured clinical intake loaded.";
+        return;
+      }
+      const counts = clinicalIntake.phenotype_state_counts || {};
+      const blocks = (clinicalIntake.policy_blocks || []).map((item) => `<li>${escapeHtml(item.code || "policy_block")}</li>`).join("") || "<li>No policy blocks recorded.</li>";
+      const warnings = (clinicalIntake.validation_warnings || []).map((item) => `<li>${escapeHtml(item.code || "validation_warning")}</li>`).join("") || "<li>No validation warnings recorded.</li>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>schema version</strong>${escapeHtml(notAvailable(clinicalIntake.schema_version))}</div>
+          <div class="metric"><strong>pseudonymous case</strong>${escapeHtml(notAvailable(clinicalIntake.pseudonymous_case_id))}</div>
+          <div class="metric"><strong>completeness</strong>${escapeHtml(notAvailable(clinicalIntake.intake_completeness))}</div>
+          <div class="metric safe"><strong>research use only</strong>${String(clinicalIntake.research_use_only ?? true)}</div>
+          <div class="metric safe"><strong>redaction declared</strong>${String(clinicalIntake.redaction_declared ?? false)}</div>
+          <div class="metric"><strong>phenotype states</strong>${escapeHtml(Object.keys(counts).sort().map((key) => `${key}=${counts[key]}`).join(", "))}</div>
+          <div class="metric"><strong>candidate variants</strong>${escapeHtml(clinicalIntake.candidate_variant_count ?? 0)}</div>
+          <div class="metric"><strong>pedigree records</strong>${escapeHtml(clinicalIntake.pedigree_record_count ?? 0)}</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <p class="note">Bounded structured intake only. No inheritance calculation, variant normalization, diagnosis, treatment recommendation, final classification, external call, or raw genomic parsing.</p>
+        <h3>Validation warnings</h3><ul>${warnings}</ul>
+        <h3>Policy blocks</h3><ul>${blocks}</ul>`;
+    }
+
+    function renderPhenotypeHpoCuration(curation) {
+      const target = document.getElementById("phenotype-hpo-curation");
+      if (!curation || typeof curation !== "object" || Object.keys(curation).length === 0) {
+        target.className = "muted";
+        target.textContent = "No phenotype/HPO curation loaded.";
+        return;
+      }
+      const suggestions = (curation.hpo_suggestions || []).slice(0, 50);
+      const contradictions = (curation.contradictions || []).slice(0, 50);
+      const suggestionRows = suggestions.map((item) => `<li><strong>${escapeHtml(item.hpo_id || "unknown")}</strong> ${escapeHtml(item.canonical_label || "unknown")} — ${escapeHtml(item.proposed_state || "unknown")} — span ${escapeHtml(item.match_start ?? 0)}:${escapeHtml(item.match_end ?? 0)} — support “${escapeHtml(item.matched_substring || "")}"${item.negation ? ` — cue “${escapeHtml(item.negation.cue || "")}" (${escapeHtml(item.negation.result || "unknown")})` : ""} — review ${escapeHtml(item.review_status || "pending")}</li>`).join("") || "<li>No HPO suggestions recorded.</li>";
+      const contradictionRows = contradictions.map((item) => `<li><strong>${escapeHtml(item.hpo_id || "unknown")}</strong> ${escapeHtml(item.contradiction_type || "contradiction")} — ${escapeHtml(item.resolution_status || "requires_reviewer_resolution")}</li>`).join("") || "<li>No contradictions recorded.</li>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>registry</strong>${escapeHtml(notAvailable(curation.registry_version))}</div>
+          <div class="metric"><strong>algorithm</strong>${escapeHtml(notAvailable(curation.algorithm_version))}</div>
+          <div class="metric"><strong>snippets</strong>${escapeHtml((curation.source_snippets || []).length)}</div>
+          <div class="metric"><strong>suggestions</strong>${escapeHtml(suggestions.length)}</div>
+          <div class="metric"><strong>contradictions</strong>${escapeHtml(contradictions.length)}</div>
+          <div class="metric"><strong>promoted observations</strong>${escapeHtml((curation.promoted_observations || []).length)}</div>
+          <div class="metric safe"><strong>research use only</strong>true</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <p class="note">Deterministic local terminology proposals only. Complete snippets are not displayed or retained in this summary. No diagnosis, treatment recommendation, final classification, external call, or autonomous promotion.</p>
+        <h3>Bounded suggestion summaries</h3><ul>${suggestionRows}</ul>
+        <h3>Contradictions requiring reviewer resolution</h3><ul>${contradictionRows}</ul>`;
+    }
+
+    function renderPedigreeInheritanceAudit(audit) {
+      const target = document.getElementById("pedigree-inheritance-audit");
+      if (!audit || typeof audit !== "object" || Object.keys(audit).length === 0) {
+        target.className = "muted";
+        target.textContent = "No pedigree/inheritance audit loaded.";
+        return;
+      }
+      const audits = (audit.inheritance_audits || []).slice(0, 100);
+      const rows = audits.map((item) => `<li><strong>${escapeHtml(item.hypothesis_type || "unknown")}</strong> — ${escapeHtml(item.status || "cannot_evaluate")}</li>`).join("") || "<li>No inheritance audit targets recorded.</li>";
+      const transmission = audit.available_parent_child_transmission_summary || {};
+      const issueCodes = [...(audit.relationship_issues || []), ...(audit.mendelian_inconsistencies || [])].map((item) => `<li>${escapeHtml(item.code || "supplied_record_issue")}</li>`).join("") || "<li>No bounded supplied-record issues recorded.</li>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(audit.schema_version))}</div>
+          <div class="metric"><strong>algorithm</strong>${escapeHtml(notAvailable(audit.algorithm_version))}</div>
+          <div class="metric"><strong>members</strong>${escapeHtml(audit.member_count ?? 0)}</div>
+          <div class="metric"><strong>parent-child records</strong>${escapeHtml(audit.biological_parent_relationship_count ?? 0)}</div>
+          <div class="metric"><strong>audit targets</strong>${escapeHtml(audits.length)}</div>
+          <div class="metric"><strong>evaluable transmissions</strong>${escapeHtml(transmission.evaluable_transmission_count ?? 0)}</div>
+          <div class="metric"><strong>non-evaluable transmissions</strong>${escapeHtml(transmission.non_evaluable_transmission_count ?? 0)}</div>
+          <div class="metric safe"><strong>research use only</strong>true</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <p class="note">Deterministic consistency audit of supplied structured records only. It does not establish diagnosis, pathogenicity, inheritance, or any family relationship.</p>
+        <h3>Bounded hypothesis statuses</h3><ul>${rows}</ul>
+        <h3>Supplied-record issue codes</h3><ul>${issueCodes}</ul>`;
+    }
+
+    function renderOrchestrationTrace(orchestrationTrace) {
+      const target = document.getElementById("orchestration-trace");
+      if (!orchestrationTrace || typeof orchestrationTrace !== "object" || Object.keys(orchestrationTrace).length === 0) {
+        target.className = "muted";
+        target.textContent = "No controlled orchestration trace loaded.";
+        return;
+      }
+      target.className = "";
+      const flags = orchestrationTrace.safety_flags || {};
+      const nodes = (orchestrationTrace.graph_nodes_executed || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No nodes executed.</li>";
+      const blocked = (orchestrationTrace.blocked_nodes || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No graph nodes blocked.</li>";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>backend</strong>${escapeHtml(notAvailable(orchestrationTrace.orchestration_backend))}</div>
+          <div class="metric"><strong>nodes executed</strong>${escapeHtml(notAvailable((orchestrationTrace.graph_nodes_executed || []).length))}</div>
+          <div class="metric safe"><strong>fallback_used</strong>${String(orchestrationTrace.fallback_used ?? true)}</div>
+          <div class="metric safe"><strong>external_api_call_made</strong>${String(flags.external_api_call_made ?? false)}</div>
+          <div class="metric safe"><strong>autonomous_tool_execution</strong>${String(flags.autonomous_tool_execution ?? false)}</div>
+          <div class="metric safe"><strong>raw_genomic_files_parsed</strong>${String(flags.raw_genomic_files_parsed ?? false)}</div>
+        </div>
+        <p class="note">Bounded orchestration only. No autonomous tools, no external LLM/API by default, no raw genomic parsing, deterministic audits remain authoritative, and human review is required.</p>
+        <h3>Executed nodes</h3>
+        <ul>${nodes}</ul>
+        <h3>Blocked nodes</h3>
+        <ul>${blocked}</ul>
+      `;
+    }
+
+    function renderRun(data) {
+      renderRunSummary(data, null);
+      document.getElementById("workflow-selection").textContent = asJson(data.workflow_selection);
+      const recipe = data.selected_recipe || data.final_state?.selected_recipe;
+      renderRecipePreview(recipe);
+      renderActionList("planned-actions", data.planned_actions || []);
+      renderActionList("blocked-actions", data.blocked_actions || []);
+      renderClaimAudit(data.claim_audit || data.final_state?.claim_audit);
+      renderDataGovernanceAudit(data.data_governance_audit || data.final_state?.data_governance_audit);
+      renderMetadataRegistryAudit(data.metadata_registry_audit || data.final_state?.metadata_registry_audit);
+      renderEvidenceRetrieval(data.evidence_retrieval || data.final_state?.evidence_retrieval);
+      renderOrchestrationTrace(data.orchestration_trace || data.final_state?.orchestration_trace);
+      renderClinicalCaseIntake(data.clinical_case_intake || data.final_state?.clinical_case_intake);
+      renderPhenotypeHpoCuration(data.phenotype_hpo_curation || data.final_state?.phenotype_hpo_curation);
+      renderPedigreeInheritanceAudit(data.pedigree_inheritance_audit || data.final_state?.pedigree_inheritance_audit);
+      renderResultsAudit(data.results_audit || data.final_state?.results_audit);
+      renderCommandPreviews(data.command_previews || [], recipe);
+      document.getElementById("final-report").textContent = "Loading final report...";
+      document.getElementById("reproducibility").textContent = asJson(data.reproducibility_bundle || {});
+    }
+
+    async function requestJson(path, options, label = "Request") {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        throw new Error(`${label} failed (${response.status}). Check the local backend response and input inventory.`);
+      }
+      try {
+        return await response.json();
+      } catch (error) {
+        throw new Error(`${label} returned malformed JSON.`);
+      }
+    }
+
+    function validateRunResponse(data) {
+      if (!data || typeof data !== "object") {
+        throw new Error("Agent run returned a malformed response.");
+      }
+      if (!data.run_id) {
+        throw new Error("Agent run completed but did not return a run_id.");
+      }
+      return data;
+    }
+
+    async function loadRun(runId) {
+      if (!runId) {
+        throw new Error("Cannot load run because run_id is missing.");
+      }
+
+      let detail = null;
+      try {
+        detail = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}`, undefined, "Run detail");
+      } catch (error) {
+        panelError("run-summary", friendlyError(error, "Run detail could not be loaded."));
+      }
+
+      try {
+        const workflow = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/workflow-selection`, undefined, "Workflow selection");
+        renderRunSummary({ run_id: runId, workflow_selection: workflow }, detail);
+        renderRecipePreview(detail?.selected_recipe);
+        renderClaimAudit(detail?.claim_audit);
+        renderDataGovernanceAudit(detail?.data_governance_audit);
+        renderMetadataRegistryAudit(detail?.metadata_registry_audit);
+        renderEvidenceRetrieval(detail?.evidence_retrieval);
+        renderOrchestrationTrace(detail?.orchestration_trace);
+        renderClinicalCaseIntake(detail?.clinical_case_intake);
+        renderPhenotypeHpoCuration(detail?.phenotype_hpo_curation);
+        renderPedigreeInheritanceAudit(detail?.pedigree_inheritance_audit);
+        renderResultsAudit(detail?.results_audit);
+        const workflowTarget = document.getElementById("workflow-selection");
+        workflowTarget.className = "";
+        workflowTarget.textContent = asJson(workflow);
+      } catch (error) {
+        panelError("workflow-selection", friendlyError(error, "Workflow selection could not be loaded."));
+        if (detail) renderRunSummary({ run_id: runId }, detail);
+      }
+
+      try {
+        const report = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/report`, undefined, "Final report");
+        const reportTarget = document.getElementById("final-report");
+        reportTarget.className = "";
+        reportTarget.textContent = String(report.content || "Final report content is not available.");
+      } catch (error) {
+        panelError("final-report", friendlyError(error, "Final report could not be loaded."));
+      }
+
+      try {
+        const repro = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/reproducibility`, undefined, "Reproducibility bundle");
+        const target = document.getElementById("reproducibility");
+        target.className = "";
+        target.innerHTML = `
+          <div><strong>Generated:</strong> ${String(repro.generated ?? "not available")}</div>
+          <div><strong>File count:</strong> ${escapeHtml(notAvailable(repro.file_count))}</div>
+          <pre>${escapeHtml(asJson(repro.files || []))}</pre>
+        `;
+      } catch (error) {
+        panelError("reproducibility", friendlyError(error, "Reproducibility bundle could not be loaded."));
+      }
+
+      try {
+        const artifacts = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/artifacts`, undefined, "Artifact list");
+        renderArtifacts(runId, artifacts);
+      } catch (error) {
+        panelError("artifacts", friendlyError(error, "Artifact list could not be loaded."));
+      }
+    }
+
+    function renderArtifacts(runId, artifacts) {
+      const target = document.getElementById("artifacts");
+      if (!artifacts || artifacts.length === 0) {
+        target.textContent = "No artifacts found.";
+        return;
+      }
+      target.innerHTML = artifacts.map((artifact) => {
+        return `<button type="button" class="secondary" data-run-id="${escapeHtml(runId)}" data-artifact="${escapeHtml(artifact.artifact_name)}">${escapeHtml(artifact.artifact_name)}</button>`;
+      }).join("");
+    }
+
+    async function loadHistory() {
+      const runs = await requestJson("/insilicopop/agent/runs", undefined, "Run history");
+      const target = document.getElementById("run-history");
+      if (!Array.isArray(runs)) {
+        panelError("run-history", "Run history returned a malformed response.");
+        return;
+      }
+      if (!runs.length) {
+        target.textContent = "No generated runs yet.";
+        target.className = "muted";
+        return;
+      }
+      target.className = "";
+      target.innerHTML = `
+        <table>
+          <thead><tr><th>Run</th><th>Created</th><th>Workflow</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${runs.slice(0, 12).map((run) => `
+              <tr>
+                <td>${escapeHtml(notAvailable(run.run_id))}</td>
+                <td>${escapeHtml(notAvailable(run.created_at))}</td>
+                <td>${escapeHtml(notAvailable(run.workflow_family))}</td>
+                <td>${escapeHtml(notAvailable(run.current_step))}</td>
+                <td><button type="button" class="secondary" data-load-run="${escapeHtml(run.run_id)}">Load</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      runButton.disabled = true;
+      setStatus("Submitting mock dry-run agent request...");
+      try {
+        const formData = new FormData();
+        formData.append("query", document.getElementById("query").value);
+        formData.append("llm_provider", "mock");
+        formData.append("memory_mode", "compact");
+        formData.append("max_steps", "8");
+        appendGovernanceScope(formData);
+        appendMetadataRegistry(formData);
+        appendClinicalCaseIntake(formData);
+        appendInventoryFiles(formData);
+        const data = validateRunResponse(await requestJson("/insilicopop/agent/run", { method: "POST", body: formData }, "Agent run request"));
+        renderRun(data);
+        await loadRun(data.run_id);
+        await loadHistory();
+        setStatus(`Run ${data.run_id} completed. Human expert review is required.`);
+      } catch (error) {
+        setStatus(friendlyError(error, "Agent run failed. Check the local backend and declared input inventory."), true);
+      } finally {
+        runButton.disabled = false;
+      }
+    });
+
+    refreshRunsButton.addEventListener("click", async () => {
+      setStatus("Refreshing run history...");
+      try {
+        await loadHistory();
+        setStatus("Run history refreshed.");
+      } catch (error) {
+        setStatus(friendlyError(error, "Run history could not be refreshed."), true);
+      }
+    });
+
+    document.body.addEventListener("click", async (event) => {
+      const loadRunButton = event.target.closest("[data-load-run]");
+      if (loadRunButton) {
+        const runId = loadRunButton.dataset.loadRun;
+        setStatus(`Loading run ${runId}...`);
+        try {
+          await loadRun(runId);
+          setStatus(`Loaded run ${runId}.`);
+        } catch (error) {
+          setStatus(friendlyError(error, "Run could not be loaded."), true);
+        }
+      }
+
+      const artifactButton = event.target.closest("[data-artifact]");
+      if (artifactButton) {
+        const runId = artifactButton.dataset.runId;
+        const artifact = artifactButton.dataset.artifact;
+        setStatus(`Loading artifact ${artifact}...`);
+        try {
+          const payload = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/artifacts/${artifact.split("/").map(encodeURIComponent).join("/")}`, undefined, "Artifact fetch");
+          document.getElementById("artifact-content").textContent = typeof payload.content === "string" ? payload.content : asJson(payload.content);
+          setStatus(`Loaded artifact ${artifact}.`);
+        } catch (error) {
+          panelError("artifact-content", friendlyError(error, "Artifact could not be loaded."));
+          setStatus(friendlyError(error, "Artifact could not be loaded."), true);
+        }
+      }
+    });
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    loadHistory().catch((error) => setStatus(friendlyError(error, "Run history could not be loaded."), true));
+  </script>
+</body>
+</html>
