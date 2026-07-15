@@ -806,7 +806,7 @@
       const results = (variantIntelligence.normalization_results || []).slice(0, 100);
       const candidateRows = results.map((item) => {
         const snapshot = item.supplied_request_snapshot || {};
-        return `<li><strong>${escapeHtml(item.candidate_variant_id || "unknown")}</strong> — ${escapeHtml(snapshot.supplied_representation || "not supplied")} — ${escapeHtml(snapshot.representation_type || "unknown")} — VALIDATED: ${escapeHtml(item.validation_status || "cannot_validate")} — NORMALIZED: ${escapeHtml(item.normalization_status || "cannot_normalize")} — ${escapeHtml(item.equivalence_status || "unresolved_equivalence")} — review ${escapeHtml(snapshot.review_state || "pending")}</li>`;
+        return `<li><strong>${escapeHtml(item.candidate_variant_id || "unknown")}</strong> — ${escapeHtml(snapshot.supplied_representation || "not supplied")} — ${escapeHtml(snapshot.representation_type || "unknown")} — validation: ${escapeHtml(item.validation_status || "cannot_validate")} — normalization: ${escapeHtml(item.normalization_status || "cannot_normalize")} — equivalence: ${escapeHtml(item.equivalence_status || "unresolved_equivalence")} — review ${escapeHtml(snapshot.review_state || "pending")}</li>`;
       }).join("") || "<li>No variant normalization requests recorded.</li>";
       const details = results.map((item) => {
         const snapshot = item.supplied_request_snapshot || {};
@@ -828,9 +828,16 @@
           ...(item.conflicts || []),
           ...(item.review_actions || []),
         ].map((issue) => `<li>${escapeHtml(issue.code || "review_required")} — ${escapeHtml(issue.message || "Human review required.")}</li>`).join("") || "<li>No issues recorded.</li>";
+        const badges = [];
+        if (snapshot.supplied_representation) badges.push('<span class="badge">SUPPLIED</span>');
+        if (["valid", "partially_valid"].includes(item.validation_status)) badges.push('<span class="badge safe">VALIDATED</span>');
+        if (item.normalization_status === "normalized") badges.push('<span class="badge safe">NORMALIZED</span>');
+        if (item.equivalence_status === "unresolved_equivalence" || ["cannot_validate", "invalid"].includes(item.validation_status) || item.normalization_status === "cannot_normalize") badges.push('<span class="badge warn">UNRESOLVED</span>');
+        if (item.validation_status === "unsupported" || item.normalization_status === "unsupported" || item.equivalence_status === "unsupported_representation") badges.push('<span class="badge warn">UNSUPPORTED</span>');
+        if (item.human_review_required !== false) badges.push('<span class="badge warn">REVIEW REQUIRED</span>');
         return `<details>
           <summary>${escapeHtml(item.candidate_variant_id || "candidate")} — REVIEW REQUIRED</summary>
-          <div class="badge-row"><span class="badge">SUPPLIED</span><span class="badge safe">VALIDATED</span><span class="badge">NORMALIZED</span><span class="badge warn">UNRESOLVED</span><span class="badge warn">UNSUPPORTED</span><span class="badge warn">REVIEW REQUIRED</span></div>
+          <div class="badge-row">${badges.join("")}</div>
           <p><strong>Supplied value:</strong> ${escapeHtml(snapshot.supplied_representation || "not supplied")}</p>
           <p><strong>Genome build:</strong> ${escapeHtml(snapshot.supplied_genome_build || allele.genome_build || "not supplied")}</p>
           <p><strong>Reference accession:</strong> ${escapeHtml(snapshot.supplied_reference_accession || allele.reference_accession || "not supplied")}</p>

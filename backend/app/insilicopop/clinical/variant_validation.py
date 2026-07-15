@@ -14,6 +14,7 @@ from app.insilicopop.clinical.variant_models import (
     VariantNormalizationRequest,
     VariantRepresentationType,
 )
+from app.insilicopop.clinical.variant_reference_registry import resolve_reference_window
 
 
 _ACCESSION_WITH_VERSION = re.compile(r"^[A-Za-z]{1,8}_[A-Za-z0-9]+\.\d+$")
@@ -21,6 +22,17 @@ _HGVS_SYNTAX = re.compile(r"^[^:\s]+:[gcnrpm]\.\S+$")
 _CAID = re.compile(r"^CA\d+$")
 _DNA = re.compile(r"^[ACGTN]*$")
 _RAW_GENOMIC_PATH = re.compile(r"(?i)(?:^|[\\/])[^\\/]+\.(?:vcf(?:\.gz)?|bcf|bam|cram|fastq(?:\.gz)?|fq(?:\.gz)?|fasta|fa)$")
+_HLA = re.compile(r"(?i)\bHLA-[A-Z0-9]+\*\d{2,3}:\d{2,3}(?::\d{2,3})?\b")
+_STAR_ALLELE = re.compile(r"(?i)\b(?:CYP2D6|CYP2C19|CYP2C9|DPYD|TPMT|NUDT15|SLCO1B1)\*\d+[A-Za-z]?\b")
+_BREAKEND = re.compile(r"[\[\]][A-Za-z0-9_.]+:\d+[\[\]]")
+_REPEAT_EXPANSION = re.compile(r"(?i)\b(?:CAG|CGG|GAA|CTG)\[\d+(?:_\d+)?\]")
+_SYMBOLIC_SV = re.compile(r"(?i)<(?:DEL|DUP|INV|BND|CNV|INS|TRA)>")
+
+
+STRUCTURED_REPRESENTATION_TYPES = {
+    VariantRepresentationType.GENOMIC_COORDINATE,
+    VariantRepresentationType.VCF_LIKE_FIELDS,
+}
 
 
 UNSUPPORTED_CLASS_REASON = {
@@ -205,12 +217,41 @@ def validate_variant_request(
                     field_name="supplied_representation",
                 )
             )
+        else:
+            result.warnings.append(
+                variant_issue(
+                    request,
+                    "HGVS_SYNTAX_ONLY",
+                    "The supplied HGVS passed only the bounded lexical check; semantic validity and normalization were not inferred.",
+                    "warning",
+                    field_name="supplied_representation",
+                )
+            )
+            result.review_actions.append(
+                variant_issue(
+                    request,
+                    "REVIEW_HGVS_REFERENCE_CONTEXT",
+                    "Human review is required for supplied HGVS because v0.30 does not semantically normalize HGVS text directly.",
+                    "review",
+                    field_name="supplied_representation",
+                )
+            )
         _validate_hgvs_context(request, result)
 
-    if request.representation_type in {
-        VariantRepresentationType.GENOMIC_COORDINATE,
-        VariantRepresentationType.VCF_LIKE_FIELDS,
-    }:
+    if request.structured_allele is not None:
+        _validate_structured_allele(request, result)
+        _validate_duplicate_request_context(request, result)
+        if request.representation_type not in STRUCTURED_REPRESENTATION_TYPES:
+            result.conflicts.append(
+                variant_issue(
+                    request,
+                    "INCOMPATIBLE_REPRESENTATION_FIELDS",
+                    "Structured allele fields are preserved but cannot drive normalization for this representation type in v0.30.",
+                    "conflict",
+                    field_name="structured_allele",
+                )
+            )
+    elif request.representation_type in STRUCTURED_REPRESENTATION_TYPES:
         _validate_structured_allele(request, result)
 
     if request.representation_type == VariantRepresentationType.SPDI:
@@ -218,6 +259,16 @@ def validate_variant_request(
         if len(spdi.split(":")) != 4:
             result.errors.append(
                 variant_issue(request, "MALFORMED_SPDI", "A supplied SPDI representation must contain four explicit colon-delimited fields.", "error", field_name="supplied_spdi")
+            )
+        else:
+            result.warnings.append(
+                variant_issue(
+                    request,
+                    "SPDI_SYNTAX_ONLY",
+                    "The supplied SPDI passed only a bounded field-count check; sequence identity and semantic validity were not inferred.",
+                    "warning",
+                    field_name="supplied_spdi",
+                )
             )
 
     if request.supplied_caid is not None and not _CAID.fullmatch(request.supplied_caid):
@@ -275,6 +326,187 @@ def _validate_structured_allele(request: VariantNormalizationRequest, result: Va
     for name, value in (("reference", allele.reference), ("alternate", allele.alternate)):
         if value != value.strip() or not _DNA.fullmatch(value):
             result.warnings.append(variant_issue(request, "ALLELE_FORMATTING_ANOMALY_PRESERVED", f"The supplied {name} allele was preserved exactly and is not silently case- or whitespace-normalized.", "warning", field_name=f"structured_allele.{name}"))
+    _validate_declared_class(request, result)
+    _validate_pinned_reference(request, result)
+
+
+def _validate_declared_class(request: VariantNormalizationRequest, result: VariantValidationAssessment) -> None:
+    allele = request.structured_allele
+    assert allele is not None
+    if any(item.code in {"REFERENCE_ALTERNATE_COMBINATION_INVALID", "VCF_ALLELES_REQUIRED"} for item in result.errors):
+        return
+    declared = request.declared_variant_class
+    if declared == DeclaredVariantClass.DUPLICATION:
+        if not allele.reference or allele.alternate != allele.reference + allele.reference:
+            result.errors.append(
+                variant_issue(
+                    request,
+                    "AMBIGUOUS_REPRESENTATION",
+                    "A simple tandem duplication requires ALT to equal the exact supplied REF repeated twice; the declaration alone is insufficient.",
+                    "error",
+                    field_name="declared_variant_class",
+                )
+            )
+        return
+    supported_declared = {
+        DeclaredVariantClass.SNV,
+        DeclaredVariantClass.DELETION,
+        DeclaredVariantClass.INSERTION,
+        DeclaredVariantClass.DELINS,
+        DeclaredVariantClass.MNV,
+    }
+    if declared not in supported_declared:
+        return
+    if len(allele.reference) == 1 and len(allele.alternate) == 1:
+        observed = "snv"
+    elif len(allele.reference) == len(allele.alternate) and len(allele.reference) > 1:
+        observed = "mnv"
+    else:
+        ref, alt = _minimal_alleles(allele.reference, allele.alternate)
+        observed = _simple_class(ref, alt)
+    if observed != declared.value:
+        result.errors.append(
+            variant_issue(
+                request,
+                "AMBIGUOUS_REPRESENTATION",
+                f"The declared {declared.value} class is incompatible with the exact supplied REF/ALT relationship ({observed}).",
+                "error",
+                field_name="declared_variant_class",
+            )
+        )
+
+
+def _validate_pinned_reference(request: VariantNormalizationRequest, result: VariantValidationAssessment) -> None:
+    allele = request.structured_allele
+    assert allele is not None
+    if allele.reference_context_sequence is not None:
+        result.warnings.append(
+            variant_issue(
+                request,
+                "CALLER_REFERENCE_CONTEXT_UNVERIFIED",
+                "Inline reference sequence was preserved as unverified supplied evidence and is not authoritative for normalization.",
+                "warning",
+                field_name="structured_allele.reference_context_sequence",
+            )
+        )
+    if allele.reference_context_verified:
+        result.warnings.append(
+            variant_issue(
+                request,
+                "CALLER_REFERENCE_VERIFICATION_NOT_ACCEPTED",
+                "A caller-supplied verification flag cannot establish reference identity and does not enable reference-dependent normalization.",
+                "warning",
+                field_name="structured_allele.reference_context_verified",
+            )
+        )
+    window = resolve_reference_window(allele.reference_source_id)
+    if window is None:
+        result.missing.append(
+            variant_issue(
+                request,
+                "REFERENCE_DATA_UNAVAILABLE",
+                "No approved pinned local reference window resolves the supplied reference source ID.",
+                "missing",
+                field_name="structured_allele.reference_source_id",
+            )
+        )
+        return
+    comparisons = [
+        ("BUILD_CONFLICT", "structured_allele.genome_build", allele.genome_build, window.genome_build),
+        ("CHROMOSOME_CONFLICT", "structured_allele.chromosome", allele.chromosome, window.contig),
+        ("REFERENCE_SOURCE_CONFLICT", "structured_allele.reference_accession", allele.reference_accession, window.versioned_accession),
+    ]
+    for code, field_name, supplied, resolved in comparisons:
+        if supplied is not None and supplied != resolved:
+            result.conflicts.append(
+                variant_issue(
+                    request,
+                    code,
+                    "The exact supplied context conflicts with the approved pinned reference window; neither value was changed.",
+                    "conflict",
+                    field_name=field_name,
+                )
+            )
+    start = _structured_start(allele.position, allele.reference, allele.coordinate_system)
+    end = start + len(allele.reference)
+    if start < window.window_start_zero_based or end > window.window_end_zero_based:
+        result.conflicts.append(
+            variant_issue(
+                request,
+                "REFERENCE_WINDOW_OUT_OF_RANGE",
+                "The supplied allele falls outside the approved bounded reference window.",
+                "conflict",
+                field_name="structured_allele.position",
+            )
+        )
+        return
+    if allele.reference:
+        offset = start - window.window_start_zero_based
+        observed = window.sequence[offset:offset + len(allele.reference)]
+        if observed != allele.reference:
+            result.conflicts.append(
+                variant_issue(
+                    request,
+                    "REFERENCE_MISMATCH",
+                    "The exact supplied REF does not match the approved pinned reference window.",
+                    "conflict",
+                    field_name="structured_allele.reference",
+                )
+            )
+
+
+def _validate_duplicate_request_context(request: VariantNormalizationRequest, result: VariantValidationAssessment) -> None:
+    allele = request.structured_allele
+    assert allele is not None
+    comparisons = [
+        ("BUILD_CONFLICT", "supplied_genome_build", request.supplied_genome_build, allele.genome_build),
+        ("CHROMOSOME_CONFLICT", "supplied_chromosome", request.supplied_chromosome, allele.chromosome),
+        ("REFERENCE_SOURCE_CONFLICT", "supplied_reference_accession", request.supplied_reference_accession, allele.reference_accession),
+        ("REFERENCE_MISMATCH", "supplied_reference", request.supplied_reference, allele.reference),
+        ("ALTERNATE_MISMATCH", "supplied_alternate", request.supplied_alternate, allele.alternate),
+    ]
+    for code, field_name, supplied, structured in comparisons:
+        if supplied is not None and structured is not None and supplied != structured:
+            result.conflicts.append(
+                variant_issue(
+                    request,
+                    code,
+                    "Duplicate exact request context conflicts with the structured allele; neither value was changed.",
+                    "conflict",
+                    field_name=field_name,
+                )
+            )
+
+
+def _structured_start(position: int, reference: str, coordinate_system: CoordinateSystem) -> int:
+    if coordinate_system == CoordinateSystem.ZERO_BASED_HALF_OPEN:
+        return position
+    if reference == "":
+        return position
+    return position - 1
+
+
+def _minimal_alleles(reference: str, alternate: str) -> tuple[str, str]:
+    ref, alt = reference, alternate
+    while ref and alt and ref[-1] == alt[-1]:
+        ref, alt = ref[:-1], alt[:-1]
+    while ref and alt and ref[0] == alt[0]:
+        ref, alt = ref[1:], alt[1:]
+    return ref, alt
+
+
+def _simple_class(reference: str, alternate: str) -> str:
+    if len(reference) == 1 and len(alternate) == 1:
+        return "snv"
+    if reference and not alternate:
+        return "deletion"
+    if alternate and not reference:
+        return "insertion"
+    if len(reference) == len(alternate) and len(reference) > 1:
+        return "mnv"
+    if reference and alternate:
+        return "delins"
+    return "unknown"
 
 
 def _validate_candidate_context(
@@ -308,10 +540,20 @@ def _validate_candidate_context(
 
 
 def _unsupported_text_reason(text: str) -> str | None:
+    if _HLA.search(text) or _STAR_ALLELE.search(text):
+        return "UNSUPPORTED_VARIANT_CLASS"
+    if any(marker in text for marker in ("pharmacogenomic haplotype", "diplotype", "polygenic score", "polygenic risk score", "prs score")):
+        return "UNSUPPORTED_VARIANT_CLASS"
+    if any(marker in text for marker in ("somatic", "mitochondrial complex", "heteroplasmy")):
+        return "UNSUPPORTED_VARIANT_CLASS"
+    if _BREAKEND.search(text) or _SYMBOLIC_SV.search(text):
+        return "UNSUPPORTED_STRUCTURAL_VARIANT"
+    if _REPEAT_EXPANSION.search(text):
+        return "UNSUPPORTED_REPEAT_EXPANSION"
     checks = [
         ("UNSUPPORTED_MOSAIC_REPRESENTATION", ("mosaic", "vaf", "allele fraction", "%")),
-        ("UNSUPPORTED_REPEAT_EXPANSION", ("repeat expansion", "triplet repeat", "[", "]")),
-        ("UNSUPPORTED_STRUCTURAL_VARIANT", ("copy number", "cnv", "translocation", "inversion", "breakend", "fusion", "mobile element", "bnd")),
+        ("UNSUPPORTED_REPEAT_EXPANSION", ("repeat expansion", "triplet repeat")),
+        ("UNSUPPORTED_STRUCTURAL_VARIANT", ("copy number", "cnv", "translocation", "inversion", "breakend", "fusion", "mobile element", "bnd", "::", "svtype=", "t(")),
     ]
     for code, markers in checks:
         if any(marker in text for marker in markers):

@@ -5,15 +5,16 @@ import pytest
 from app.insilicopop.clinical.models import CandidateVariantIntake
 from app.insilicopop.clinical.variant_models import VariantNormalizationRequest
 from app.insilicopop.clinical.variant_validation import validate_variant_request
+from app.insilicopop.clinical.variant_reference_registry import SYNTHETIC_REFERENCE_SOURCE_ID
 
 
 def candidate(**updates):
     data = {
         "candidate_id": "VAR-1",
-        "submitted_representation": "NC_000001.11:g.100A>G",
-        "genome_build": "GRCh38",
-        "chromosome": "1",
-        "position": 100,
+        "submitted_representation": "TEST1:2:A:G",
+        "genome_build": "InSilicoPopSynthetic-0.30",
+        "chromosome": "TEST1",
+        "position": 2,
         "ref": "A",
         "alt": "G",
         "transcript": "NM_000001.2",
@@ -26,18 +27,19 @@ def structured_request(**updates):
     data = {
         "request_id": "REQ-1",
         "candidate_variant_id": "VAR-1",
-        "supplied_representation": "1:100:A:G",
+        "supplied_representation": "TEST1:2:A:G",
         "representation_type": "vcf_like_fields",
         "declared_variant_class": "snv",
         "supplied_transcript_accession": "NM_000001.2",
         "structured_allele": {
-            "chromosome": "1",
-            "position": 100,
+            "chromosome": "TEST1",
+            "position": 2,
             "reference": "A",
             "alternate": "G",
             "coordinate_system": "vcf_one_based",
-            "genome_build": "GRCh38",
-            "reference_accession": "NC_000001.11",
+            "genome_build": "InSilicoPopSynthetic-0.30",
+            "reference_accession": "ISP_TESTREF.1",
+            "reference_source_id": SYNTHETIC_REFERENCE_SOURCE_ID,
         },
         "requested_outputs": ["canonical_internal_allele"],
         "provenance_source_ids": ["SRC-1"],

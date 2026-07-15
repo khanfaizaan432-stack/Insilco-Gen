@@ -4,6 +4,7 @@ from collections import Counter
 
 from app.insilicopop.clinical.models import ClinicalCaseIntake
 from app.insilicopop.clinical.variant_models import (
+    VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
     VariantIntelligenceResult,
     VariantNormalizationStatus,
 )
@@ -25,7 +26,7 @@ def build_variant_intelligence(case: ClinicalCaseIntake) -> VariantIntelligenceR
     equivalence_counts = Counter(item.equivalence_status.value for item in results)
     stable_payload = {
         "schema_version": "0.30",
-        "algorithm_version": "insilicopop-variant-intelligence-0.30.0",
+        "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
         "pseudonymous_case_id": case.pseudonymous_case_id,
         "normalization_results": [item.model_dump() for item in results],
         "reviewer_status": declaration.reviewer_status.value,

@@ -8,6 +8,7 @@ from app.insilicopop.clinical.variant_models import (
     CoordinateSystem,
     DeclaredVariantClass,
     RequestedVariantOutput,
+    VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
     VariantEquivalenceStatus,
     VariantNormalizedOutput,
     VariantNormalizationOperation,
@@ -18,7 +19,12 @@ from app.insilicopop.clinical.variant_models import (
     VariantTranscriptContext,
     VariantValidationStatus,
 )
+from app.insilicopop.clinical.variant_reference_registry import (
+    PinnedReferenceWindow,
+    resolve_reference_window,
+)
 from app.insilicopop.clinical.variant_validation import (
+    STRUCTURED_REPRESENTATION_TYPES,
     VariantValidationAssessment,
     canonical_json,
     canonical_request_snapshot,
@@ -40,6 +46,10 @@ class CanonicalAllele:
     variant_class: str
     minimal_changed: bool
     left_shift_count: int
+    reference_source_id: str
+    sequence_sha256: str
+    duplication_start_zero_based: int | None = None
+    duplicated_sequence: str | None = None
 
 
 def normalize_variant_request(
@@ -48,7 +58,9 @@ def normalize_variant_request(
 ) -> VariantNormalizationResult:
     snapshot = canonical_request_snapshot(request)
     assessment = validate_variant_request(request, candidate)
-    reference_context = _reference_context(request)
+    allele = request.structured_allele
+    reference_window = resolve_reference_window(allele.reference_source_id) if allele is not None else None
+    reference_context = _reference_context(request, reference_window)
     transcript_context = VariantTranscriptContext(
         supplied_transcript_accession=request.supplied_transcript_accession,
         version_explicit=bool(request.supplied_transcript_accession and "." in request.supplied_transcript_accession),
@@ -57,13 +69,14 @@ def normalize_variant_request(
     outputs: list[VariantNormalizedOutput] = []
     canonical: CanonicalAllele | None = None
 
+    validation_blocked = bool(assessment.errors or assessment.unsupported or assessment.conflicts or assessment.missing)
     operations.append(
         _operation(
             request,
             "bounded_schema_and_context_validation",
-            "refused" if assessment.errors or assessment.unsupported else "succeeded",
+            "refused" if validation_blocked else "succeeded",
             snapshot.model_dump(),
-            None if assessment.errors or assessment.unsupported else {"request_id": request.request_id},
+            None if validation_blocked else {"request_id": request.request_id},
             reference_context,
             [item.code for item in [*assessment.warnings, *assessment.missing, *assessment.conflicts]],
         )
@@ -71,8 +84,15 @@ def normalize_variant_request(
 
     blocks_normalization = bool(assessment.errors or assessment.unsupported or assessment.conflicts)
     formatting_blocks = any(item.code in {"FORMATTING_ANOMALY_PRESERVED", "ALLELE_FORMATTING_ANOMALY_PRESERVED"} for item in assessment.warnings)
-    if request.structured_allele is not None and not blocks_normalization and not assessment.missing and not formatting_blocks:
-        canonical = _canonicalize_structured_allele(request, assessment, operations, reference_context)
+    if (
+        request.structured_allele is not None
+        and request.representation_type in STRUCTURED_REPRESENTATION_TYPES
+        and reference_window is not None
+        and not blocks_normalization
+        and not assessment.missing
+        and not formatting_blocks
+    ):
+        canonical = _canonicalize_structured_allele(request, assessment, operations, reference_context, reference_window)
 
     for output_type in sorted(set(request.requested_outputs), key=lambda item: item.value):
         outputs.append(_build_output(request, output_type, canonical, assessment))
@@ -111,7 +131,7 @@ def normalize_variant_request(
 
     stable_payload = {
         "schema_version": "0.30",
-        "algorithm_version": "insilicopop-variant-intelligence-0.30.0",
+        "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
         "request": snapshot.model_dump(),
         "variant_class": variant_class,
         "validation_status": validation_status.value,
@@ -149,7 +169,10 @@ def normalize_variant_request(
     )
 
 
-def _reference_context(request: VariantNormalizationRequest) -> VariantReferenceContext:
+def _reference_context(
+    request: VariantNormalizationRequest,
+    window: PinnedReferenceWindow | None,
+) -> VariantReferenceContext:
     allele = request.structured_allele
     if allele is None:
         return VariantReferenceContext(
@@ -157,15 +180,35 @@ def _reference_context(request: VariantNormalizationRequest) -> VariantReference
             chromosome=request.supplied_chromosome,
             reference_accession=request.supplied_reference_accession,
         )
-    start = allele.position if allele.coordinate_system == CoordinateSystem.ZERO_BASED_HALF_OPEN else allele.position - 1
+    start = _structured_start(allele.position, allele.reference, allele.coordinate_system)
+    if window is None:
+        return VariantReferenceContext(
+            genome_build=allele.genome_build,
+            chromosome=allele.chromosome,
+            reference_accession=allele.reference_accession or request.supplied_reference_accession,
+            reference_source_id=allele.reference_source_id,
+            coordinate_system=allele.coordinate_system.value,
+            position_supplied=allele.position,
+            start_zero_based=start,
+            reference_context_verified=False,
+        )
     return VariantReferenceContext(
-        genome_build=allele.genome_build,
-        chromosome=allele.chromosome,
-        reference_accession=allele.reference_accession or request.supplied_reference_accession,
+        genome_build=window.genome_build,
+        chromosome=window.contig,
+        reference_accession=window.versioned_accession,
+        reference_source_id=window.reference_source_id,
+        accession=window.accession,
+        accession_version=window.accession_version,
         coordinate_system=allele.coordinate_system.value,
         position_supplied=allele.position,
         start_zero_based=start,
-        reference_context_verified=allele.reference_context_verified,
+        window_start_zero_based=window.window_start_zero_based,
+        window_end_zero_based=window.window_end_zero_based,
+        sequence_sha256=window.sequence_sha256,
+        registry_version=window.registry_version,
+        provenance_source_id=window.provenance_source_id,
+        fixture_only=window.fixture_only,
+        reference_context_verified=True,
     )
 
 
@@ -174,10 +217,11 @@ def _canonicalize_structured_allele(
     assessment: VariantValidationAssessment,
     operations: list[VariantNormalizationOperation],
     reference_context: VariantReferenceContext,
+    window: PinnedReferenceWindow,
 ) -> CanonicalAllele | None:
     allele = request.structured_allele
     assert allele is not None
-    start = allele.position if allele.coordinate_system == CoordinateSystem.ZERO_BASED_HALF_OPEN else allele.position - 1
+    start = _structured_start(allele.position, allele.reference, allele.coordinate_system)
     operations.append(
         _operation(
             request,
@@ -188,9 +232,9 @@ def _canonicalize_structured_allele(
             reference_context,
         )
     )
-    if allele.reference_context_verified and allele.reference_context_sequence is not None and allele.reference:
-        offset = start - int(allele.reference_context_start or 0)
-        observed = allele.reference_context_sequence[offset:offset + len(allele.reference)] if offset >= 0 else ""
+    if allele.reference:
+        offset = start - window.window_start_zero_based
+        observed = window.sequence[offset:offset + len(allele.reference)] if offset >= 0 else ""
         if observed != allele.reference:
             assessment.conflicts.append(
                 variant_issue(
@@ -201,11 +245,74 @@ def _canonicalize_structured_allele(
                     field_name="structured_allele.reference",
                 )
             )
-            operations.append(_operation(request, "verified_reference_context_check", "refused", allele.reference, observed, reference_context, ["REFERENCE_MISMATCH"]))
+            operations.append(
+                _operation(
+                    request,
+                    "pinned_reference_context_check",
+                    "refused",
+                    {
+                        "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
+                        "reference_window": window.identity_payload(),
+                        "input_allele": {"start_zero_based": start, "reference": allele.reference, "alternate": allele.alternate},
+                        "output_allele": None,
+                    },
+                    None,
+                    reference_context,
+                    ["REFERENCE_MISMATCH"],
+                )
+            )
             return None
-        operations.append(_operation(request, "verified_reference_context_check", "succeeded", allele.reference, observed, reference_context))
+        operations.append(
+            _operation(
+                request,
+                "pinned_reference_context_check",
+                "succeeded",
+                {
+                    "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
+                    "reference_window": window.identity_payload(),
+                    "input_allele": {"start_zero_based": start, "reference": allele.reference, "alternate": allele.alternate},
+                    "output_allele": {"observed_reference": observed},
+                },
+                {"observed_reference": observed},
+                reference_context,
+            )
+        )
 
     ref, alt = allele.reference, allele.alternate
+    if request.declared_variant_class == DeclaredVariantClass.DUPLICATION:
+        duplicated = ref
+        canonical_start = start + len(duplicated)
+        output_allele = {"start_zero_based": canonical_start, "reference": "", "alternate": duplicated}
+        operations.append(
+            _operation(
+                request,
+                "simple_tandem_duplication_representation",
+                "succeeded",
+                {
+                    "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
+                    "reference_window": window.identity_payload(),
+                    "input_allele": {"start_zero_based": start, "reference": ref, "alternate": alt},
+                    "output_allele": output_allele,
+                },
+                output_allele,
+                reference_context,
+            )
+        )
+        return CanonicalAllele(
+            chromosome=window.contig,
+            genome_build=window.genome_build,
+            reference_accession=window.versioned_accession,
+            start_zero_based=canonical_start,
+            reference="",
+            alternate=duplicated,
+            variant_class="duplication",
+            minimal_changed=True,
+            left_shift_count=0,
+            reference_source_id=window.reference_source_id,
+            sequence_sha256=window.sequence_sha256,
+            duplication_start_zero_based=start,
+            duplicated_sequence=duplicated,
+        )
     minimal_start, minimal_ref, minimal_alt = _minimal_representation(start, ref, alt)
     minimal_changed = (minimal_start, minimal_ref, minimal_alt) != (start, ref, alt)
     operations.append(
@@ -219,21 +326,26 @@ def _canonicalize_structured_allele(
         )
     )
     left_shift_count = 0
-    if allele.reference_context_verified and allele.reference_context_sequence is not None:
+    if bool(minimal_ref) != bool(minimal_alt):
         shifted_start, shifted_ref, shifted_alt = _left_normalize(
             minimal_start,
             minimal_ref,
             minimal_alt,
-            allele.reference_context_sequence,
-            int(allele.reference_context_start or 0),
+            window.sequence,
+            window.window_start_zero_based,
         )
         left_shift_count = minimal_start - shifted_start
         operations.append(
             _operation(
                 request,
-                "left_normalize_with_verified_bounded_reference",
+                "left_normalize_with_pinned_bounded_reference",
                 "succeeded",
-                {"start_zero_based": minimal_start, "reference": minimal_ref, "alternate": minimal_alt},
+                {
+                    "algorithm_version": VARIANT_INTELLIGENCE_ALGORITHM_VERSION,
+                    "reference_window": window.identity_payload(),
+                    "input_allele": {"start_zero_based": minimal_start, "reference": minimal_ref, "alternate": minimal_alt},
+                    "output_allele": {"start_zero_based": shifted_start, "reference": shifted_ref, "alternate": shifted_alt},
+                },
                 {"start_zero_based": shifted_start, "reference": shifted_ref, "alternate": shifted_alt},
                 reference_context,
             )
@@ -242,16 +354,26 @@ def _canonicalize_structured_allele(
 
     variant_class = _classify(minimal_ref, minimal_alt, request.declared_variant_class)
     return CanonicalAllele(
-        chromosome=allele.chromosome,
-        genome_build=allele.genome_build,
-        reference_accession=allele.reference_accession or request.supplied_reference_accession,
+        chromosome=window.contig,
+        genome_build=window.genome_build,
+        reference_accession=window.versioned_accession,
         start_zero_based=minimal_start,
         reference=minimal_ref,
         alternate=minimal_alt,
         variant_class=variant_class,
         minimal_changed=minimal_changed,
         left_shift_count=left_shift_count,
+        reference_source_id=window.reference_source_id,
+        sequence_sha256=window.sequence_sha256,
     )
+
+
+def _structured_start(position: int, reference: str, coordinate_system: CoordinateSystem) -> int:
+    if coordinate_system == CoordinateSystem.ZERO_BASED_HALF_OPEN:
+        return position
+    if reference == "":
+        return position
+    return position - 1
 
 
 def _minimal_representation(start: int, reference: str, alternate: str) -> tuple[int, str, str]:
@@ -302,7 +424,7 @@ def _build_output(
     if output_type == RequestedVariantOutput.VALIDATED_SUPPLIED_REPRESENTATION:
         status = "preserved"
         value: str | dict[str, Any] | None = request.supplied_representation
-        reason = None if not assessment.errors else "SUPPLIED_REPRESENTATION_INVALID"
+        reason = None if not (assessment.errors or assessment.unsupported or assessment.conflicts or assessment.missing) else "SUPPLIED_REPRESENTATION_NOT_VALIDATED"
         return _output(request, output_type, status, value, reason)
     if output_type == RequestedVariantOutput.CAID:
         if request.supplied_caid and request.supplied_caid.startswith("CA") and request.supplied_caid[2:].isdigit():
@@ -314,22 +436,35 @@ def _build_output(
         return _output(request, output_type, "not_generated", None, _primary_refusal_code(assessment))
     if output_type == RequestedVariantOutput.CANONICAL_INTERNAL_ALLELE:
         value = {
+            "format_id": "insilicopop-canonical-allele-0.30.1",
             "scope": "insilicopop_internal_research_representation",
+            "universal_clinical_identifier": False,
+            "cross_build_equivalence_claimed": False,
+            "cross_transcript_equivalence_claimed": False,
             "genome_build": canonical.genome_build,
             "chromosome": canonical.chromosome,
+            "reference_source_id": canonical.reference_source_id,
+            "reference_accession": canonical.reference_accession,
+            "reference_sequence_sha256": canonical.sequence_sha256,
+            "coordinate_system": "zero_based_half_open",
             "start_zero_based": canonical.start_zero_based,
             "reference": canonical.reference,
             "alternate": canonical.alternate,
             "variant_class": canonical.variant_class,
         }
+        if canonical.variant_class == "duplication":
+            value["duplication_source_start_zero_based"] = canonical.duplication_start_zero_based
+            value["duplicated_sequence"] = canonical.duplicated_sequence
         return _output(request, output_type, "generated", value, None)
     if output_type == RequestedVariantOutput.SPDI:
-        if not canonical.reference_accession:
-            return _output(request, output_type, "not_generated", None, "REFERENCE_ACCESSION_REQUIRED")
+        if not canonical.reference_accession or not canonical.reference_source_id:
+            return _output(request, output_type, "not_generated", None, "REFERENCE_DATA_UNAVAILABLE")
         return _output(request, output_type, "generated", f"{canonical.reference_accession}:{canonical.start_zero_based}:{canonical.reference}:{canonical.alternate}", None)
     if output_type == RequestedVariantOutput.NORMALIZED_HGVS:
-        if not canonical.reference_accession or "." not in canonical.reference_accession:
-            return _output(request, output_type, "not_generated", None, "REFERENCE_VERSION_REQUIRED")
+        if not canonical.reference_accession or not canonical.reference_source_id:
+            return _output(request, output_type, "not_generated", None, "REFERENCE_DATA_UNAVAILABLE")
+        if canonical.variant_class == "insertion" and canonical.start_zero_based < 1:
+            return _output(request, output_type, "not_generated", None, "HGVS_INSERTION_BOUNDARY_UNAVAILABLE")
         return _output(request, output_type, "generated", _hgvs(canonical), None)
     return _output(request, output_type, "unsupported", None, "UNSUPPORTED_REQUESTED_OUTPUT")
 
@@ -343,11 +478,13 @@ def _hgvs(allele: CanonicalAllele) -> str:
     if allele.variant_class == "deletion":
         location = str(start) if start == end else f"{start}_{end}"
         return f"{prefix}{location}del"
+    if allele.variant_class == "duplication":
+        duplication_start = int(allele.duplication_start_zero_based or 0) + 1
+        duplication_end = duplication_start + len(allele.duplicated_sequence or "") - 1
+        location = str(duplication_start) if duplication_start == duplication_end else f"{duplication_start}_{duplication_end}"
+        return f"{prefix}{location}dup"
     if allele.variant_class == "insertion":
         return f"{prefix}{allele.start_zero_based}_{allele.start_zero_based + 1}ins{allele.alternate}"
-    if allele.variant_class == "duplication":
-        location = str(start) if start == end else f"{start}_{end}"
-        return f"{prefix}{location}dup"
     location = str(start) if start == end else f"{start}_{end}"
     return f"{prefix}{location}delins{allele.alternate}"
 
@@ -389,10 +526,12 @@ def _validation_status(assessment: VariantValidationAssessment) -> VariantValida
         return VariantValidationStatus.UNSUPPORTED
     if assessment.errors:
         return VariantValidationStatus.INVALID
-    if assessment.conflicts or assessment.warnings:
+    if assessment.conflicts:
         return VariantValidationStatus.PARTIALLY_VALID
     if assessment.missing:
         return VariantValidationStatus.CANNOT_VALIDATE
+    if assessment.warnings:
+        return VariantValidationStatus.PARTIALLY_VALID
     return VariantValidationStatus.VALID
 
 
@@ -417,9 +556,9 @@ def _normalization_status(
 def _equivalence_status(assessment: VariantValidationAssessment, canonical: CanonicalAllele | None) -> VariantEquivalenceStatus:
     if assessment.unsupported:
         return VariantEquivalenceStatus.UNSUPPORTED_REPRESENTATION
-    if assessment.conflicts or assessment.errors:
-        return VariantEquivalenceStatus.INCOMPATIBLE_REPRESENTATIONS if assessment.conflicts else VariantEquivalenceStatus.UNRESOLVED_EQUIVALENCE
-    if canonical is None:
+    if assessment.conflicts:
+        return VariantEquivalenceStatus.INCOMPATIBLE_REPRESENTATIONS
+    if assessment.errors or assessment.missing or canonical is None:
         return VariantEquivalenceStatus.UNRESOLVED_EQUIVALENCE
     if canonical.minimal_changed or canonical.left_shift_count:
         return VariantEquivalenceStatus.NORMALIZED_EQUIVALENCE
@@ -427,7 +566,7 @@ def _equivalence_status(assessment: VariantValidationAssessment, canonical: Cano
 
 
 def _primary_refusal_code(assessment: VariantValidationAssessment) -> str:
-    for collection in (assessment.errors, assessment.conflicts, assessment.missing, assessment.unsupported, assessment.warnings):
+    for collection in (assessment.unsupported, assessment.errors, assessment.conflicts, assessment.missing, assessment.warnings):
         if collection:
             return collection[0].code
     return "REFERENCE_DATA_UNAVAILABLE"

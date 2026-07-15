@@ -64,6 +64,50 @@ def test_exact_supplied_strings_are_preserved_without_implicit_cleanup():
     assert request.provenance_source_ids == ["SRC-2", "SRC-1"]
 
 
+def test_every_supplied_biological_field_round_trips_exactly():
+    raw = request_payload(
+        supplied_representation="  NM_000001.2:c.1A>G!?  ",
+        representation_type="hgvs_coding",
+        supplied_genome_build=" GRCh38 ",
+        supplied_reference_accession=" NC_000001.11 ",
+        supplied_transcript_accession=" NM_000001.2 ",
+        supplied_gene_id=" Gene-α!? ",
+        supplied_chromosome=" chrX ",
+        supplied_reference=" aC ",
+        supplied_alternate=" T! ",
+        supplied_spdi=" NC_000001.11:0:A:G ",
+        supplied_vrs={"type": " Allele ", "id": "ga4gh:VA.test!?"},
+        supplied_caid=" CA123 ",
+        supplied_protein_consequence=" NP_000001.1:p.(Val1Ala) ",
+        structured_allele={
+            "chromosome": " chrX ",
+            "position": 1,
+            "reference": " a ",
+            "alternate": " T ",
+            "coordinate_system": "one_based_closed",
+            "genome_build": " GRCh38 ",
+            "reference_accession": " NC_000001.11 ",
+            "reference_source_id": " LOCAL!? ",
+            "reference_context_sequence": " aCgT!? ",
+            "reference_context_start": 0,
+            "reference_context_verified": True,
+        },
+    )
+    parsed = VariantNormalizationRequest.model_validate(raw).model_dump(mode="json")
+    for field in (
+        "supplied_representation", "supplied_genome_build", "supplied_reference_accession",
+        "supplied_transcript_accession", "supplied_gene_id", "supplied_chromosome",
+        "supplied_reference", "supplied_alternate", "supplied_spdi", "supplied_vrs",
+        "supplied_caid", "supplied_protein_consequence",
+    ):
+        assert parsed[field] == raw[field]
+    for field in (
+        "chromosome", "reference", "alternate", "genome_build", "reference_accession",
+        "reference_source_id", "reference_context_sequence",
+    ):
+        assert parsed["structured_allele"][field] == raw["structured_allele"][field]
+
+
 def test_request_ids_must_be_unique_and_candidate_reference_is_required_by_schema():
     duplicate = request_payload()
     with pytest.raises(ValidationError, match="request IDs must be unique"):

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 VARIANT_INTELLIGENCE_SCHEMA_VERSION = "0.30"
-VARIANT_INTELLIGENCE_ALGORITHM_VERSION = "insilicopop-variant-intelligence-0.30.0"
+VARIANT_INTELLIGENCE_ALGORITHM_VERSION = "insilicopop-variant-intelligence-0.30.1"
 
 
 class VariantFrozenModel(BaseModel):
@@ -113,6 +113,7 @@ class StructuredAlleleInput(VariantFrozenModel):
     coordinate_system: CoordinateSystem
     genome_build: str | None = Field(default=None, min_length=1, max_length=80)
     reference_accession: str | None = Field(default=None, max_length=120)
+    reference_source_id: str | None = Field(default=None, max_length=120)
     reference_context_sequence: str | None = Field(default=None, max_length=2000)
     reference_context_start: int | None = Field(default=None, ge=0)
     reference_context_verified: bool = False
@@ -178,9 +179,18 @@ class VariantReferenceContext(VariantFrozenModel):
     genome_build: str | None = None
     chromosome: str | None = None
     reference_accession: str | None = None
+    reference_source_id: str | None = None
+    accession: str | None = None
+    accession_version: str | None = None
     coordinate_system: str | None = None
     position_supplied: int | None = None
     start_zero_based: int | None = None
+    window_start_zero_based: int | None = None
+    window_end_zero_based: int | None = None
+    sequence_sha256: str | None = None
+    registry_version: str | None = None
+    provenance_source_id: str | None = None
+    fixture_only: bool = False
     reference_context_verified: bool = False
 
 
@@ -193,7 +203,7 @@ class VariantTranscriptContext(VariantFrozenModel):
 class VariantNormalizationOperation(VariantFrozenModel):
     operation_id: str
     operation_name: str
-    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.0"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
+    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.1"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
     status: Literal["succeeded", "refused", "not_applicable"]
     input_hash: str
     output_hash: str | None = None
@@ -212,7 +222,7 @@ class VariantNormalizedOutput(VariantFrozenModel):
 
 class VariantNormalizationResult(VariantFrozenModel):
     schema_version: Literal["0.30"] = VARIANT_INTELLIGENCE_SCHEMA_VERSION
-    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.0"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
+    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.1"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
     request_id: str
     candidate_variant_id: str
     supplied_request_snapshot: VariantNormalizationRequest
@@ -246,7 +256,7 @@ class VariantNormalizationResult(VariantFrozenModel):
 
 class VariantIntelligenceResult(VariantFrozenModel):
     schema_version: Literal["0.30"] = VARIANT_INTELLIGENCE_SCHEMA_VERSION
-    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.0"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
+    algorithm_version: Literal["insilicopop-variant-intelligence-0.30.1"] = VARIANT_INTELLIGENCE_ALGORITHM_VERSION
     pseudonymous_case_id: str
     normalization_results: list[VariantNormalizationResult]
     validation_status_counts: dict[str, int]
