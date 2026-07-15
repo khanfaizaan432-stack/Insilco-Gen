@@ -72,7 +72,7 @@ def test_run_writes_bounded_artifact_report_trace_checksum_and_lock(tmp_path):
     assert "synthetic and fixture-only" in report
     assert "Genome-wide human reference normalization is not available in v0.30" in report
     assert "clinical significance" in report
-    assert "pinned reference context" in report
+    assert "pinned reference context (authoritative resolved fixture window)" in report
     assert "reproducibility/variant_intelligence.json" in checksums
     assert lock["variant_intelligence_schema_version"] == "0.30"
     assert lock["variant_intelligence_algorithm_version"] == "insilicopop-variant-intelligence-0.30.1"
@@ -180,9 +180,9 @@ def test_api_workbench_stored_run_and_allowlisted_artifact_expose_v030():
     assert "synthetic and fixture-only" in ui
     assert "Genome-wide human reference normalization is not available in v0.30" in ui
     assert "clinical significance" in ui
-    assert "Pinned reference source:" in ui
     assert "Reference sequence SHA-256 prefix:" in ui
     assert "variantBadgeLabels" in ui
+    assert "variantReferencePresentation" in ui
 
 
 def test_ui_badge_rules_execute_for_success_refusal_unresolved_and_absent_states():
@@ -218,6 +218,8 @@ def test_ui_badge_rules_execute_for_success_refusal_unresolved_and_absent_states
             "human_review_required": True,
         },
         {},
+        {"human_review_required": False},
+        {"human_review_required": None},
     ]
     script = (
         match.group("body")
@@ -236,8 +238,76 @@ def test_ui_badge_rules_execute_for_success_refusal_unresolved_and_absent_states
         ["SUPPLIED", "VALIDATED", "NORMALIZED", "REVIEW REQUIRED"],
         ["SUPPLIED", "UNSUPPORTED", "REVIEW REQUIRED"],
         ["SUPPLIED", "UNRESOLVED", "REVIEW REQUIRED"],
-        ["REVIEW REQUIRED"],
+        [],
+        [],
+        [],
     ]
+
+
+def test_ui_reference_wording_executes_for_verified_and_unverified_contexts():
+    ui = client.get("/insilicopop/workbench").text
+    match = re.search(
+        r"// VARIANT_REFERENCE_PRESENTATION_START(?P<body>.*?)// VARIANT_REFERENCE_PRESENTATION_END",
+        ui,
+        flags=re.DOTALL,
+    )
+    assert match is not None
+    node = shutil.which("node")
+    assert node is not None, "Node.js is required to execute the Workbench reference-label contract test"
+    states = [
+        {"reference_context_verified": True},
+        {
+            "reference_context_verified": False,
+            "reference_accession": "CALLER_REF.1",
+            "genome_build": "caller-build",
+            "chromosome": "caller-contig",
+        },
+        {},
+    ]
+    script = (
+        match.group("body")
+        + "\nconst states = "
+        + json.dumps(states)
+        + ";\nprocess.stdout.write(JSON.stringify(states.map(variantReferencePresentation)));"
+    )
+    completed = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    verified, unverified, absent = json.loads(completed.stdout)
+    assert verified["heading"] == "Authoritative pinned reference identity"
+    assert verified["accessionLabel"] == "Resolved accession/version"
+    for item in (unverified, absent):
+        assert item["heading"] == "Supplied/unresolved reference context"
+        assert item["accessionLabel"] == "Supplied accession/version"
+        assert item["status"] == "No authoritative pinned reference window was resolved."
+        assert "Resolved accession/version" not in item.values()
+
+
+def test_hgvs_syntax_only_report_uses_supplied_unresolved_reference_wording(tmp_path):
+    data = clinical_payload()
+    variant_request = data["variant_intelligence"]["normalization_requests"][0]
+    variant_request.update(
+        supplied_representation="ISP_TESTREF.1:g.2A>G",
+        representation_type="hgvs_genomic",
+        supplied_genome_build="InSilicoPopSynthetic-0.30",
+        supplied_reference_accession="ISP_TESTREF.1",
+        structured_allele=None,
+    )
+    result = AgentLoop(generated_root=tmp_path).run(
+        query="Validate supplied HGVS syntax",
+        uploads={},
+        clinical_case_intake=data,
+    )
+    report = Path(result["generated_files"]["final_report"]["absolute_path"]).read_text(encoding="utf-8")
+    public_result = result["variant_intelligence"]["normalization_results"][0]
+    assert public_result["reference_context_used"]["reference_context_verified"] is False
+    assert "supplied/unresolved reference context" in report
+    assert "no authoritative pinned reference window was resolved" in report
+    assert "  - pinned reference context" not in report
 
 
 def test_old_stored_runs_remain_readable_without_variant_intelligence(tmp_path):

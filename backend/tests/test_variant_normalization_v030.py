@@ -289,9 +289,10 @@ def test_operation_status_matches_missing_conflict_unsupported_and_success():
 
 
 def test_hgvs_syntax_only_warning_never_authorizes_normalized_output_or_equivalence():
+    supplied_hgvs = "ISP_TESTREF.1:g.2A>G"
     result = normalize_variant_request(
         request(
-            supplied_representation="ISP_TESTREF.1:g.2A>G",
+            supplied_representation=supplied_hgvs,
             representation_type="hgvs_genomic",
             supplied_genome_build="InSilicoPopSynthetic-0.30",
             supplied_reference_accession="ISP_TESTREF.1",
@@ -300,10 +301,14 @@ def test_hgvs_syntax_only_warning_never_authorizes_normalized_output_or_equivale
         candidate(),
     )
     assert "HGVS_SYNTAX_ONLY" in issue_codes(result)
+    assert result.supplied_request_snapshot.supplied_representation == supplied_hgvs
+    assert result.reference_context_used.reference_context_verified is False
     assert result.equivalence_status.value == "unresolved_equivalence"
     assert result.normalization_status.value == "cannot_normalize"
-    assert all(item.status == "not_generated" for item in result.normalized_outputs)
-    assert all(item.value is None for item in result.normalized_outputs)
+    by_type = outputs(result)
+    for output_type in ("normalized_hgvs", "spdi", "canonical_internal_allele"):
+        assert by_type[output_type].status == "not_generated"
+        assert by_type[output_type].value is None
 
 
 def test_all_equivalence_states_are_explicit():

@@ -805,10 +805,33 @@
       if (item?.normalization_status === "normalized") labels.push("NORMALIZED");
       if (item?.equivalence_status === "unresolved_equivalence" || ["cannot_validate", "invalid"].includes(item?.validation_status) || item?.normalization_status === "cannot_normalize") labels.push("UNRESOLVED");
       if (item?.validation_status === "unsupported" || item?.normalization_status === "unsupported" || item?.equivalence_status === "unsupported_representation") labels.push("UNSUPPORTED");
-      if (item?.human_review_required !== false) labels.push("REVIEW REQUIRED");
+      if (item?.human_review_required === true) labels.push("REVIEW REQUIRED");
       return labels;
     }
     // VARIANT_BADGE_LABELS_END
+
+    // VARIANT_REFERENCE_PRESENTATION_START
+    function variantReferencePresentation(referenceContext) {
+      const verified = referenceContext?.reference_context_verified === true;
+      return verified ? {
+        heading: "Authoritative pinned reference identity",
+        status: "Resolved fixture window.",
+        sourceLabel: "Pinned reference source",
+        accessionLabel: "Resolved accession/version",
+        buildContigLabel: "Resolved reference build / contig",
+        windowLabel: "Resolved fixture window",
+        registryLabel: "Resolved reference registry",
+      } : {
+        heading: "Supplied/unresolved reference context",
+        status: "No authoritative pinned reference window was resolved.",
+        sourceLabel: "Supplied reference source",
+        accessionLabel: "Supplied accession/version",
+        buildContigLabel: "Supplied reference build / contig",
+        windowLabel: "Supplied reference window",
+        registryLabel: "Supplied reference registry context",
+      };
+    }
+    // VARIANT_REFERENCE_PRESENTATION_END
 
     function renderVariantIntelligence(variantIntelligence) {
       const target = document.getElementById("variant-intelligence");
@@ -826,6 +849,7 @@
         const snapshot = item.supplied_request_snapshot || {};
         const allele = snapshot.structured_allele || {};
         const referenceContext = item.reference_context_used || {};
+        const referencePresentation = variantReferencePresentation(referenceContext);
         const sequenceDigest = String(referenceContext.sequence_sha256 || "unresolved");
         const digestPrefix = sequenceDigest.length > 16 ? `${sequenceDigest.slice(0, 16)}...` : sequenceDigest;
         const outputMap = {};
@@ -862,11 +886,12 @@
           <p><strong>VRS:</strong> ${escapeHtml(outputValue("vrs"))}</p>
           <p><strong>Supplied CAID:</strong> ${escapeHtml(snapshot.supplied_caid || "not supplied")}</p>
           <p><strong>Canonical internal representation:</strong></p><pre>${escapeHtml(outputValue("canonical_internal_allele"))}</pre>
-          <p><strong>Pinned reference source:</strong> ${escapeHtml(referenceContext.reference_source_id || "unresolved")}</p>
-          <p><strong>Resolved accession/version:</strong> ${escapeHtml(referenceContext.reference_accession || "unresolved")}</p>
-          <p><strong>Reference build / contig:</strong> ${escapeHtml(referenceContext.genome_build || "unresolved")} / ${escapeHtml(referenceContext.chromosome || "unresolved")}</p>
-          <p><strong>Reference window:</strong> ${escapeHtml(referenceContext.window_start_zero_based ?? "unresolved")}..${escapeHtml(referenceContext.window_end_zero_based ?? "unresolved")} (${escapeHtml(referenceContext.reference_window_coordinate_system || "unresolved")})</p>
-          <p><strong>Reference registry:</strong> ${escapeHtml(referenceContext.registry_version || "unresolved")}; provenance ${escapeHtml(referenceContext.provenance_source_id || "unresolved")}; fixture-only ${escapeHtml(referenceContext.fixture_only === true)}</p>
+          <p><strong>${escapeHtml(referencePresentation.heading)}:</strong> ${escapeHtml(referencePresentation.status)}</p>
+          <p><strong>${escapeHtml(referencePresentation.sourceLabel)}:</strong> ${escapeHtml(referenceContext.reference_source_id || "unresolved")}</p>
+          <p><strong>${escapeHtml(referencePresentation.accessionLabel)}:</strong> ${escapeHtml(referenceContext.reference_accession || "unresolved")}</p>
+          <p><strong>${escapeHtml(referencePresentation.buildContigLabel)}:</strong> ${escapeHtml(referenceContext.genome_build || "unresolved")} / ${escapeHtml(referenceContext.chromosome || "unresolved")}</p>
+          <p><strong>${escapeHtml(referencePresentation.windowLabel)}:</strong> ${escapeHtml(referenceContext.window_start_zero_based ?? "unresolved")}..${escapeHtml(referenceContext.window_end_zero_based ?? "unresolved")} (${escapeHtml(referenceContext.reference_window_coordinate_system || "unresolved")})</p>
+          <p><strong>${escapeHtml(referencePresentation.registryLabel)}:</strong> ${escapeHtml(referenceContext.registry_version || "unresolved")}; provenance ${escapeHtml(referenceContext.provenance_source_id || "unresolved")}; fixture-only ${escapeHtml(referenceContext.fixture_only === true)}</p>
           <p><strong>Reference sequence SHA-256 prefix:</strong> ${escapeHtml(digestPrefix)}</p>
           <p><strong>Algorithm:</strong> ${escapeHtml(item.algorithm_version || "unknown")}</p>
           <p><strong>Provenance:</strong> ${escapeHtml((item.provenance_source_ids || []).join(", ") || "not supplied")}</p>

@@ -795,10 +795,16 @@ def _variant_intelligence_lines(variant_intelligence: dict[str, Any]) -> list[st
         reference_context = item.get("reference_context_used", {}) or {}
         if not isinstance(reference_context, dict):
             reference_context = {}
+        reference_verified = reference_context.get("reference_context_verified") is True
+        reference_heading = (
+            "pinned reference context (authoritative resolved fixture window)"
+            if reference_verified
+            else "supplied/unresolved reference context (no authoritative pinned reference window was resolved)"
+        )
         sequence_digest = str(reference_context.get("sequence_sha256") or "unresolved")
         digest_prefix = sequence_digest[:16] + ("..." if len(sequence_digest) > 16 else "")
         lines.append(
-            "  - pinned reference context: "
+            f"  - {reference_heading}: "
             f"source `{_redact(str(reference_context.get('reference_source_id') or 'unresolved'))}`, "
             f"accession `{_redact(str(reference_context.get('reference_accession') or 'unresolved'))}`, "
             f"build `{_redact(str(reference_context.get('genome_build') or 'unresolved'))}`, "
