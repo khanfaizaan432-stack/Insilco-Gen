@@ -796,6 +796,20 @@
         <h3>Supplied-record issue codes</h3><ul>${issueCodes}</ul>`;
     }
 
+    // VARIANT_BADGE_LABELS_START
+    function variantBadgeLabels(item) {
+      const snapshot = item?.supplied_request_snapshot || {};
+      const labels = [];
+      if (snapshot.supplied_representation) labels.push("SUPPLIED");
+      if (["valid", "partially_valid"].includes(item?.validation_status)) labels.push("VALIDATED");
+      if (item?.normalization_status === "normalized") labels.push("NORMALIZED");
+      if (item?.equivalence_status === "unresolved_equivalence" || ["cannot_validate", "invalid"].includes(item?.validation_status) || item?.normalization_status === "cannot_normalize") labels.push("UNRESOLVED");
+      if (item?.validation_status === "unsupported" || item?.normalization_status === "unsupported" || item?.equivalence_status === "unsupported_representation") labels.push("UNSUPPORTED");
+      if (item?.human_review_required !== false) labels.push("REVIEW REQUIRED");
+      return labels;
+    }
+    // VARIANT_BADGE_LABELS_END
+
     function renderVariantIntelligence(variantIntelligence) {
       const target = document.getElementById("variant-intelligence");
       if (!variantIntelligence || typeof variantIntelligence !== "object" || Object.keys(variantIntelligence).length === 0) {
@@ -811,6 +825,9 @@
       const details = results.map((item) => {
         const snapshot = item.supplied_request_snapshot || {};
         const allele = snapshot.structured_allele || {};
+        const referenceContext = item.reference_context_used || {};
+        const sequenceDigest = String(referenceContext.sequence_sha256 || "unresolved");
+        const digestPrefix = sequenceDigest.length > 16 ? `${sequenceDigest.slice(0, 16)}...` : sequenceDigest;
         const outputMap = {};
         (item.normalized_outputs || []).forEach((output) => { outputMap[output.output_type] = output; });
         const outputValue = (name) => {
@@ -828,13 +845,10 @@
           ...(item.conflicts || []),
           ...(item.review_actions || []),
         ].map((issue) => `<li>${escapeHtml(issue.code || "review_required")} — ${escapeHtml(issue.message || "Human review required.")}</li>`).join("") || "<li>No issues recorded.</li>";
-        const badges = [];
-        if (snapshot.supplied_representation) badges.push('<span class="badge">SUPPLIED</span>');
-        if (["valid", "partially_valid"].includes(item.validation_status)) badges.push('<span class="badge safe">VALIDATED</span>');
-        if (item.normalization_status === "normalized") badges.push('<span class="badge safe">NORMALIZED</span>');
-        if (item.equivalence_status === "unresolved_equivalence" || ["cannot_validate", "invalid"].includes(item.validation_status) || item.normalization_status === "cannot_normalize") badges.push('<span class="badge warn">UNRESOLVED</span>');
-        if (item.validation_status === "unsupported" || item.normalization_status === "unsupported" || item.equivalence_status === "unsupported_representation") badges.push('<span class="badge warn">UNSUPPORTED</span>');
-        if (item.human_review_required !== false) badges.push('<span class="badge warn">REVIEW REQUIRED</span>');
+        const badges = variantBadgeLabels(item).map((label) => {
+          const className = ["VALIDATED", "NORMALIZED"].includes(label) ? "badge safe" : ["UNRESOLVED", "UNSUPPORTED", "REVIEW REQUIRED"].includes(label) ? "badge warn" : "badge";
+          return `<span class="${className}">${label}</span>`;
+        });
         return `<details>
           <summary>${escapeHtml(item.candidate_variant_id || "candidate")} — REVIEW REQUIRED</summary>
           <div class="badge-row">${badges.join("")}</div>
@@ -848,6 +862,12 @@
           <p><strong>VRS:</strong> ${escapeHtml(outputValue("vrs"))}</p>
           <p><strong>Supplied CAID:</strong> ${escapeHtml(snapshot.supplied_caid || "not supplied")}</p>
           <p><strong>Canonical internal representation:</strong></p><pre>${escapeHtml(outputValue("canonical_internal_allele"))}</pre>
+          <p><strong>Pinned reference source:</strong> ${escapeHtml(referenceContext.reference_source_id || "unresolved")}</p>
+          <p><strong>Resolved accession/version:</strong> ${escapeHtml(referenceContext.reference_accession || "unresolved")}</p>
+          <p><strong>Reference build / contig:</strong> ${escapeHtml(referenceContext.genome_build || "unresolved")} / ${escapeHtml(referenceContext.chromosome || "unresolved")}</p>
+          <p><strong>Reference window:</strong> ${escapeHtml(referenceContext.window_start_zero_based ?? "unresolved")}..${escapeHtml(referenceContext.window_end_zero_based ?? "unresolved")} (${escapeHtml(referenceContext.reference_window_coordinate_system || "unresolved")})</p>
+          <p><strong>Reference registry:</strong> ${escapeHtml(referenceContext.registry_version || "unresolved")}; provenance ${escapeHtml(referenceContext.provenance_source_id || "unresolved")}; fixture-only ${escapeHtml(referenceContext.fixture_only === true)}</p>
+          <p><strong>Reference sequence SHA-256 prefix:</strong> ${escapeHtml(digestPrefix)}</p>
           <p><strong>Algorithm:</strong> ${escapeHtml(item.algorithm_version || "unknown")}</p>
           <p><strong>Provenance:</strong> ${escapeHtml((item.provenance_source_ids || []).join(", ") || "not supplied")}</p>
           <h4>Operations performed</h4><ul>${operations}</ul>
@@ -866,7 +886,8 @@
           <div class="metric safe"><strong>transcript selection</strong>false</div>
           <div class="metric safe"><strong>raw genomic parsing</strong>false</div>
         </div>
-        <p class="note"><strong>Variant normalization establishes representation consistency only. It does not establish pathogenicity, causality, diagnosis, or transcript relevance.</strong></p>
+        <p class="note"><strong>The active reference registry is synthetic and fixture-only; it exists to demonstrate deterministic architecture and testing. Genome-wide human reference normalization is not available in v0.30. Generated normalized representations apply only when the supplied allele resolves against the pinned fixture window.</strong></p>
+        <p class="note"><strong>These outputs do not establish clinical significance, pathogenicity, causality, diagnosis, treatment relevance, or final transcript relevance.</strong></p>
         <h3>Candidate list</h3><ul>${candidateRows}</ul>
         <h3>Candidate detail</h3>${details || "<p>No candidate detail available.</p>"}`;
     }

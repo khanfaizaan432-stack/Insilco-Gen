@@ -761,7 +761,8 @@ def _variant_intelligence_lines(variant_intelligence: dict[str, Any]) -> list[st
     lines = [
         "## Variant Intelligence Preview",
         "",
-        "Variant normalization establishes representation consistency only. It does not establish pathogenicity, causality, diagnosis, or transcript relevance.",
+        "The active reference registry is synthetic and fixture-only; it exists to demonstrate deterministic architecture and testing. Genome-wide human reference normalization is not available in v0.30. Generated normalized representations apply only when the supplied allele resolves against the pinned fixture window.",
+        "These outputs do not establish clinical significance, pathogenicity, causality, diagnosis, treatment relevance, or final transcript relevance.",
         f"- schema_version: `{_redact(str(variant_intelligence.get('schema_version', 'unknown')))}`",
         f"- algorithm_version: `{_redact(str(variant_intelligence.get('algorithm_version', 'unknown')))}`",
         f"- request_count: `{len(results)}`",
@@ -790,6 +791,24 @@ def _variant_intelligence_lines(variant_intelligence: dict[str, Any]) -> list[st
             f"normalization `{_redact(str(item.get('normalization_status', 'cannot_normalize')))}`, "
             f"equivalence `{_redact(str(item.get('equivalence_status', 'unresolved_equivalence')))}`, "
             f"outputs `{_redact(', '.join(output_types) or 'none')}`"
+        )
+        reference_context = item.get("reference_context_used", {}) or {}
+        if not isinstance(reference_context, dict):
+            reference_context = {}
+        sequence_digest = str(reference_context.get("sequence_sha256") or "unresolved")
+        digest_prefix = sequence_digest[:16] + ("..." if len(sequence_digest) > 16 else "")
+        lines.append(
+            "  - pinned reference context: "
+            f"source `{_redact(str(reference_context.get('reference_source_id') or 'unresolved'))}`, "
+            f"accession `{_redact(str(reference_context.get('reference_accession') or 'unresolved'))}`, "
+            f"build `{_redact(str(reference_context.get('genome_build') or 'unresolved'))}`, "
+            f"contig `{_redact(str(reference_context.get('chromosome') or 'unresolved'))}`, "
+            f"bounds `{_redact(str(reference_context.get('window_start_zero_based')))}:{_redact(str(reference_context.get('window_end_zero_based')))}`, "
+            f"coordinate convention `{_redact(str(reference_context.get('reference_window_coordinate_system') or 'unresolved'))}`, "
+            f"registry `{_redact(str(reference_context.get('registry_version') or 'unresolved'))}`, "
+            f"provenance `{_redact(str(reference_context.get('provenance_source_id') or 'unresolved'))}`, "
+            f"fixture_only `{str(bool(reference_context.get('fixture_only', False))).lower()}`, "
+            f"sequence_sha256_prefix `{_redact(digest_prefix)}`"
         )
     return lines
 

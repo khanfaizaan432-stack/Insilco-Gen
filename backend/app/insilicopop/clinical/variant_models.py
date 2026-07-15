@@ -183,6 +183,7 @@ class VariantReferenceContext(VariantFrozenModel):
     accession: str | None = None
     accession_version: str | None = None
     coordinate_system: str | None = None
+    reference_window_coordinate_system: str | None = None
     position_supplied: int | None = None
     start_zero_based: int | None = None
     window_start_zero_based: int | None = None

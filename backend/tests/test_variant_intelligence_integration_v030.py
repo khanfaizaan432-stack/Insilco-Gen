@@ -3,6 +3,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -60,7 +63,16 @@ def test_run_writes_bounded_artifact_report_trace_checksum_and_lock(tmp_path):
     checksums = (repro / "checksums.sha256").read_text(encoding="utf-8")
     assert payload["schema_version"] == "0.30"
     assert payload["normalization_results"][0]["normalization_status"] == "normalized"
+    reference_context = payload["normalization_results"][0]["reference_context_used"]
+    assert reference_context["reference_source_id"] == SYNTHETIC_REFERENCE_SOURCE_ID
+    assert reference_context["reference_accession"] == "ISP_TESTREF.1"
+    assert reference_context["registry_version"] == "insilicopop-reference-windows-0.30.1"
+    assert reference_context["fixture_only"] is True
     assert "## Variant Intelligence Preview" in report
+    assert "synthetic and fixture-only" in report
+    assert "Genome-wide human reference normalization is not available in v0.30" in report
+    assert "clinical significance" in report
+    assert "pinned reference context" in report
     assert "reproducibility/variant_intelligence.json" in checksums
     assert lock["variant_intelligence_schema_version"] == "0.30"
     assert lock["variant_intelligence_algorithm_version"] == "insilicopop-variant-intelligence-0.30.1"
@@ -165,12 +177,67 @@ def test_api_workbench_stored_run_and_allowlisted_artifact_expose_v030():
     ui = client.get("/insilicopop/workbench").text
     assert "Variant Intelligence Workspace" in ui
     assert "renderVariantIntelligence" in ui
-    assert "Variant normalization establishes representation consistency only. It does not establish pathogenicity, causality, diagnosis, or transcript relevance." in ui
-    assert 'if (["valid", "partially_valid"].includes(item.validation_status))' in ui
-    assert 'if (item.normalization_status === "normalized")' in ui
-    assert 'item.equivalence_status === "unresolved_equivalence"' in ui
-    assert 'item.equivalence_status === "unsupported_representation"' in ui
-    assert '<span class="badge">SUPPLIED</span><span class="badge safe">VALIDATED</span><span class="badge">NORMALIZED</span>' not in ui
+    assert "synthetic and fixture-only" in ui
+    assert "Genome-wide human reference normalization is not available in v0.30" in ui
+    assert "clinical significance" in ui
+    assert "Pinned reference source:" in ui
+    assert "Reference sequence SHA-256 prefix:" in ui
+    assert "variantBadgeLabels" in ui
+
+
+def test_ui_badge_rules_execute_for_success_refusal_unresolved_and_absent_states():
+    ui = client.get("/insilicopop/workbench").text
+    match = re.search(
+        r"// VARIANT_BADGE_LABELS_START(?P<body>.*?)// VARIANT_BADGE_LABELS_END",
+        ui,
+        flags=re.DOTALL,
+    )
+    assert match is not None
+    node = shutil.which("node")
+    assert node is not None, "Node.js is required to execute the Workbench badge contract test"
+    states = [
+        {
+            "supplied_request_snapshot": {"supplied_representation": "TEST1:2:A>G"},
+            "validation_status": "valid",
+            "normalization_status": "normalized",
+            "equivalence_status": "exact_equivalence",
+            "human_review_required": True,
+        },
+        {
+            "supplied_request_snapshot": {"supplied_representation": "HLA-A*01:01"},
+            "validation_status": "unsupported",
+            "normalization_status": "unsupported",
+            "equivalence_status": "unsupported_representation",
+            "human_review_required": True,
+        },
+        {
+            "supplied_request_snapshot": {"supplied_representation": "unresolved"},
+            "validation_status": "cannot_validate",
+            "normalization_status": "cannot_normalize",
+            "equivalence_status": "unresolved_equivalence",
+            "human_review_required": True,
+        },
+        {},
+    ]
+    script = (
+        match.group("body")
+        + "\nconst states = "
+        + json.dumps(states)
+        + ";\nprocess.stdout.write(JSON.stringify(states.map(variantBadgeLabels)));"
+    )
+    completed = subprocess.run(
+        [node, "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert json.loads(completed.stdout) == [
+        ["SUPPLIED", "VALIDATED", "NORMALIZED", "REVIEW REQUIRED"],
+        ["SUPPLIED", "UNSUPPORTED", "REVIEW REQUIRED"],
+        ["SUPPLIED", "UNRESOLVED", "REVIEW REQUIRED"],
+        ["REVIEW REQUIRED"],
+    ]
 
 
 def test_old_stored_runs_remain_readable_without_variant_intelligence(tmp_path):

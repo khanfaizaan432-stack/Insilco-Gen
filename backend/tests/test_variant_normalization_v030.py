@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from types import MappingProxyType
 
 import pytest
 
@@ -12,6 +13,7 @@ from app.insilicopop.clinical.variant_service import build_variant_intelligence
 from app.insilicopop.clinical.variant_reference_registry import SYNTHETIC_REFERENCE_SOURCE_ID
 from app.insilicopop.clinical.variant_reference_registry import clone_reference_window, resolve_reference_window
 import app.insilicopop.clinical.variant_normalization as normalization_module
+import app.insilicopop.clinical.variant_reference_registry as registry_module
 
 
 def candidate(**updates):
@@ -90,10 +92,41 @@ def test_verified_bounded_reference_enables_left_normalization_and_records_prove
     assert all(len(op.input_hash) == 64 for op in result.normalization_operations)
     assert all(op.algorithm_version == "insilicopop-variant-intelligence-0.30.1" for op in result.normalization_operations)
     left = next(op for op in result.normalization_operations if op.operation_name == "left_normalize_with_pinned_bounded_reference")
-    assert left.reference_context.reference_source_id == SYNTHETIC_REFERENCE_SOURCE_ID
-    assert len(left.reference_context.sequence_sha256) == 64
-    assert left.reference_context.registry_version == "insilicopop-reference-windows-0.30.1"
+    context = left.reference_context
+    assert context.reference_source_id == SYNTHETIC_REFERENCE_SOURCE_ID
+    assert context.accession == "ISP_TESTREF"
+    assert context.accession_version == "1"
+    assert context.reference_accession == "ISP_TESTREF.1"
+    assert context.genome_build == "InSilicoPopSynthetic-0.30"
+    assert context.chromosome == "TEST1"
+    assert (context.window_start_zero_based, context.window_end_zero_based) == (0, 20)
+    assert context.reference_window_coordinate_system == "zero_based_half_open"
+    assert len(context.sequence_sha256) == 64
+    assert context.registry_version == "insilicopop-reference-windows-0.30.1"
+    assert context.provenance_source_id == "INSILICOPOP_V030_SYNTHETIC_FIXTURE"
+    assert context.fixture_only is True
     assert "CALLER_REFERENCE_VERIFICATION_NOT_ACCEPTED" in issue_codes(result)
+
+
+@pytest.mark.parametrize("declared_class", [None, "unknown", "other"], ids=["omitted", "unknown", "other"])
+def test_unresolved_declared_class_blocks_all_canonical_and_equivalence_outputs(declared_class):
+    payload = request().model_dump(mode="json")
+    if declared_class is None:
+        payload.pop("declared_variant_class")
+    else:
+        payload["declared_variant_class"] = declared_class
+    supplied = VariantNormalizationRequest.model_validate(payload)
+    result = normalize_variant_request(supplied, candidate())
+
+    assert "VARIANT_CLASS_REQUIRED" in issue_codes(result)
+    assert result.validation_status.value == "cannot_validate"
+    assert result.normalization_status.value == "cannot_normalize"
+    assert result.equivalence_status.value == "unresolved_equivalence"
+    assert all(item.status == "not_generated" for item in result.normalized_outputs)
+    assert all(item.value is None for item in result.normalized_outputs)
+    assert result.supplied_request_snapshot.supplied_representation == payload["supplied_representation"]
+    assert result.supplied_request_snapshot.structured_allele.reference == payload["structured_allele"]["reference"]
+    assert result.supplied_request_snapshot.structured_allele.alternate == payload["structured_allele"]["alternate"]
 
 
 def test_caller_verification_flag_without_pinned_source_cannot_enable_normalization():
@@ -160,6 +193,18 @@ def test_reference_window_digest_changes_reference_operation_identity(monkeypatc
     second_op = next(op for op in second.normalization_operations if op.operation_name == "pinned_reference_context_check")
     assert first_op.operation_id != second_op.operation_id
     assert first_op.reference_context.sequence_sha256 != second_op.reference_context.sequence_sha256
+
+
+def test_authoritative_registry_rejects_sequence_digest_mismatch(monkeypatch):
+    original = registry_module.resolve_reference_window(SYNTHETIC_REFERENCE_SOURCE_ID)
+    assert original is not None
+    mismatched = clone_reference_window(original, sequence_sha256="0" * 64)
+    monkeypatch.setattr(
+        registry_module,
+        "_WINDOWS",
+        MappingProxyType({SYNTHETIC_REFERENCE_SOURCE_ID: mismatched}),
+    )
+    assert registry_module.resolve_reference_window(SYNTHETIC_REFERENCE_SOURCE_ID) is None
 
 
 def test_reference_mismatch_and_window_boundaries_refuse_normalization():
@@ -243,6 +288,24 @@ def test_operation_status_matches_missing_conflict_unsupported_and_success():
         assert operation.output_hash is None
 
 
+def test_hgvs_syntax_only_warning_never_authorizes_normalized_output_or_equivalence():
+    result = normalize_variant_request(
+        request(
+            supplied_representation="ISP_TESTREF.1:g.2A>G",
+            representation_type="hgvs_genomic",
+            supplied_genome_build="InSilicoPopSynthetic-0.30",
+            supplied_reference_accession="ISP_TESTREF.1",
+            structured_allele=None,
+        ),
+        candidate(),
+    )
+    assert "HGVS_SYNTAX_ONLY" in issue_codes(result)
+    assert result.equivalence_status.value == "unresolved_equivalence"
+    assert result.normalization_status.value == "cannot_normalize"
+    assert all(item.status == "not_generated" for item in result.normalized_outputs)
+    assert all(item.value is None for item in result.normalized_outputs)
+
+
 def test_all_equivalence_states_are_explicit():
     exact = normalize_variant_request(request(), candidate())
     minimal = request().structured_allele.model_dump()
@@ -323,6 +386,15 @@ def test_formatting_anomalies_block_silent_normalization():
     assert result.supplied_request_snapshot.supplied_representation == " 1:100:A:g "
     assert result.supplied_request_snapshot.structured_allele.alternate == "g"
     assert outputs(result)["canonical_internal_allele"].status == "not_generated"
+    validation_operation = next(
+        item for item in result.normalization_operations
+        if item.operation_name == "bounded_schema_and_context_validation"
+    )
+    assert validation_operation.status == "refused"
+    assert "FORMATTING_ANOMALY_PRESERVED" in validation_operation.warnings
+    assert "ALLELE_FORMATTING_ANOMALY_PRESERVED" in validation_operation.warnings
+    assert result.normalization_status.value == "cannot_normalize"
+    assert result.equivalence_status.value == "unresolved_equivalence"
 
 
 def test_request_output_and_provenance_reordering_is_deterministic():

@@ -69,7 +69,17 @@ def normalize_variant_request(
     outputs: list[VariantNormalizedOutput] = []
     canonical: CanonicalAllele | None = None
 
-    validation_blocked = bool(assessment.errors or assessment.unsupported or assessment.conflicts or assessment.missing)
+    formatting_blocks = any(
+        item.code in {"FORMATTING_ANOMALY_PRESERVED", "ALLELE_FORMATTING_ANOMALY_PRESERVED"}
+        for item in assessment.warnings
+    )
+    validation_blocked = bool(
+        assessment.errors
+        or assessment.unsupported
+        or assessment.conflicts
+        or assessment.missing
+        or formatting_blocks
+    )
     operations.append(
         _operation(
             request,
@@ -83,7 +93,6 @@ def normalize_variant_request(
     )
 
     blocks_normalization = bool(assessment.errors or assessment.unsupported or assessment.conflicts)
-    formatting_blocks = any(item.code in {"FORMATTING_ANOMALY_PRESERVED", "ALLELE_FORMATTING_ANOMALY_PRESERVED"} for item in assessment.warnings)
     if (
         request.structured_allele is not None
         and request.representation_type in STRUCTURED_REPRESENTATION_TYPES
@@ -200,6 +209,7 @@ def _reference_context(
         accession=window.accession,
         accession_version=window.accession_version,
         coordinate_system=allele.coordinate_system.value,
+        reference_window_coordinate_system=window.coordinate_system,
         position_supplied=allele.position,
         start_zero_based=start,
         window_start_zero_based=window.window_start_zero_based,

@@ -336,6 +336,17 @@ def _validate_declared_class(request: VariantNormalizationRequest, result: Varia
     if any(item.code in {"REFERENCE_ALTERNATE_COMBINATION_INVALID", "VCF_ALLELES_REQUIRED"} for item in result.errors):
         return
     declared = request.declared_variant_class
+    if declared in {DeclaredVariantClass.UNKNOWN, DeclaredVariantClass.OTHER}:
+        result.missing.append(
+            variant_issue(
+                request,
+                "VARIANT_CLASS_REQUIRED",
+                "A supported variant class must be supplied explicitly; v0.30 does not infer it solely from REF/ALT.",
+                "missing",
+                field_name="declared_variant_class",
+            )
+        )
+        return
     if declared == DeclaredVariantClass.DUPLICATION:
         if not allele.reference or allele.alternate != allele.reference + allele.reference:
             result.errors.append(
