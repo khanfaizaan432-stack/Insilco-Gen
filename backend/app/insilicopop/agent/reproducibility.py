@@ -252,6 +252,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "llm_provider": state.llm_provider,
         "external_llm_called": state.external_llm_called,
         "external_tools_executed": state.external_tools_executed,
+        "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
         "workflow_family": state.workflow_selection.get("workflow_family", "unknown"),
         "research_lane": state.research_lane,
         "selected_recipe_id": (state.selected_recipe or {}).get("recipe_id"),
@@ -463,7 +464,7 @@ def _selected_recipe_payload(state: AgentState) -> dict[str, Any]:
 
 
 def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
-    return {
+    payload = {
         "run_id": run_dir.name,
         "selected_recipe": {
             "path": "reproducibility/selected_recipe.json",
@@ -480,6 +481,15 @@ def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro
         "checksum_scope": "Generated run artifacts and reproducibility files only; raw uploaded genomic files are excluded.",
         "provenance_scope": "Run-level artifact provenance index; not row-level parser provenance.",
     }
+    clinical_path = repro_paths.get("repro_clinical_case_intake")
+    if clinical_path:
+        payload["global_intake_context"] = {
+            "path": _relative_to_run(run_dir, clinical_path),
+            "json_pointer": "/global_intake_context",
+            "artifact_class": "sanitized_user_supplied_context",
+            "source_wording_verified": False,
+        }
+    return payload
 
 
 def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
@@ -499,6 +509,9 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "orchestration_fallback_used": state.orchestration_trace.get("fallback_used") if state.orchestration_trace else None,
         "clinical_intake_schema_version": state.clinical_case_intake.schema_version if state.clinical_case_intake else None,
         "clinical_intake_research_use_only": state.clinical_case_intake.research_use_only if state.clinical_case_intake else None,
+        "global_intake_schema_version": (state.clinical_case_intake.global_intake_context or {}).get("schema_version") if state.clinical_case_intake else None,
+        "locale_profile_type": ((state.clinical_case_intake.global_intake_context or {}).get("locale_profile") or {}).get("profile_type") if state.clinical_case_intake else None,
+        "locale_profile_explicitly_selected": bool(((state.clinical_case_intake.global_intake_context or {}).get("locale_profile") or {}).get("profile_type")) if state.clinical_case_intake else False,
         "phenotype_hpo_curation_schema_version": state.phenotype_hpo_curation.schema_version if state.phenotype_hpo_curation else None,
         "hpo_registry_version": state.phenotype_hpo_curation.registry_version if state.phenotype_hpo_curation else None,
         "hpo_algorithm_version": state.phenotype_hpo_curation.algorithm_version if state.phenotype_hpo_curation else None,

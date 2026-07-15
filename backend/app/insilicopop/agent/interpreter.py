@@ -56,6 +56,7 @@ class AgentInterpreter:
         phenotype_hpo_curation: dict[str, Any] | None = None,
         pedigree_inheritance_audit: dict[str, Any] | None = None,
         variant_intelligence: dict[str, Any] | None = None,
+        byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
         external_llm_called: bool = False,
@@ -81,6 +82,7 @@ class AgentInterpreter:
         phenotype_hpo_curation = phenotype_hpo_curation or {}
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
         variant_intelligence = variant_intelligence or {}
+        byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
 
@@ -154,7 +156,11 @@ class AgentInterpreter:
             "",
             *_orchestration_trace_lines(orchestration_trace),
             "",
+            *_byok_runtime_lines(byok_runtime),
+            "",
             *_clinical_case_intake_lines(clinical_case_intake),
+            "",
+            *_global_intake_context_lines(clinical_case_intake.get("global_intake_context") or {}),
             "",
             *_phenotype_hpo_curation_lines(phenotype_hpo_curation),
             "",
@@ -616,6 +622,84 @@ def _clinical_case_intake_lines(clinical_case_intake: dict[str, Any]) -> list[st
         "- external_tools_executed: `false`",
         "- raw_genomic_files_parsed: `false`",
     ]
+
+
+def _byok_runtime_lines(runtime: dict[str, Any]) -> list[str]:
+    if not runtime:
+        return []
+    budget = runtime.get("budget") or {}
+    return [
+        "## BYOK Runtime Provenance",
+        "",
+        "Non-secret, session-derived configuration and usage only. Credentials and request prompts are never included in this report.",
+        f"- provider: `{_redact(str(runtime.get('provider', 'mock')))}`",
+        f"- model: `{_redact(str(runtime.get('model', 'mock')))}`",
+        f"- external_provider_configured: `{str(runtime.get('provider') != 'mock').lower()}`",
+        f"- request_count: `{int(runtime.get('request_count', 0) or 0)}`",
+        f"- input_tokens: `{int(runtime.get('input_tokens', 0) or 0)}`",
+        f"- output_tokens: `{int(runtime.get('output_tokens', 0) or 0)}`",
+        f"- estimated_cost_usd: `{float(runtime.get('estimated_cost_usd', 0) or 0):.8f}`",
+        f"- max_calls: `{int(budget.get('max_calls', 0) or 0)}`",
+        f"- max_total_tokens: `{int(budget.get('max_total_tokens', 0) or 0)}`",
+        f"- external_call_made: `{str(bool(runtime.get('external_call_made', False))).lower()}`",
+    ]
+
+
+def _global_intake_context_lines(context: dict[str, Any]) -> list[str]:
+    if not context:
+        return []
+    language = context.get("language_context") or {}
+    laboratories = context.get("laboratory_contexts") or []
+    family_samples = context.get("family_sample_contexts") or []
+    access = context.get("testing_access_context") or {}
+    governance = context.get("governance_consent_context") or {}
+    locale = context.get("locale_profile") or {}
+    constraints = access.get("constraints") or []
+    lines = [
+        "### Global Intake and Care Context",
+        "",
+        "Optional user-supplied care and laboratory context. Values are descriptive, unverified, and do not alter clinical conclusions.",
+        f"- schema_version: `{_redact(str(context.get('schema_version', 'unknown')))}`",
+        f"- country_code: `{_redact(str(context.get('country_code') or 'not supplied'))}`",
+        f"- care_setting: `{_redact(str(context.get('care_setting', 'unknown')))}`",
+        f"- care_stage: `{_redact(str(context.get('care_stage', 'unknown')))}`",
+        f"- referral_context_exact: `{_redact(str(context.get('referral_context_exact') or 'not supplied'))}`",
+        f"- laboratory_context_count: `{len(laboratories)}`",
+        f"- family_sample_context_count: `{len(family_samples)}`",
+        f"- testing_access_constraints: `{_redact(', '.join(str(item) for item in constraints) if constraints else 'none supplied')}`",
+        f"- governance_context_supplied: `{str(bool(governance)).lower()}`",
+    ]
+    if language:
+        lines.extend(
+            [
+                f"- original_language: `{_redact(str(language.get('original_language_code') or 'not supplied'))}`",
+                f"- original_text: `{_redact(str(language.get('original_text') or 'not supplied'))}`",
+                f"- translated_language: `{_redact(str(language.get('translated_language_code') or 'not supplied'))}`",
+                f"- translated_text: `{_redact(str(language.get('translated_text') or 'not supplied'))}`",
+                f"- translation_status: `{_redact(str(language.get('translation_status', 'unknown')))}`",
+                f"- translation_review_state: `{_redact(str(language.get('translation_review_state', 'unreviewed')))}`",
+            ]
+        )
+        if language.get("translation_status") == "machine_translated":
+            lines.append("- translation_caveat: Machine-translated wording requires human expert review; original and translated text remain separate.")
+    if locale.get("profile_type") == "india":
+        lines.extend(
+            [
+                "",
+                "#### India Locale Context",
+                "",
+                "This locale profile was explicitly selected; it was not inferred from genetic, language, name, or location data.",
+                f"- state_or_union_territory_code: `{_redact(str(locale.get('state_or_union_territory_code') or 'not supplied'))}`",
+                f"- district_or_region_exact: `{_redact(str(locale.get('district_or_region_exact') or 'not supplied'))}`",
+                f"- care_setting: `{_redact(str(locale.get('care_setting', 'unknown')))}`",
+                f"- public_program_or_scheme_exact: `{_redact(str(locale.get('public_program_or_scheme_exact') or 'not supplied'))}`",
+                f"- consanguinity_status: `{_redact(str(locale.get('consanguinity_status', 'not_assessed')))}`",
+                f"- relationship_description_original: `{_redact(str(locale.get('relationship_description_original') or 'not supplied'))}`",
+                f"- relationship_description_translated: `{_redact(str(locale.get('relationship_description_translated') or 'not supplied'))}`",
+                "- relationship_context_caveat: Descriptive user-supplied context only; no paternity, identity, or inheritance conclusion was inferred.",
+            ]
+        )
+    return lines
 
 
 def _phenotype_hpo_curation_lines(curation: dict[str, Any]) -> list[str]:

@@ -13,6 +13,7 @@ from app.insilicopop.clinical.inheritance_audit import build_pedigree_inheritanc
 from app.insilicopop.clinical.variant_service import build_variant_intelligence
 from app.insilicopop.clinical.variant_models import VariantIntelligenceRequest, VariantIntelligenceResult
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditRequest, PedigreeInheritanceAuditResult
+from app.insilicopop.clinical.global_intake_models import GlobalIntakeContext, IndiaLocaleProfile
 
 __all__ = [
     "ClinicalCaseIntake",
@@ -32,4 +33,6 @@ __all__ = [
     "VariantIntelligenceResult",
     "PedigreeInheritanceAuditRequest",
     "PedigreeInheritanceAuditResult",
+    "GlobalIntakeContext",
+    "IndiaLocaleProfile",
 ]

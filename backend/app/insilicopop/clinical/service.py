@@ -11,7 +11,7 @@ from app.insilicopop.clinical.models import (
     ClinicalIntakeIssue,
     PhenotypeState,
 )
-from app.insilicopop.clinical.validation import validate_clinical_case
+from app.insilicopop.clinical.validation import sanitized_global_intake_context, validate_clinical_case
 from app.insilicopop.clinical.hpo_models import PhenotypeHpoCurationResult
 from app.insilicopop.clinical.phenotype_curation import build_phenotype_hpo_curation
 from app.insilicopop.clinical.inheritance_audit import build_pedigree_inheritance_audit
@@ -92,6 +92,7 @@ def build_clinical_case_extended_bundle(
         missing_information=missing,
         policy_blocks=blocks,
         reviewer_status=case.reviewer_status.value,
+        global_intake_context=sanitized_global_intake_context(case),
     )
     curation = build_phenotype_hpo_curation(
         case,

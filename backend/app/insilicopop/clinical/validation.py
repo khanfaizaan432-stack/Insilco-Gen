@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from typing import Any
+
+from pydantic import BaseModel
 
 from app.insilicopop.clinical.models import (
     ClinicalCaseIntake,
@@ -15,6 +18,10 @@ DIRECT_IDENTIFIER_RULES = (
     ("email_address", re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)),
     ("phone_number", re.compile(r"\b(?:\+?\d[\d .()-]{7,}\d)\b")),
     ("medical_record_number", re.compile(r"\b(?:mrn|medical record|hospital id)\s*[:#-]?\s*[A-Z0-9-]{4,}\b", re.IGNORECASE)),
+    ("aadhaar_number", re.compile(r"\b(?:aadhaar|aadhar|uidai)\s*[:#-]?\s*\d{4}[ -]?\d{4}[ -]?\d{4}\b", re.IGNORECASE)),
+    ("passport_number", re.compile(r"\b(?:passport)\s*[:#-]?\s*[A-Z][0-9]{7}\b", re.IGNORECASE)),
+    ("insurance_member_number", re.compile(r"\b(?:insurance|member|beneficiary)\s*(?:id|number|no\.?)[\s:#-]*[A-Z0-9-]{5,}\b", re.IGNORECASE)),
+    ("street_address", re.compile(r"\b\d{1,6}\s+[A-Z0-9.' -]+\s(?:street|st|road|rd|avenue|ave|lane|ln|marg|nagar)\b", re.IGNORECASE)),
 )
 
 POLICY_RULES = (
@@ -29,6 +36,9 @@ POLICY_RULES = (
     ("caste_community_religion_request", "social_identity", ("infer caste", "infer community", "infer religion", "caste", "religion inference")),
     ("purity_superiority_request", "social_identity", ("genetic purity", "superior population", "infer purity", "racial superiority")),
     ("pca_admixture_identity_request", "population_identity", ("pca proves identity", "admixture proves ancestry", "literal ancestry from admixture")),
+    ("paternity_inference_request", "family_identity", ("infer paternity", "prove paternity", "hidden paternity", "non-paternity event")),
+    ("sample_identity_inference_request", "sample_identity", ("infer sample swap", "identify a sample swap", "prove sample identity")),
+    ("automatic_locale_inference_request", "locale", ("infer locale", "guess locale", "infer country from genetics", "infer nationality")),
 )
 
 
@@ -109,6 +119,45 @@ def validate_clinical_case(
             text_fields.append(("phenotype_curation.source_label", snippet.source_label, snippet.snippet_id))
             text_fields.append(("phenotype_curation.supplied_onset", snippet.supplied_onset, snippet.snippet_id))
             text_fields.append(("phenotype_curation.supplied_temporal_context", snippet.supplied_temporal_context, snippet.snippet_id))
+    if case.global_intake_context:
+        text_fields.extend(_global_intake_text_fields(case.global_intake_context))
+        language = case.global_intake_context.language_context
+        if language and language.translation_status.value == "machine_translated":
+            warnings.append(
+                _issue(
+                    "machine_translation_requires_expert_review",
+                    "global_intake_context.language_context",
+                    "Machine-translated clinical wording is preserved separately and requires human review before research use.",
+                )
+            )
+        for laboratory in case.global_intake_context.laboratory_contexts:
+            if laboratory.accreditation_wording_exact:
+                warnings.append(
+                    _issue(
+                        "laboratory_accreditation_not_independently_verified",
+                        "global_intake_context.laboratory_contexts.accreditation_wording_exact",
+                        "Supplied laboratory accreditation wording was preserved but not independently verified.",
+                        laboratory.laboratory_source_id,
+                    )
+                )
+            if laboratory.genome_build_exact or laboratory.transcript_exact or laboratory.variant_notation_exact:
+                warnings.append(
+                    _issue(
+                        "laboratory_notation_not_validated",
+                        "global_intake_context.laboratory_contexts",
+                        "Supplied build, transcript, and variant notation are preserved exactly and were not normalized or validated.",
+                        laboratory.laboratory_source_id,
+                    )
+                )
+        profile = case.global_intake_context.locale_profile
+        if profile and profile.profile_type == "india" and profile.consanguinity_status.value == "reported":
+            warnings.append(
+                _issue(
+                    "reported_relationship_context_requires_expert_review",
+                    "global_intake_context.locale_profile.consanguinity_status",
+                    "Reported family relationship context is descriptive only; no paternity, identity, or inheritance conclusion was inferred.",
+                )
+            )
     for field, value, record_id in text_fields:
         for rule_code, pattern in DIRECT_IDENTIFIER_RULES:
             if value and pattern.search(value):
@@ -120,6 +169,14 @@ def validate_clinical_case(
             blocks.append(ClinicalPolicyBlock(code=code, category=category, message="Requested action is outside clinical genetics research-curation scope."))
 
     return errors, warnings, missing, _deduplicate_blocks(blocks)
+
+
+def sanitized_global_intake_context(case: ClinicalCaseIntake) -> dict[str, Any] | None:
+    """Return persistence-safe v0.31 context without mutating exact in-memory source text."""
+
+    if case.global_intake_context is None:
+        return None
+    return _sanitize_value(case.global_intake_context.model_dump(mode="json"))
 
 
 def _issue(code: str, field: str, message: str, record_id: str | None = None) -> ClinicalIntakeIssue:
@@ -148,3 +205,31 @@ def _candidate_biological_strings(variant) -> list[tuple[str, str]]:
     values.extend((f"submitted_hgvs.{index}", value) for index, value in enumerate(variant.submitted_hgvs))
     values.extend((f"provenance.{index}.reference", item.reference) for index, item in enumerate(variant.provenance))
     return [(field, value) for field, value in values if value is not None]
+
+
+def _global_intake_text_fields(context: BaseModel) -> list[tuple[str, str | None, str | None]]:
+    fields: list[tuple[str, str | None, str | None]] = []
+
+    def visit(value: Any, path: str, record_id: str | None = None) -> None:
+        if isinstance(value, BaseModel):
+            local_record_id = getattr(value, "laboratory_source_id", None) or getattr(value, "family_member_id", None) or record_id
+            for name in type(value).model_fields:
+                visit(getattr(value, name), f"{path}.{name}" if path else name, local_record_id)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, f"{path}.{index}", record_id)
+        elif isinstance(value, str):
+            fields.append((path, value, record_id))
+
+    visit(context, "global_intake_context")
+    return fields
+
+
+def _sanitize_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _sanitize_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value(item) for item in value]
+    if isinstance(value, str) and any(pattern.search(value) for _, pattern in DIRECT_IDENTIFIER_RULES):
+        return "[REDACTED_DIRECT_IDENTIFIER]"
+    return value

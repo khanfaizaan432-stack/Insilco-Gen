@@ -43,9 +43,16 @@ class AgentLoop:
         data_use_agreement_scope: dict[str, Any] | None = None,
         metadata_registry: dict[str, Any] | None = None,
         clinical_case_intake: dict[str, Any] | None = None,
+        byok_runtime: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_id = uuid4().hex[:12]
-        state = AgentState(run_id=run_id, query=query, uploaded_files=_uploaded_file_names(uploads), llm_provider=llm_provider)
+        state = AgentState(
+            run_id=run_id,
+            query=query,
+            uploaded_files=_uploaded_file_names(uploads),
+            llm_provider=llm_provider,
+            byok_runtime=byok_runtime,
+        )
         self._step(state, "initialize_state", {"max_steps": max_steps, "memory_budget_chars": memory_budget_chars, "memory_mode": memory_mode, "llm_provider": llm_provider})
 
         if max_steps <= 0:
@@ -435,6 +442,7 @@ class AgentLoop:
             "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
             "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
             "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
+            "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),
             "generated_files": generated_files,

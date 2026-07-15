@@ -20,6 +20,7 @@ from app.insilicopop.audit_service import InSilicoPopAuditService, capabilities
 from app.insilicopop.benchmarks.agent_trace import AgentMemoryBenchmarkRunner
 from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
 from app.insilicopop.memory.compressor import DomainMemoryCompressor
+from app.insilicopop.llm.byok_runtime import BYOKSessionConfiguration, byok_runtime
 from app.schemas.memory import MemoryCompressRequest, MemoryCompressResponse
 from app.workflows.dry_biotics import DryBioticsWorkflow
 
@@ -42,6 +43,40 @@ class AgentMemoryBenchmarkRequest(BaseModel):
     scenario: str = Field(default="all")
     budget_chars: int = Field(default=1500, ge=1)
     memory_mode: str = Field(default="compact")
+
+
+@app.post("/insilicopop/byok/session")
+def configure_byok_session(payload: dict[str, object]) -> dict[str, object]:
+    try:
+        config = BYOKSessionConfiguration.model_validate(payload)
+        return byok_runtime.configure(config).model_dump()
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid BYOK configuration. Check provider, endpoint, model, key presence, and bounded budget values.",
+        ) from exc
+
+
+@app.get("/insilicopop/byok/session/{session_id}")
+def byok_session_status(session_id: str) -> dict[str, object]:
+    try:
+        return byok_runtime.status(session_id).model_dump()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/insilicopop/byok/session/{session_id}/test")
+def test_byok_session(session_id: str) -> dict[str, object]:
+    try:
+        return byok_runtime.test_connection(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/insilicopop/byok/session/{session_id}")
+def forget_byok_session(session_id: str) -> dict[str, object]:
+    forgotten = byok_runtime.forget(session_id)
+    return {"status": "forgotten" if forgotten else "not_found", "forgotten": forgotten}
 
 
 @app.get("/health")
@@ -162,6 +197,7 @@ async def insilicopop_agent_run(
     data_use_agreement_scope: str | None = Form(None),
     metadata_registry: str | None = Form(None),
     clinical_case_intake: str | None = Form(None),
+    byok_session_id: str | None = Form(None),
     metadata_file: UploadFile | None = File(None),
     pca_file: UploadFile | None = File(None),
     admixture_file: UploadFile | None = File(None),
@@ -244,8 +280,9 @@ async def insilicopop_agent_run(
             data_use_agreement_scope=_parse_data_use_agreement_scope(data_use_agreement_scope),
             metadata_registry=_parse_json_object_form(metadata_registry, "metadata_registry"),
             clinical_case_intake=_parse_json_object_form(clinical_case_intake, "clinical_case_intake"),
+            byok_runtime=byok_runtime.public_provenance(byok_session_id) if byok_session_id else None,
         )
-    except ValueError as exc:
+    except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

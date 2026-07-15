@@ -55,6 +55,10 @@ class AgentRunSummary(BaseModel):
     llm_provider: str = "mock"
     external_llm_called: bool = False
     external_tools_executed: bool = False
+    byok_provider: str | None = None
+    byok_model: str | None = None
+    byok_request_count: int = 0
+    byok_estimated_cost_usd: float = 0.0
     current_step: str | None = None
     research_lane: str | None = None
     evidence_retrieval_mode: str | None = None
@@ -105,6 +109,7 @@ class AgentRunDetail(AgentRunSummary):
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
     variant_intelligence: dict[str, Any] | None = None
+    byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
 
@@ -160,6 +165,7 @@ class WorkbenchRunStore:
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
+            byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
 
@@ -231,6 +237,8 @@ class WorkbenchRunStore:
         pedigree_inheritance_audit = pedigree_inheritance_audit if isinstance(pedigree_inheritance_audit, dict) else {}
         variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
         variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
+        byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
+        byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
         inheritance_status_counts: dict[str, int] = {}
         for item in inheritance_audits:
@@ -246,6 +254,10 @@ class WorkbenchRunStore:
             llm_provider=str(state.get("llm_provider", "mock")),
             external_llm_called=bool(state.get("external_llm_called", False)),
             external_tools_executed=bool(state.get("external_tools_executed", False)),
+            byok_provider=byok_runtime.get("provider"),
+            byok_model=byok_runtime.get("model"),
+            byok_request_count=int(byok_runtime.get("request_count", 0) or 0),
+            byok_estimated_cost_usd=float(byok_runtime.get("estimated_cost_usd", 0) or 0),
             current_step=state.get("current_step"),
             research_lane=state.get("research_lane"),
             evidence_retrieval_mode=evidence_retrieval.get("retrieval_mode"),
