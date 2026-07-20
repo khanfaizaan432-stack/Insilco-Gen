@@ -38,6 +38,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
     "reproducibility/variant_intelligence.json",
+    "reproducibility/pre_test_assessment.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -107,6 +108,10 @@ class AgentRunSummary(BaseModel):
     variant_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_equivalence_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_intelligence_artifact_available: bool = False
+    pre_test_assessment_outcome: str | None = None
+    pre_test_open_missing_information_count: int = 0
+    pre_test_linkage_issue_count: int = 0
+    pre_test_assessment_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -130,6 +135,7 @@ class AgentRunDetail(AgentRunSummary):
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
     variant_intelligence: dict[str, Any] | None = None
+    pre_test_assessment: dict[str, Any] | None = None
     byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
@@ -186,6 +192,7 @@ class WorkbenchRunStore:
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
+            pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
@@ -258,6 +265,8 @@ class WorkbenchRunStore:
         pedigree_inheritance_audit = pedigree_inheritance_audit if isinstance(pedigree_inheritance_audit, dict) else {}
         variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
         variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
+        pre_test_assessment = state.get("pre_test_assessment", {}) if isinstance(state, dict) else {}
+        pre_test_assessment = pre_test_assessment if isinstance(pre_test_assessment, dict) else {}
         byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
         byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
@@ -306,6 +315,10 @@ class WorkbenchRunStore:
             variant_normalization_status_counts=_safe_count_dict(variant_intelligence.get("normalization_status_counts", {})),
             variant_equivalence_status_counts=_safe_count_dict(variant_intelligence.get("equivalence_status_counts", {})),
             variant_intelligence_artifact_available=(run_dir / "reproducibility" / "variant_intelligence.json").is_file(),
+            pre_test_assessment_outcome=pre_test_assessment.get("assessment_outcome"),
+            pre_test_open_missing_information_count=int(pre_test_assessment.get("open_missing_information_count", 0) or 0),
+            pre_test_linkage_issue_count=len(pre_test_assessment.get("linkage_issues", []) or []),
+            pre_test_assessment_artifact_available=(run_dir / "reproducibility" / "pre_test_assessment.json").is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),
             selected_recipe_maturity_tier=selected_recipe.get("maturity_tier"),

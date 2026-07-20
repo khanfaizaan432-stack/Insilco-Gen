@@ -107,6 +107,8 @@ POLICY_RULES = (
     ("treatment_request", "treatment", ("treatment recommendation", "recommend treatment", "prescribe", "therapy recommendation")),
     ("final_classification_request", "classification", ("final acmg", "acmg classification", "classify pathogenic", "classify benign", "pathogenic conclusion", "benign conclusion")),
     ("clinical_sign_out_request", "clinical_sign_out", ("clinical sign-out", "sign out this case", "signout")),
+    ("test_order_request", "test_order", ("order a genetic test", "order genetic test", "order this test", "place a test order", "automatically order")),
+    ("test_recommendation_request", "test_strategy", ("recommend wes", "recommend wgs", "recommend a genetic test", "which genetic test", "select a genetic test")),
     ("patient_return_request", "patient_return", ("return results to patient", "patient-facing result", "send result to patient")),
     ("secondary_findings_return_request", "secondary_findings", ("return secondary findings", "secondary findings return")),
     ("external_raw_data_request", "external_data", ("send raw genomic", "upload vcf externally", "send unredacted", "external llm", "external api")),
@@ -149,6 +151,10 @@ def validate_clinical_case(
         ("pedigree", [item.family_member_id for item in case.pedigree]),
         ("hypothesis", [item.hypothesis_id for item in case.hypotheses]),
         ("phenotype_snippet", [item.snippet_id for item in case.phenotype_curation.snippets] if case.phenotype_curation else []),
+        ("pretest_investigation", [item.investigation_id for item in case.pre_test_assessment.previous_investigations] if case.pre_test_assessment else []),
+        ("pretest_family_report", [item.family_report_id for item in case.pre_test_assessment.known_family_reports] if case.pre_test_assessment else []),
+        ("pretest_missing_request", [item.request_id for item in case.pre_test_assessment.supplied_missing_information_requests] if case.pre_test_assessment else []),
+        ("pretest_checkpoint", [item.checkpoint_id for item in case.pre_test_assessment.clinician_checkpoints] if case.pre_test_assessment else []),
     ):
         for identifier, count in sorted(Counter(values).items()):
             if count > 1:

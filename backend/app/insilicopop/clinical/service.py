@@ -24,6 +24,8 @@ from app.insilicopop.clinical.inheritance_audit import build_pedigree_inheritanc
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditResult
 from app.insilicopop.clinical.variant_models import VariantIntelligenceResult
 from app.insilicopop.clinical.variant_service import build_variant_intelligence
+from app.insilicopop.clinical.pretest_assessment import build_pretest_assessment
+from app.insilicopop.clinical.pretest_models import PreTestAssessmentResult
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -117,6 +119,32 @@ def build_clinical_case_extended_bundle(
     )
     variant_intelligence = build_variant_intelligence(safe_case)
     return result, curation, inheritance_audit, variant_intelligence
+
+
+def build_clinical_case_full_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+    PreTestAssessmentResult | None,
+]:
+    intake, curation, inheritance_audit, variant_intelligence = build_clinical_case_extended_bundle(
+        payload, request_text=request_text
+    )
+    try:
+        case = ClinicalCaseIntake.model_validate(payload)
+    except ValidationError:
+        return intake, curation, inheritance_audit, variant_intelligence, None
+    errors, _, _, blocks = validate_clinical_case(case, request_text=request_text)
+    safe_case = sanitized_clinical_case(case)
+    pretest_assessment = build_pretest_assessment(
+        safe_case,
+        validation_errors=errors,
+        policy_blocks=blocks,
+    )
+    return intake, curation, inheritance_audit, variant_intelligence, pretest_assessment
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:

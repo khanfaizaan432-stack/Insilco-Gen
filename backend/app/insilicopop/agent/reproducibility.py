@@ -44,6 +44,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_phenotype_hpo_curation": "phenotype_hpo_curation.json",
     "repro_pedigree_inheritance_audit": "pedigree_inheritance_audit.json",
     "repro_variant_intelligence": "variant_intelligence.json",
+    "repro_pre_test_assessment": "pre_test_assessment.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -90,6 +91,9 @@ def write_reproducibility_bundle(
     if state.variant_intelligence:
         paths["repro_variant_intelligence"] = optional_paths["repro_variant_intelligence"]
         _write_json(paths["repro_variant_intelligence"], state.variant_intelligence.model_dump())
+    if state.pre_test_assessment:
+        paths["repro_pre_test_assessment"] = optional_paths["repro_pre_test_assessment"]
+        _write_json(paths["repro_pre_test_assessment"], state.pre_test_assessment.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -269,6 +273,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
         "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
         "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
+        "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -280,6 +285,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
             "Generated command previews are not executed.",
             "Raw genomic input files are inventoried by filename/category only for this bundle.",
             "Reports are research workflow guidance, not clinical diagnosis or genetic counseling.",
+            "Pre-test assessment outputs do not select, recommend, approve, or order a test.",
         ],
     }
 
@@ -494,6 +500,14 @@ def _provenance_index(
             "artifact_class": "sanitized_user_supplied_context",
             "source_wording_verified": False,
         }
+    pretest_path = repro_paths.get("repro_pre_test_assessment")
+    if pretest_path and state.pre_test_assessment:
+        payload["pre_test_assessment"] = {
+            "path": _relative_to_run(run_dir, pretest_path),
+            "json_pointer": "/",
+            "artifact_class": "deterministic_clinical_research_assessment",
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -547,6 +561,13 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "variant_intelligence_artifact_available": state.variant_intelligence is not None,
         "variant_validation_performed": state.variant_intelligence is not None,
         "variant_normalization_performed": state.variant_intelligence.variant_normalization_performed if state.variant_intelligence else False,
+        "pre_test_assessment_schema_version": state.pre_test_assessment.schema_version if state.pre_test_assessment else None,
+        "pre_test_assessment_algorithm_version": state.pre_test_assessment.algorithm_version if state.pre_test_assessment else None,
+        "pre_test_assessment_artifact_available": state.pre_test_assessment is not None,
+        "pre_test_assessment_outcome": state.pre_test_assessment.assessment_outcome.value if state.pre_test_assessment else None,
+        "test_strategy_generated": False,
+        "test_recommendation_made": False,
+        "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,
         "transcript_selection_performed": False,
         "raw_genomic_files_parsed": False,

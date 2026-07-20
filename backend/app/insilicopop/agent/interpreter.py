@@ -20,6 +20,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
     "reproducibility/variant_intelligence.json",
+    "reproducibility/pre_test_assessment.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -56,6 +57,7 @@ class AgentInterpreter:
         phenotype_hpo_curation: dict[str, Any] | None = None,
         pedigree_inheritance_audit: dict[str, Any] | None = None,
         variant_intelligence: dict[str, Any] | None = None,
+        pre_test_assessment: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -82,6 +84,7 @@ class AgentInterpreter:
         phenotype_hpo_curation = phenotype_hpo_curation or {}
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
         variant_intelligence = variant_intelligence or {}
+        pre_test_assessment = pre_test_assessment or {}
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -165,6 +168,8 @@ class AgentInterpreter:
             *_phenotype_hpo_curation_lines(phenotype_hpo_curation),
             "",
             *_pedigree_inheritance_audit_lines(pedigree_inheritance_audit),
+            "",
+            *_pre_test_assessment_lines(pre_test_assessment),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -757,6 +762,50 @@ def _phenotype_hpo_curation_lines(curation: dict[str, Any]) -> list[str]:
         "- diagnosis_made: `false`",
         "- treatment_recommendation_made: `false`",
         "- final_acmg_classification_made: `false`",
+    ]
+
+
+def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
+    if not assessment:
+        return []
+    referral = assessment.get("referral_packet") or {}
+    history = assessment.get("clinical_history") or {}
+    plan = assessment.get("missing_information_plan") or []
+    open_codes = sorted(
+        str(item.get("code", "missing_information"))
+        for item in plan
+        if isinstance(item, dict) and item.get("status") == "open"
+    )
+    checkpoints = assessment.get("clinician_checkpoint_status_counts") or {}
+    return [
+        "## Referral and Pre-Test Clinical Assessment",
+        "",
+        "Deterministic organization of supplied pre-test information only. No test strategy was generated, no WES/WGS or other test was recommended, and no test was approved or ordered.",
+        f"- schema_version: `{_redact(str(assessment.get('schema_version', 'unknown')))}`",
+        f"- algorithm_version: `{_redact(str(assessment.get('algorithm_version', 'unknown')))}`",
+        f"- referral_source: `{_redact(str(referral.get('source', 'not supplied')))}`",
+        f"- referral_urgency_context: `{_redact(str(referral.get('urgency_context', 'not supplied')))}`",
+        f"- clinical_history_supplied: `{str(bool(history)).lower()}`",
+        f"- linked_phenotype_count: `{len(history.get('phenotype_observation_ids', []) or [])}`",
+        f"- linked_pedigree_member_count: `{len(history.get('pedigree_member_ids', []) or [])}`",
+        f"- previous_investigation_count: `{len(assessment.get('previous_investigation_timeline', []) or [])}`",
+        f"- known_family_report_count: `{len(assessment.get('known_family_reports', []) or [])}`",
+        f"- testing_status_as_supplied: `{_redact(str(assessment.get('testing_status_as_supplied', 'unknown')))}`",
+        f"- assessment_outcome: `{_redact(str(assessment.get('assessment_outcome', 'unknown')))}`",
+        f"- outcome_rationale_codes: `{_redact(', '.join(str(item) for item in assessment.get('outcome_rationale_codes', []) or []) or 'none')}`",
+        f"- open_missing_information_count: `{int(assessment.get('open_missing_information_count', 0) or 0)}`",
+        f"- open_missing_information_codes: `{_redact(', '.join(open_codes) if open_codes else 'none')}`",
+        f"- linkage_issue_count: `{len(assessment.get('linkage_issues', []) or [])}`",
+        f"- clinician_checkpoint_status_counts: `{_redact(', '.join(f'{key}={checkpoints[key]}' for key in sorted(checkpoints)) or 'none')}`",
+        f"- ready_for_test_strategy_review: `{str(bool(assessment.get('ready_for_test_strategy_review', False))).lower()}`",
+        "- test_strategy_generated: `false`",
+        "- test_recommendation_made: `false`",
+        "- test_order_placed: `false`",
+        "- automatic_wes_or_wgs_recommendation_made: `false`",
+        "- diagnosis_made: `false`",
+        "- treatment_recommendation_made: `false`",
+        "- final_acmg_classification_made: `false`",
+        "- human_review_required: `true`",
     ]
 
 
