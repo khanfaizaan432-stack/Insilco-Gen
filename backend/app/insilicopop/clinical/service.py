@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -11,7 +12,12 @@ from app.insilicopop.clinical.models import (
     ClinicalIntakeIssue,
     PhenotypeState,
 )
-from app.insilicopop.clinical.validation import sanitized_global_intake_context, validate_clinical_case
+from app.insilicopop.clinical.validation import (
+    detect_direct_identifiers,
+    sanitized_clinical_case,
+    sanitized_global_intake_context,
+    validate_clinical_case,
+)
 from app.insilicopop.clinical.hpo_models import PhenotypeHpoCurationResult
 from app.insilicopop.clinical.phenotype_curation import build_phenotype_hpo_curation
 from app.insilicopop.clinical.inheritance_audit import build_pedigree_inheritance_audit
@@ -61,22 +67,23 @@ def build_clinical_case_extended_bundle(
         return _invalid_result(payload, issues), None, None, None
 
     errors, warnings, missing, blocks = validate_clinical_case(case, request_text=request_text)
+    safe_case = sanitized_clinical_case(case)
     completeness = "blocked" if blocks else "incomplete" if errors or warnings or missing else "complete"
     counts = {state.value: 0 for state in PhenotypeState}
-    for observation in case.phenotypes:
+    for observation in safe_case.phenotypes:
         counts[observation.state.value] += 1
     result = ClinicalCaseIntakeResult(
-        pseudonymous_case_id=case.pseudonymous_case_id,
-        intended_use=case.intended_use,
-        redaction_declared=case.redaction_declared is True,
+        pseudonymous_case_id=safe_case.pseudonymous_case_id,
+        intended_use=safe_case.intended_use,
+        redaction_declared=safe_case.redaction_declared is True,
         intake_completeness=completeness,
         phenotype_state_counts=counts,
-        phenotype_observation_ids=[item.observation_id for item in case.phenotypes],
-        candidate_variant_count=len(case.candidate_variants),
-        candidate_variant_ids=[item.candidate_id for item in case.candidate_variants],
-        supplied_candidate_variants=sorted(case.candidate_variants, key=lambda item: item.candidate_id),
-        pedigree_record_count=len(case.pedigree),
-        pedigree_member_ids=[item.family_member_id for item in case.pedigree],
+        phenotype_observation_ids=[item.observation_id for item in safe_case.phenotypes],
+        candidate_variant_count=len(safe_case.candidate_variants),
+        candidate_variant_ids=[item.candidate_id for item in safe_case.candidate_variants],
+        supplied_candidate_variants=sorted(safe_case.candidate_variants, key=lambda item: item.candidate_id),
+        pedigree_record_count=len(safe_case.pedigree),
+        pedigree_member_ids=[item.family_member_id for item in safe_case.pedigree],
         supplied_hypotheses=[
             ClinicalHypothesisSummary(
                 hypothesis_id=item.hypothesis_id,
@@ -85,39 +92,50 @@ def build_clinical_case_extended_bundle(
                 source=item.source,
                 review_state=item.review_state.value,
             )
-            for item in case.hypotheses
+            for item in safe_case.hypotheses
         ],
         validation_errors=errors,
         validation_warnings=warnings,
         missing_information=missing,
         policy_blocks=blocks,
-        reviewer_status=case.reviewer_status.value,
-        global_intake_context=sanitized_global_intake_context(case),
+        reviewer_status=safe_case.reviewer_status.value,
+        global_intake_context=sanitized_global_intake_context(safe_case),
     )
     curation = build_phenotype_hpo_curation(
-        case,
+        safe_case,
         validation_errors=errors,
         validation_warnings=warnings,
         missing_information=missing,
         policy_blocks=blocks,
     )
     inheritance_audit = build_pedigree_inheritance_audit(
-        case,
+        safe_case,
         validation_errors=errors,
         validation_warnings=warnings,
         missing_information=missing,
         policy_blocks=blocks,
     )
-    variant_intelligence = build_variant_intelligence(case)
+    variant_intelligence = build_variant_intelligence(safe_case)
     return result, curation, inheritance_audit, variant_intelligence
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:
     raw_id = payload.get("pseudonymous_case_id")
-    case_id = str(raw_id)[:80] if isinstance(raw_id, (str, int)) and str(raw_id).strip() else "invalid_case_id"
+    raw_id_text = str(raw_id) if isinstance(raw_id, (str, int)) else ""
+    case_id = (
+        raw_id_text[:80]
+        if raw_id_text
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]*", raw_id_text)
+        and not detect_direct_identifiers(raw_id_text, "pseudonymous_case_id")
+        else "invalid_case_id"
+    )
     return ClinicalCaseIntakeResult(
         pseudonymous_case_id=case_id,
-        intended_use=str(payload.get("intended_use") or "invalid"),
+        intended_use=(
+            "clinical_genetics_research_curation"
+            if payload.get("intended_use") == "clinical_genetics_research_curation"
+            else "invalid"
+        ),
         redaction_declared=payload.get("redaction_declared") is True,
         intake_completeness="invalid",
         phenotype_state_counts={state.value: 0 for state in PhenotypeState},

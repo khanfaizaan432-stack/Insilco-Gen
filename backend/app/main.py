@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -31,6 +33,27 @@ app = FastAPI(
     description="Local agentic workflow backend for dry-lab computational biology.",
 )
 
+MAX_BYOK_CONFIGURATION_BYTES = 64_000
+CAPABILITY_PATH_PATTERN = re.compile(r"(/insilicopop/byok/session/)[A-Za-z0-9_.:%-]+")
+
+
+def _redact_capability_path(value: str) -> str:
+    return CAPABILITY_PATH_PATTERN.sub(r"\1[REDACTED_CAPABILITY]", value)
+
+
+class _CapabilityAccessLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_redact_capability_path(item) if isinstance(item, str) else item for item in record.args)
+        if isinstance(record.msg, str):
+            record.msg = _redact_capability_path(record.msg)
+        return True
+
+
+_access_logger = logging.getLogger("uvicorn.access")
+if not any(isinstance(item, _CapabilityAccessLogFilter) for item in _access_logger.filters):
+    _access_logger.addFilter(_CapabilityAccessLogFilter())
+
 WORKBENCH_HTML_PATH = Path(__file__).resolve().parent / "insilicopop" / "workbench_static" / "index.html"
 
 
@@ -46,11 +69,27 @@ class AgentMemoryBenchmarkRequest(BaseModel):
 
 
 @app.post("/insilicopop/byok/session")
-def configure_byok_session(payload: dict[str, object]) -> dict[str, object]:
+async def configure_byok_session(request: Request) -> dict[str, object]:
+    """Parse BYOK configuration without framework errors echoing request values."""
+
     try:
+        declared_length = request.headers.get("content-length")
+        if declared_length is not None:
+            if not re.fullmatch(r"\d+", declared_length):
+                raise ValueError("BYOK configuration Content-Length is invalid.")
+            if int(declared_length) > MAX_BYOK_CONFIGURATION_BYTES:
+                raise ValueError("BYOK configuration body is too large.")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_BYOK_CONFIGURATION_BYTES:
+                raise ValueError("BYOK configuration body is too large.")
+            raw.extend(chunk)
+        payload = json.loads(bytes(raw))
+        if not isinstance(payload, dict):
+            raise ValueError("BYOK configuration must be an object.")
         config = BYOKSessionConfiguration.model_validate(payload)
         return byok_runtime.configure(config).model_dump()
-    except (TypeError, ValueError) as exc:
+    except (json.JSONDecodeError, TypeError, UnicodeDecodeError, ValueError, RuntimeError) as exc:
         raise HTTPException(
             status_code=400,
             detail="Invalid BYOK configuration. Check provider, endpoint, model, key presence, and bounded budget values.",
@@ -75,8 +114,8 @@ def test_byok_session(session_id: str) -> dict[str, object]:
 
 @app.delete("/insilicopop/byok/session/{session_id}")
 def forget_byok_session(session_id: str) -> dict[str, object]:
-    forgotten = byok_runtime.forget(session_id)
-    return {"status": "forgotten" if forgotten else "not_found", "forgotten": forgotten}
+    byok_runtime.forget(session_id)
+    return {"status": "forgotten"}
 
 
 @app.get("/health")

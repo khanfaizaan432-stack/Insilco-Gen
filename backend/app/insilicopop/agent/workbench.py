@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -44,7 +45,27 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/checksums.sha256",
 }
 
-SECRET_KEY_MARKERS = ("api_key", "authorization", "auth_header", "bearer", "password", "secret", "token")
+SECRET_KEY_NAMES = {
+    "api_key",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "auth_token",
+    "authorization",
+    "authorization_header",
+    "auth_header",
+    "bearer",
+    "password",
+    "client_secret",
+    "private_key",
+    "credential",
+    "credentials",
+    "token",
+    "secret",
+}
+SECRET_TEXT_PATTERN = re.compile(
+    r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|auth[_ -]?header|password|client[_ -]?secret|private[_ -]?key|credentials?)\b\s*[:=]|\bbearer\s+[A-Za-z0-9._~-]+)"
+)
 REDACTED = "[REDACTED]"
 
 
@@ -353,7 +374,7 @@ def _redact_text(text: str) -> str:
     redacted_lines = []
     for line in text.splitlines():
         lowered = line.lower()
-        if any(marker in lowered for marker in SECRET_KEY_MARKERS):
+        if SECRET_TEXT_PATTERN.search(line):
             redacted_lines.append(REDACTED)
         else:
             redacted_lines.append(line)
@@ -361,8 +382,9 @@ def _redact_text(text: str) -> str:
 
 
 def _is_secret_key(key: str) -> bool:
-    lowered = key.lower()
-    return any(marker in lowered for marker in SECRET_KEY_MARKERS)
+    separated = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+    lowered = re.sub(r"[_\-\s]+", "_", separated).strip("_").lower()
+    return lowered in SECRET_KEY_NAMES or lowered.endswith(("_api_key", "_token", "_secret", "_password", "_credential"))
 
 
 def _file_type(path: Path) -> str:

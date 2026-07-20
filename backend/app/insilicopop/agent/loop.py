@@ -17,6 +17,7 @@ from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
 from app.insilicopop.clinical.service import build_clinical_case_extended_bundle
+from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
 from app.insilicopop.llm.provider_factory import build_llm_provider
@@ -46,6 +47,8 @@ class AgentLoop:
         byok_runtime: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_id = uuid4().hex[:12]
+        request_text = query
+        query = sanitized_clinical_free_text(query, "query")
         state = AgentState(
             run_id=run_id,
             query=query,
@@ -70,7 +73,7 @@ class AgentLoop:
             return self._response(state, generated)
 
         if clinical_case_intake is not None:
-            return self._run_clinical_intake(state, clinical_case_intake)
+            return self._run_clinical_intake(state, clinical_case_intake, request_text=request_text)
 
         parse_action = make_action(1, "parse_inputs", "Parse uploaded population-genetics inputs.", "Use existing native parsers through the audit service.", expected_outputs=["ParsedTable objects"])
         audit_action = make_action(2, "audit_inputs", "Audit parsed inputs.", "Run deterministic InSilicoPop auditors.", expected_outputs=["audit_report", "risk_flags", "reliability_score"])
@@ -301,7 +304,13 @@ class AgentLoop:
             carried = result.carried_memory
         return carried
 
-    def _run_clinical_intake(self, state: AgentState, payload: dict[str, Any]) -> dict[str, Any]:
+    def _run_clinical_intake(
+        self,
+        state: AgentState,
+        payload: dict[str, Any],
+        *,
+        request_text: str | None,
+    ) -> dict[str, Any]:
         state.llm_provider = "mock"
         state.research_lane = "clinical_genetics_research_curation"
         state.workflow_selection = WorkflowFamilySelector().select(
@@ -315,7 +324,7 @@ class AgentLoop:
             state.phenotype_hpo_curation,
             state.pedigree_inheritance_audit,
             state.variant_intelligence,
-        ) = build_clinical_case_extended_bundle(payload, request_text=state.query)
+        ) = build_clinical_case_extended_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,

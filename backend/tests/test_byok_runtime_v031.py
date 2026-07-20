@@ -34,6 +34,10 @@ def _request(**updates):
     return BoundedLLMRequest(**values)
 
 
+def _configure(runtime, **updates):
+    return runtime.configure(_config(**updates)).session_id
+
+
 def test_mock_is_default_and_configuration_never_serializes_secret():
     config = _config(api_key=SECRET)
     assert "api_key" not in config.model_dump()
@@ -55,32 +59,32 @@ def test_agent_state_rejects_arbitrary_credential_bearing_byok_dictionary():
 def test_no_external_call_without_explicit_external_provider_configuration():
     calls = []
     runtime = BYOKRuntime(transport=lambda *args: calls.append(args) or b"{}")
-    runtime.configure(_config())
-    result = runtime.execute(SESSION, _request())
+    session_id = _configure(runtime)
+    result = runtime.execute(session_id, _request())
     assert result.status == "success"
     assert calls == []
-    assert runtime.status(SESSION).external_call_made is False
+    assert runtime.status(session_id).external_call_made is False
     with pytest.raises(KeyError):
         runtime.execute("not-configured-session", _request())
 
 
 def test_forget_removes_key_cache_usage_and_session():
     runtime = BYOKRuntime()
-    runtime.configure(_config(api_key=SECRET))
-    runtime.execute(SESSION, _request())
-    assert runtime.forget(SESSION) is True
-    assert runtime.forget(SESSION) is False
+    session_id = _configure(runtime, api_key=SECRET)
+    runtime.execute(session_id, _request())
+    assert runtime.forget(session_id) is True
+    assert runtime.forget(session_id) is False
     with pytest.raises(KeyError):
-        runtime.status(SESSION)
+        runtime.status(session_id)
 
 
 def test_failed_connection_is_generic_and_does_not_expose_key():
     def fail(*_args):
         raise OSError(f"transport accidentally included {SECRET}")
 
-    runtime = BYOKRuntime(transport=fail)
-    runtime.configure(_config(provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET))
-    result = runtime.test_connection(SESSION)
+    runtime = BYOKRuntime(transport=fail, resolver=lambda _host, _port: ["8.8.8.8"])
+    session_id = _configure(runtime, provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET)
+    result = runtime.test_connection(session_id)
     assert result["status"] == "connection_test_failed"
     assert SECRET not in json.dumps(result)
     assert result["provider"] == "openai_compatible"
@@ -108,11 +112,11 @@ def test_evidence_dedup_removes_exact_duplicate_but_preserves_conflict():
 
 def test_cache_is_session_memory_only_and_policy_or_evidence_change_invalidates():
     runtime = BYOKRuntime()
-    runtime.configure(_config())
-    first = runtime.execute(SESSION, _request(evidence=[EvidenceItem(source_id="S1", content="one")]))
-    cached = runtime.execute(SESSION, _request(evidence=[EvidenceItem(source_id="S1", content="one")]))
-    changed = runtime.execute(SESSION, _request(evidence=[EvidenceItem(source_id="S1", content="two")]))
-    policy_changed = runtime.execute(SESSION, _request(policy_version="changed", evidence=[EvidenceItem(source_id="S1", content="one")]))
+    session_id = _configure(runtime)
+    first = runtime.execute(session_id, _request(evidence=[EvidenceItem(source_id="S1", content="one")]))
+    cached = runtime.execute(session_id, _request(evidence=[EvidenceItem(source_id="S1", content="one")]))
+    changed = runtime.execute(session_id, _request(evidence=[EvidenceItem(source_id="S1", content="two")]))
+    policy_changed = runtime.execute(session_id, _request(policy_version="changed", evidence=[EvidenceItem(source_id="S1", content="one")]))
     assert first.usage.cache_hit is False
     assert cached.usage.cache_hit is True
     assert changed.usage.cache_hit is False
@@ -132,8 +136,8 @@ def test_cache_is_session_memory_only_and_policy_or_evidence_change_invalidates(
 def test_budgets_stop_safely_before_execution(budget, expected):
     calls = []
     runtime = BYOKRuntime(transport=lambda *args: calls.append(args) or b"{}")
-    runtime.configure(_config(budget=budget, input_cost_per_million_usd=1, output_cost_per_million_usd=1))
-    result = runtime.execute(SESSION, _request())
+    session_id = _configure(runtime, budget=budget, input_cost_per_million_usd=1, output_cost_per_million_usd=1)
+    result = runtime.execute(session_id, _request())
     assert result.status == expected
     assert calls == []
 
@@ -141,8 +145,8 @@ def test_budgets_stop_safely_before_execution(budget, expected):
 def test_direct_identifiers_are_policy_blocked_before_transport_and_not_cached():
     calls = []
     runtime = BYOKRuntime(transport=lambda *args: calls.append(args) or b"{}")
-    runtime.configure(_config())
-    result = runtime.execute(SESSION, _request(compact_context={"note": "person@example.org"}))
+    session_id = _configure(runtime)
+    result = runtime.execute(session_id, _request(compact_context={"note": "person@example.org"}))
     assert result.status == "policy_blocked"
     assert result.usage.retry_count == 0
     assert calls == []
@@ -155,9 +159,9 @@ def test_structured_output_validation_retry_is_bounded_and_usage_is_deterministi
         calls.append(1)
         return b'{"choices":[{"message":{"content":"not-json"}}]}'
 
-    runtime = BYOKRuntime(transport=transport)
-    runtime.configure(_config(provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET, budget=BYOKBudget(max_retries=1)))
-    result = runtime.execute(SESSION, _request())
+    runtime = BYOKRuntime(transport=transport, resolver=lambda _host, _port: ["8.8.8.8"], sleeper=lambda _seconds: None)
+    session_id = _configure(runtime, provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET, budget=BYOKBudget(max_retries=1))
+    result = runtime.execute(session_id, _request())
     assert result.status == "provider_unavailable"
     assert len(calls) == 2
     assert result.response is None
@@ -173,9 +177,9 @@ def test_provider_refusal_is_validated_and_never_retried():
         calls.append(1)
         return b'{"choices":[{"message":{"content":"{\\"status\\":\\"refusal\\",\\"records\\":[],\\"warnings\\":[\\"policy refusal\\"]}"}}],"usage":{"completion_tokens":8}}'
 
-    runtime = BYOKRuntime(transport=transport)
-    runtime.configure(_config(provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET, budget=BYOKBudget(max_retries=2)))
-    result = runtime.execute(SESSION, _request())
+    runtime = BYOKRuntime(transport=transport, resolver=lambda _host, _port: ["8.8.8.8"])
+    session_id = _configure(runtime, provider="openai_compatible", model="bounded-model", base_url="https://provider.invalid/v1", api_key=SECRET, budget=BYOKBudget(max_retries=2))
+    result = runtime.execute(session_id, _request())
     assert result.status == "refusal"
     assert result.usage.retry_count == 0
     assert len(calls) == 1

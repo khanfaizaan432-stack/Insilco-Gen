@@ -256,11 +256,15 @@
               <label for="translated_clinical_text">Separate translated working text</label>
               <textarea id="translated_clinical_text" placeholder="Label machine translation truthfully; human review required"></textarea>
               <div class="form-grid">
+                <div><label for="laboratory_source_id">Laboratory record ID (for stable edit)</label><input id="laboratory_source_id" placeholder="Optional stable record ID"></div>
                 <div><label for="laboratory_source_label">Laboratory source label</label><input id="laboratory_source_label" placeholder="Bounded supplied label"></div>
+                <div><label for="laboratory_report_date">Laboratory report date</label><input id="laboratory_report_date" type="date"></div>
                 <div><label for="laboratory_test_type">Test type</label><input id="laboratory_test_type" placeholder="Exactly supplied"></div>
                 <div><label for="laboratory_sample_type">Sample type</label><input id="laboratory_sample_type" placeholder="Exactly supplied"></div>
                 <div><label for="laboratory_method">Assay / sequencing method</label><input id="laboratory_method" placeholder="Exactly supplied"></div>
-                <div><label for="family_sample_context">Family/sample availability</label><input id="family_sample_context" placeholder="proband:available"></div>
+                <div><label for="family_member_id">Family record ID (for stable edit)</label><input id="family_member_id" placeholder="Optional pedigree-person or record ID"></div>
+                <div><label for="family_sample_context">Relationship to proband</label><input id="family_sample_context" placeholder="Exactly supplied relationship"></div>
+                <div><label for="family_sample_availability">Sample availability</label><select id="family_sample_availability"><option value="">Leave unchanged / not supplied</option><option>available</option><option>unavailable</option><option>uncertain</option><option>unknown</option></select></div>
                 <div><label for="access_constraints">Access limitations</label><input id="access_constraints" placeholder="travel_limitation_reported,follow_up_uncertain"></div>
                 <div><label for="locale_profile">Optional locale profile</label><select id="locale_profile"><option value="">None / not supplied</option><option value="global_default">Global default</option><option value="india">India</option></select></div>
               </div>
@@ -534,41 +538,110 @@
       appendJsonObjectField(formData, "clinical_case_intake", "Clinical case intake");
     }
 
-    function valueOf(id) { return document.getElementById(id).value.trim(); }
+    function rawValueOf(id) { return document.getElementById(id).value; }
+    function valueOf(id) { return rawValueOf(id).trim(); }
+
+    function nextUiId(items, prefix, idField) {
+      const used = new Set(items.map((item) => item && item[idField]).filter(Boolean));
+      let index = 1;
+      while (used.has(`${prefix}${index}`)) index += 1;
+      return `${prefix}${index}`;
+    }
+
+    function upsertContextEntry(items, entry, idField, compositeFields, prefix) {
+      const normalizedPart = (value) => String(value ?? "").trim().toLowerCase();
+      const composite = (item) => compositeFields.map((field) => normalizedPart(item?.[field])).join("\u001f");
+      let index = entry[idField] ? items.findIndex((item) => item && item[idField] === entry[idField]) : -1;
+      const suppliedCompositeParts = compositeFields.filter((field) => normalizedPart(entry[field]));
+      if (index < 0 && !entry[idField] && suppliedCompositeParts.length >= 2) {
+        const signature = composite(entry);
+        index = items.findIndex((item) => item && composite(item) === signature);
+      }
+      if (index >= 0) {
+        const updated = [...items];
+        entry[idField] = items[index][idField];
+        const merged = {...items[index]};
+        Object.entries(entry).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && String(value) !== "") merged[key] = value;
+        });
+        updated[index] = merged;
+        return updated;
+      }
+      entry[idField] = entry[idField] || nextUiId(items, prefix, idField);
+      return [...items, {...entry}];
+    }
 
     function mergeOptionalGlobalIntake() {
       const field = document.getElementById("clinical_case_intake");
       const raw = field.value.trim();
       const localeType = valueOf("locale_profile");
-      const values = ["global_country", "global_region", "global_care_setting", "global_care_stage", "preferred_language", "source_language", "translation_status", "translation_review", "original_clinical_wording", "translated_clinical_text", "laboratory_source_label", "laboratory_test_type", "laboratory_sample_type", "laboratory_method", "family_sample_context", "access_constraints"];
+      const values = ["global_country", "global_region", "global_care_setting", "global_care_stage", "preferred_language", "source_language", "translation_status", "translation_review", "original_clinical_wording", "translated_clinical_text", "laboratory_source_id", "laboratory_source_label", "laboratory_report_date", "laboratory_test_type", "laboratory_sample_type", "laboratory_method", "family_member_id", "family_sample_context", "family_sample_availability", "access_constraints"];
       if (!values.some((id) => valueOf(id)) && !localeType) return;
       if (!raw) throw new Error("Enter the core structured clinical case JSON before adding optional global context.");
       const intake = JSON.parse(raw);
-      const context = {schema_version: "0.31", enabled: true};
+      const existingContext = intake.global_intake_context && typeof intake.global_intake_context === "object" && !Array.isArray(intake.global_intake_context) ? intake.global_intake_context : {};
+      const context = {...existingContext, schema_version: "0.31", enabled: true};
       if (valueOf("global_country")) context.country_code = valueOf("global_country").toUpperCase();
       if (valueOf("global_region")) context.region_or_administrative_area_exact = valueOf("global_region");
       if (valueOf("global_care_setting")) context.care_setting = valueOf("global_care_setting");
       if (valueOf("global_care_stage")) context.care_stage = valueOf("global_care_stage");
-      const language = {};
+      const language = {...(context.language_context || {})};
       if (valueOf("preferred_language")) language.preferred_language = valueOf("preferred_language");
       if (valueOf("source_language")) language.source_language = valueOf("source_language");
       if (valueOf("translation_status")) language.translation_status = valueOf("translation_status");
       if (valueOf("translation_review")) language.translation_review_state = valueOf("translation_review");
-      if (valueOf("original_clinical_wording")) language.original_text = valueOf("original_clinical_wording");
-      if (valueOf("translated_clinical_text")) language.translated_text = valueOf("translated_clinical_text");
+      if (valueOf("original_clinical_wording")) language.original_text = rawValueOf("original_clinical_wording");
+      if (valueOf("translated_clinical_text")) language.translated_text = rawValueOf("translated_clinical_text");
       if (Object.keys(language).length) context.language_context = language;
-      if (valueOf("laboratory_source_label")) context.laboratory_contexts = [{laboratory_source_id: "UI-LAB-1", source_label: valueOf("laboratory_source_label"), test_type_exact: valueOf("laboratory_test_type") || null, sample_type_exact: valueOf("laboratory_sample_type") || null, assay_or_sequencing_method_exact: valueOf("laboratory_method") || null}];
-      if (valueOf("family_sample_context")) context.family_sample_contexts = [{family_member_id: "UI-FAMILY-1", relationship_to_proband_exact: valueOf("family_sample_context"), sample_availability: "unknown"}];
-      if (valueOf("access_constraints")) context.testing_access_context = {constraints: valueOf("access_constraints").split(",").map((item) => item.trim()).filter(Boolean)};
-      if (localeType === "global_default") context.locale_profile = {profile_type: "global_default"};
-      if (localeType === "india") context.locale_profile = {profile_type: "india", country_code: "IN", state_or_union_territory_code: valueOf("india_state") || null, care_setting: valueOf("india_care_setting") || null, supplied_relationship: valueOf("india_relationship"), relationship_description_original: valueOf("india_relationship_exact") || null};
+      const laboratoryValues = ["laboratory_source_id", "laboratory_source_label", "laboratory_report_date", "laboratory_test_type", "laboratory_sample_type", "laboratory_method"];
+      if (laboratoryValues.some((id) => valueOf(id))) {
+        const existingLaboratories = Array.isArray(context.laboratory_contexts) ? context.laboratory_contexts : [];
+        const laboratoryId = valueOf("laboratory_source_id");
+        const existingLaboratory = laboratoryId ? existingLaboratories.find((item) => item?.laboratory_source_id === laboratoryId) : null;
+        if (!valueOf("laboratory_source_label") && !existingLaboratory) throw new Error("A laboratory source label is required when adding a laboratory record.");
+        const laboratory = {};
+        if (laboratoryId) laboratory.laboratory_source_id = laboratoryId;
+        if (valueOf("laboratory_source_label")) laboratory.source_label = valueOf("laboratory_source_label");
+        if (valueOf("laboratory_report_date")) laboratory.report_date = valueOf("laboratory_report_date");
+        if (rawValueOf("laboratory_test_type").trim()) laboratory.test_type_exact = rawValueOf("laboratory_test_type");
+        if (rawValueOf("laboratory_sample_type").trim()) laboratory.sample_type_exact = rawValueOf("laboratory_sample_type");
+        if (rawValueOf("laboratory_method").trim()) laboratory.assay_or_sequencing_method_exact = rawValueOf("laboratory_method");
+        context.laboratory_contexts = upsertContextEntry(existingLaboratories, laboratory, "laboratory_source_id", ["source_label", "report_date", "test_type_exact", "sample_type_exact", "assay_or_sequencing_method_exact"], "UI-LAB-");
+        document.getElementById("laboratory_source_id").value = laboratory.laboratory_source_id;
+      }
+      if (valueOf("family_member_id") || valueOf("family_sample_context") || valueOf("family_sample_availability")) {
+        const existingFamily = Array.isArray(context.family_sample_contexts) ? context.family_sample_contexts : [];
+        const familyId = valueOf("family_member_id");
+        const existingFamilyRecord = familyId ? existingFamily.find((item) => item?.family_member_id === familyId) : null;
+        if (!valueOf("family_sample_context") && !existingFamilyRecord) throw new Error("A relationship is required when adding a family-sample record.");
+        const family = {};
+        if (familyId) family.family_member_id = familyId;
+        if (rawValueOf("family_sample_context").trim()) family.relationship_to_proband_exact = rawValueOf("family_sample_context");
+        if (valueOf("family_sample_availability")) family.sample_availability = valueOf("family_sample_availability");
+        context.family_sample_contexts = upsertContextEntry(existingFamily, family, "family_member_id", [], "UI-FAMILY-");
+        document.getElementById("family_member_id").value = family.family_member_id;
+      }
+      if (valueOf("access_constraints")) context.testing_access_context = {...(context.testing_access_context || {}), constraints: valueOf("access_constraints").split(",").map((item) => item.trim()).filter(Boolean)};
+      if (localeType === "global_default") {
+        const existingLocale = context.locale_profile?.profile_type === "global_default" ? context.locale_profile : {};
+        context.locale_profile = {...existingLocale, profile_type: "global_default"};
+      }
+      if (localeType === "india") {
+        const existingLocale = context.locale_profile?.profile_type === "india" ? context.locale_profile : {};
+        const india = {...existingLocale, profile_type: "india", country_code: "IN"};
+        if (valueOf("india_state")) india.state_or_union_territory_code = valueOf("india_state");
+        if (valueOf("india_care_setting")) india.care_setting = valueOf("india_care_setting");
+        if (valueOf("india_relationship")) india.supplied_relationship = valueOf("india_relationship");
+        if (valueOf("india_relationship_exact")) india.relationship_description_original = rawValueOf("india_relationship_exact");
+        context.locale_profile = india;
+      }
       intake.global_intake_context = context;
       field.value = JSON.stringify(intake, null, 2);
     }
 
     function renderByokStatus(status) {
       const target = document.getElementById("byok-status");
-      target.textContent = status ? `${status.provider} / ${status.model}; key in memory: ${Boolean(status.key_present_in_memory)}; calls: ${status.request_count}; tokens: ${status.total_tokens}; estimated USD: ${status.estimated_cost_usd}; external call: ${Boolean(status.external_call_made)}` : "Mock mode; no BYOK session configured.";
+      target.textContent = status ? `${status.provider} / ${status.model}; key in memory: ${Boolean(status.key_present_in_memory)}; calls: ${status.request_count}; tokens: ${status.total_tokens}; estimated USD: ${status.estimated_cost_usd}; connection tests remaining: ${status.remaining_connection_tests}; external call: ${Boolean(status.external_call_made)}` : "Mock mode; no BYOK session configured.";
     }
 
     document.getElementById("locale_profile").addEventListener("change", (event) => {
@@ -576,13 +649,16 @@
     });
 
     document.getElementById("byok-configure").addEventListener("click", async () => {
-      activeByokSessionId = crypto.randomUUID();
-      const payload = {session_id: activeByokSessionId, provider: valueOf("byok_provider"), model: valueOf("byok_model") || "mock", base_url: valueOf("byok_base_url") || null, api_key: valueOf("byok_api_key") || null, budget: {max_calls: Number(valueOf("byok_max_calls")), max_input_tokens: Number(valueOf("byok_input_tokens")), max_output_tokens: Number(valueOf("byok_output_tokens")), max_total_tokens: Number(valueOf("byok_total_tokens")), estimated_cost_ceiling_usd: Number(valueOf("byok_cost_ceiling")), max_concurrent_calls: Number(valueOf("byok_concurrency")), max_retries: 1}};
+      const previousSessionId = activeByokSessionId;
+      activeByokSessionId = null;
+      const payload = {provider: valueOf("byok_provider"), model: valueOf("byok_model") || "mock", base_url: valueOf("byok_base_url") || null, api_key: valueOf("byok_api_key") || null, budget: {max_calls: Number(valueOf("byok_max_calls")), max_input_tokens: Number(valueOf("byok_input_tokens")), max_output_tokens: Number(valueOf("byok_output_tokens")), max_total_tokens: Number(valueOf("byok_total_tokens")), estimated_cost_ceiling_usd: Number(valueOf("byok_cost_ceiling")), max_concurrent_calls: Number(valueOf("byok_concurrency")), max_retries: 1}};
       try {
+        if (previousSessionId) await requestJson(`/insilicopop/byok/session/${encodeURIComponent(previousSessionId)}`, {method: "DELETE"}, "Replace BYOK session");
         const status = await requestJson("/insilicopop/byok/session", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)}, "BYOK configuration");
-        document.getElementById("byok_api_key").value = "";
+        activeByokSessionId = status.session_id;
         renderByokStatus(status);
       } catch (error) { activeByokSessionId = null; renderByokStatus(null); setStatus(friendlyError(error, "BYOK configuration failed."), true); }
+      finally { document.getElementById("byok_api_key").value = ""; }
     });
 
     document.getElementById("byok-test").addEventListener("click", async () => {

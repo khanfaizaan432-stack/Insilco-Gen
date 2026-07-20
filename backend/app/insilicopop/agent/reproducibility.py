@@ -91,7 +91,7 @@ def write_reproducibility_bundle(
         paths["repro_variant_intelligence"] = optional_paths["repro_variant_intelligence"]
         _write_json(paths["repro_variant_intelligence"], state.variant_intelligence.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
-    _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, generated_artifacts, paths))
+    _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
     paths["repro_checksums"].write_text(
         _checksums(run_dir, generated_artifacts, paths),
@@ -463,7 +463,12 @@ def _selected_recipe_payload(state: AgentState) -> dict[str, Any]:
     }
 
 
-def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
+def _provenance_index(
+    run_dir: Path,
+    state: AgentState,
+    generated_artifacts: dict[str, Path],
+    repro_paths: dict[str, Path],
+) -> dict[str, Any]:
     payload = {
         "run_id": run_dir.name,
         "selected_recipe": {
@@ -482,7 +487,7 @@ def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro
         "provenance_scope": "Run-level artifact provenance index; not row-level parser provenance.",
     }
     clinical_path = repro_paths.get("repro_clinical_case_intake")
-    if clinical_path:
+    if clinical_path and state.clinical_case_intake and state.clinical_case_intake.global_intake_context:
         payload["global_intake_context"] = {
             "path": _relative_to_run(run_dir, clinical_path),
             "json_pointer": "/global_intake_context",
@@ -493,6 +498,7 @@ def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro
 
 
 def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
+    byok = state.byok_runtime
     return {
         "run_id": state.run_id,
         "timestamp_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -503,6 +509,21 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "llm_provider": state.llm_provider,
         "external_llm_called": state.external_llm_called,
         "external_tools_executed": state.external_tools_executed,
+        "byok_schema_version": byok.schema_version if byok else None,
+        "byok_policy_version": byok.policy_version if byok else None,
+        "byok_provider": byok.provider if byok else None,
+        "byok_default_model": byok.model if byok else None,
+        "byok_resolved_role_models": byok.resolved_role_models if byok else {},
+        "byok_logical_request_count": byok.logical_request_count if byok else 0,
+        "byok_workflow_provider_attempt_count": byok.workflow_provider_attempt_count if byok else 0,
+        "byok_connection_test_attempt_count": byok.connection_test_attempt_count if byok else 0,
+        "byok_connection_test_request_count": byok.connection_test_request_count if byok else 0,
+        "byok_connection_test_success_count": byok.connection_test_success_count if byok else 0,
+        "byok_connection_test_failure_count": byok.connection_test_failure_count if byok else 0,
+        "byok_remaining_connection_tests": byok.remaining_connection_tests if byok else 0,
+        "byok_cache_hit_count": byok.cache_hit_count if byok else 0,
+        "byok_retry_count": byok.retry_count if byok else 0,
+        "byok_external_workflow_call_made": byok.external_workflow_call_made if byok else False,
         "workflow_family": state.workflow_selection.get("workflow_family", "unknown"),
         "selected_recipe_id": (state.selected_recipe or {}).get("recipe_id"),
         "orchestration_backend": state.orchestration_trace.get("orchestration_backend") if state.orchestration_trace else None,

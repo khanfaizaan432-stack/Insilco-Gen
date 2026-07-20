@@ -636,12 +636,22 @@ def _byok_runtime_lines(runtime: dict[str, Any]) -> list[str]:
         f"- model: `{_redact(str(runtime.get('model', 'mock')))}`",
         f"- external_provider_configured: `{str(runtime.get('provider') != 'mock').lower()}`",
         f"- request_count: `{int(runtime.get('request_count', 0) or 0)}`",
+        f"- provider_attempt_count: `{int(runtime.get('provider_attempt_count', 0) or 0)}`",
+        f"- workflow_provider_attempt_count: `{int(runtime.get('workflow_provider_attempt_count', 0) or 0)}`",
+        f"- connection_test_attempt_count: `{int(runtime.get('connection_test_attempt_count', 0) or 0)}`",
+        f"- connection_test_request_count: `{int(runtime.get('connection_test_request_count', 0) or 0)}`",
+        f"- connection_test_success_count: `{int(runtime.get('connection_test_success_count', 0) or 0)}`",
+        f"- connection_test_failure_count: `{int(runtime.get('connection_test_failure_count', 0) or 0)}`",
+        f"- remaining_connection_tests: `{int(runtime.get('remaining_connection_tests', 0) or 0)}`",
+        f"- cache_hit_count: `{int(runtime.get('cache_hit_count', 0) or 0)}`",
+        f"- retry_count: `{int(runtime.get('retry_count', 0) or 0)}`",
         f"- input_tokens: `{int(runtime.get('input_tokens', 0) or 0)}`",
         f"- output_tokens: `{int(runtime.get('output_tokens', 0) or 0)}`",
         f"- estimated_cost_usd: `{float(runtime.get('estimated_cost_usd', 0) or 0):.8f}`",
         f"- max_calls: `{int(budget.get('max_calls', 0) or 0)}`",
         f"- max_total_tokens: `{int(budget.get('max_total_tokens', 0) or 0)}`",
         f"- external_call_made: `{str(bool(runtime.get('external_call_made', False))).lower()}`",
+        f"- external_workflow_call_made: `{str(bool(runtime.get('external_workflow_call_made', False))).lower()}`",
     ]
 
 
