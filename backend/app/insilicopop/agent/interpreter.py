@@ -770,34 +770,59 @@ def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
         return []
     referral = assessment.get("referral_packet") or {}
     history = assessment.get("clinical_history") or {}
-    plan = assessment.get("missing_information_plan") or []
-    open_codes = sorted(
-        str(item.get("code", "missing_information"))
-        for item in plan
-        if isinstance(item, dict) and item.get("status") == "open"
-    )
     checkpoints = assessment.get("clinician_checkpoint_status_counts") or {}
-    return [
+    lines = [
         "## Referral and Pre-Test Clinical Assessment",
         "",
         "Deterministic organization of supplied pre-test information only. No test strategy was generated, no WES/WGS or other test was recommended, and no test was approved or ordered.",
+        "",
+        "### Supplied Referral and History",
         f"- schema_version: `{_redact(str(assessment.get('schema_version', 'unknown')))}`",
-        f"- algorithm_version: `{_redact(str(assessment.get('algorithm_version', 'unknown')))}`",
         f"- referral_source: `{_redact(str(referral.get('source', 'not supplied')))}`",
         f"- referral_urgency_context: `{_redact(str(referral.get('urgency_context', 'not supplied')))}`",
+        f"- supplied_referral_reason: `{_redact(str(referral.get('reason_exact', 'not supplied')))}`",
         f"- clinical_history_supplied: `{str(bool(history)).lower()}`",
+        f"- supplied_history_summary: `{_redact(str(history.get('summary_exact', 'not supplied')))}`",
+        f"- structured_history_item_count: `{len(history.get('items', []) or [])}`",
         f"- linked_phenotype_count: `{len(history.get('phenotype_observation_ids', []) or [])}`",
         f"- linked_pedigree_member_count: `{len(history.get('pedigree_member_ids', []) or [])}`",
         f"- previous_investigation_count: `{len(assessment.get('previous_investigation_timeline', []) or [])}`",
         f"- known_family_report_count: `{len(assessment.get('known_family_reports', []) or [])}`",
+        "",
+        "### Deterministic Assessment",
+        f"- algorithm_version: `{_redact(str(assessment.get('algorithm_version', 'unknown')))}`",
         f"- testing_status_as_supplied: `{_redact(str(assessment.get('testing_status_as_supplied', 'unknown')))}`",
         f"- assessment_outcome: `{_redact(str(assessment.get('assessment_outcome', 'unknown')))}`",
         f"- outcome_rationale_codes: `{_redact(', '.join(str(item) for item in assessment.get('outcome_rationale_codes', []) or []) or 'none')}`",
         f"- open_missing_information_count: `{int(assessment.get('open_missing_information_count', 0) or 0)}`",
-        f"- open_missing_information_codes: `{_redact(', '.join(open_codes) if open_codes else 'none')}`",
+        f"- open_blocking_information_count: `{int(assessment.get('open_blocking_information_count', 0) or 0)}`",
+        f"- open_human_review_count: `{int(assessment.get('open_human_review_count', 0) or 0)}`",
         f"- linkage_issue_count: `{len(assessment.get('linkage_issues', []) or [])}`",
-        f"- clinician_checkpoint_status_counts: `{_redact(', '.join(f'{key}={checkpoints[key]}' for key in sorted(checkpoints)) or 'none')}`",
         f"- ready_for_test_strategy_review: `{str(bool(assessment.get('ready_for_test_strategy_review', False))).lower()}`",
+    ]
+    for heading, key in (
+        ("Blocking Information", "blocking_items"),
+        ("Advisory Information", "advisory_items"),
+        ("Human-Review Items", "human_review_items"),
+        ("Informational Limitations", "informational_items"),
+    ):
+        items = assessment.get(key, []) or []
+        codes = sorted(str(item.get("code", "missing_information")) for item in items if isinstance(item, dict))
+        lines.extend(["", f"### {heading}", f"- item_codes: `{_redact(', '.join(codes) if codes else 'none')}`"])
+    decisions = assessment.get("clinician_decisions", []) or []
+    decision_values = sorted(
+        f"{item.get('checkpoint_type', 'unknown')}={item.get('status', 'unknown')}"
+        for item in decisions
+        if isinstance(item, dict)
+    )
+    lines.extend([
+        "",
+        "### Clinician Decisions (Explicitly Supplied Only)",
+        f"- supplied_checkpoint_decisions: `{_redact(', '.join(decision_values) if decision_values else 'none')}`",
+        f"- clinician_checkpoint_status_counts: `{_redact(', '.join(f'{key}={checkpoints[key]}' for key in sorted(checkpoints)) or 'none')}`",
+        "",
+        "### Safety Boundary",
+        "- readiness does not recommend or authorize any genetic test.",
         "- test_strategy_generated: `false`",
         "- test_recommendation_made: `false`",
         "- test_order_placed: `false`",
@@ -806,7 +831,8 @@ def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
         "- treatment_recommendation_made: `false`",
         "- final_acmg_classification_made: `false`",
         "- human_review_required: `true`",
-    ]
+    ])
+    return lines
 
 
 def _pedigree_inheritance_audit_lines(audit: dict[str, Any]) -> list[str]:

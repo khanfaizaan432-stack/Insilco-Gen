@@ -137,12 +137,16 @@ def build_clinical_case_full_bundle(
         case = ClinicalCaseIntake.model_validate(payload)
     except ValidationError:
         return intake, curation, inheritance_audit, variant_intelligence, None
-    errors, _, _, blocks = validate_clinical_case(case, request_text=request_text)
+    errors, warnings, missing, blocks = validate_clinical_case(case, request_text=request_text)
     safe_case = sanitized_clinical_case(case)
     pretest_assessment = build_pretest_assessment(
         safe_case,
         validation_errors=errors,
+        validation_warnings=warnings,
+        validation_missing_information=missing,
         policy_blocks=blocks,
+        phenotype_curation=curation,
+        pedigree_audit=inheritance_audit,
     )
     return intake, curation, inheritance_audit, variant_intelligence, pretest_assessment
 

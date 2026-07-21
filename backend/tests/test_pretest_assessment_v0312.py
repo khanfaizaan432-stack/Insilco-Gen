@@ -60,6 +60,7 @@ def complete_case():
                 }
             ],
             "known_family_reports_review_status": "supplied",
+            "pedigree_review_status": "supplied",
             "known_family_reports": [
                 {
                     "family_report_id": "FREP-1",
@@ -246,7 +247,7 @@ def test_incomplete_prior_and_family_reports_create_targeted_information_request
     payload["pre_test_assessment"]["known_family_reports"][0]["report_availability"] = "requested"
     result = assessment(payload)
     codes = {item.code for item in result.missing_information_plan}
-    assert {"previous_investigation_report_incomplete", "known_family_report_incomplete"} <= codes
+    assert {"previous_investigation_report_incomplete", "known_family_report_requested"} <= codes
     assert result.assessment_outcome.value == "more_information_required"
 
 
@@ -255,7 +256,7 @@ def test_unconfirmed_history_review_prevents_readiness():
     payload["pre_test_assessment"]["clinical_history"]["review_status"] = "needs_revision"
     result = assessment(payload)
     assert "clinical_history_review_not_confirmed" in {item.code for item in result.missing_information_plan}
-    assert result.assessment_outcome.value == "more_information_required"
+    assert result.assessment_outcome.value == "awaiting_human_review"
 
 
 def test_optional_extension_preserves_legacy_intake_serialization():

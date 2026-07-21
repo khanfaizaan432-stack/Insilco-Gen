@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 PRETEST_SCHEMA_VERSION = "0.31.2"
@@ -56,6 +56,58 @@ class RecordAvailability(str, Enum):
     UNAVAILABLE = "unavailable"
     UNKNOWN = "unknown"
     NOT_ASSESSED = "not_assessed"
+
+
+class ReadinessImpact(str, Enum):
+    BLOCKING = "blocking"
+    ADVISORY = "advisory"
+    HUMAN_REVIEW_REQUIRED = "human_review_required"
+    INFORMATIONAL = "informational"
+
+
+class PedigreeReviewStatus(str, Enum):
+    SUPPLIED = "supplied"
+    NONE_REPORTED = "none_reported"
+    UNAVAILABLE = "unavailable"
+    NOT_COLLECTED = "not_collected"
+    DEFERRED = "deferred"
+    NOT_RELEVANT = "not_relevant"
+    UNKNOWN = "unknown"
+
+
+class ClinicalHistorySourceType(str, Enum):
+    PATIENT_OR_FAMILY_REPORTED = "patient_or_family_reported"
+    GP_REPORTED = "GP_reported"
+    SPECIALIST_REPORTED = "specialist_reported"
+    CLINICIAN_EXAMINATION = "clinician_examination"
+    PREVIOUS_MEDICAL_RECORD = "previous_medical_record"
+    LABORATORY_REPORT = "laboratory_report"
+    IMAGING_REPORT = "imaging_report"
+    PATHOLOGY_REPORT = "pathology_report"
+    TRANSLATED_STATEMENT = "translated_statement"
+    SOURCE_UNKNOWN = "source_unknown"
+
+
+class ClinicalHistoryAssertionType(str, Enum):
+    REPORTED_SYMPTOM = "reported_symptom"
+    OBSERVED_FINDING = "observed_finding"
+    RELEVANT_NEGATIVE = "relevant_negative"
+    PREVIOUS_DIAGNOSIS_CLAIM = "previous_diagnosis_claim"
+    MEDICATION_CONTEXT = "medication_context"
+    ENVIRONMENTAL_OR_ACQUIRED_CONTEXT = "environmental_or_acquired_context"
+    UNRESOLVED_QUESTION = "unresolved_question"
+    OTHER = "other"
+
+
+class ClinicalHistoryReviewStatus(str, Enum):
+    UNREVIEWED = "unreviewed"
+    REVIEWED = "reviewed"
+    DISPUTED = "disputed"
+    REQUIRES_CLARIFICATION = "requires_clarification"
+
+
+def _canonical_identifiers(value):
+    return sorted(set(value or []))
 
 
 class InvestigationCategory(str, Enum):
@@ -136,6 +188,35 @@ class ReferralPacket(FrozenPreTestModel):
     supplied_urgency_wording_exact: str | None = Field(default=None, max_length=160)
     provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
 
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
+
+
+class ClinicalHistoryItem(FrozenPreTestModel):
+    item_id: str = Field(min_length=1, max_length=80, pattern=LOCAL_ID_PATTERN)
+    category: str = Field(min_length=1, max_length=120)
+    exact_supplied_text: str = Field(min_length=1, max_length=1200)
+    normalized_summary: str | None = Field(default=None, max_length=600)
+    source_type: ClinicalHistorySourceType
+    assertion_type: ClinicalHistoryAssertionType
+    review_status: ClinicalHistoryReviewStatus = ClinicalHistoryReviewStatus.UNREVIEWED
+    phenotype_links: list[str] = Field(default_factory=list, max_length=500)
+    pedigree_person_links: list[str] = Field(default_factory=list, max_length=500)
+    provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
+    onset_exact: str | None = Field(default=None, max_length=240)
+    progression_exact: str | None = Field(default=None, max_length=400)
+    negated: bool = False
+    uncertainty_exact: str | None = Field(default=None, max_length=240)
+
+    _canonicalize_phenotypes = field_validator("phenotype_links", mode="before")(_canonical_identifiers)
+    _canonicalize_pedigree = field_validator("pedigree_person_links", mode="before")(_canonical_identifiers)
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
+
+    @model_validator(mode="after")
+    def preserve_relevant_negative_semantics(self):
+        if self.assertion_type == ClinicalHistoryAssertionType.RELEVANT_NEGATIVE and not self.negated:
+            raise ValueError("relevant_negative history items must set negated=true")
+        return self
+
 
 class ClinicalGeneticsHistory(FrozenPreTestModel):
     history_id: str = Field(min_length=1, max_length=80, pattern=LOCAL_ID_PATTERN)
@@ -150,6 +231,11 @@ class ClinicalGeneticsHistory(FrozenPreTestModel):
     development_history_exact: str | None = Field(default=None, max_length=600)
     review_status: CheckpointStatus = CheckpointStatus.PENDING
     provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
+    items: list[ClinicalHistoryItem] = Field(default_factory=list, max_length=500)
+
+    _canonicalize_phenotypes = field_validator("phenotype_observation_ids", mode="before")(_canonical_identifiers)
+    _canonicalize_pedigree = field_validator("pedigree_member_ids", mode="before")(_canonical_identifiers)
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
 
 
 class PreviousInvestigationRecord(FrozenPreTestModel):
@@ -162,6 +248,8 @@ class PreviousInvestigationRecord(FrozenPreTestModel):
     report_availability: RecordAvailability = RecordAvailability.UNKNOWN
     provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
 
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
+
 
 class KnownFamilyReportRecord(FrozenPreTestModel):
     family_report_id: str = Field(min_length=1, max_length=80, pattern=LOCAL_ID_PATTERN)
@@ -170,6 +258,9 @@ class KnownFamilyReportRecord(FrozenPreTestModel):
     report_availability: RecordAvailability = RecordAvailability.UNKNOWN
     supplied_summary_exact: str | None = Field(default=None, max_length=600)
     provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
+    essential_to_referral: bool = False
+
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
 
 
 class PreTestContextReview(FrozenPreTestModel):
@@ -187,6 +278,9 @@ class SuppliedMissingInformationRequest(FrozenPreTestModel):
     why_needed_exact: str | None = Field(default=None, max_length=500)
     linked_record_ids: list[str] = Field(default_factory=list, max_length=50)
     status: MissingInformationStatus = MissingInformationStatus.OPEN
+    readiness_impact: ReadinessImpact = ReadinessImpact.BLOCKING
+
+    _canonicalize_links = field_validator("linked_record_ids", mode="before")(_canonical_identifiers)
 
 
 class ClinicianCheckpoint(FrozenPreTestModel):
@@ -197,6 +291,8 @@ class ClinicianCheckpoint(FrozenPreTestModel):
     note_exact: str | None = Field(default=None, max_length=400)
     provenance_source_ids: list[str] = Field(default_factory=list, max_length=20)
 
+    _canonicalize_provenance = field_validator("provenance_source_ids", mode="before")(_canonical_identifiers)
+
 
 class PreTestAssessmentRequest(FrozenPreTestModel):
     schema_version: Literal["0.31.2"] = PRETEST_SCHEMA_VERSION
@@ -206,6 +302,9 @@ class PreTestAssessmentRequest(FrozenPreTestModel):
     previous_investigations: list[PreviousInvestigationRecord] = Field(default_factory=list, max_length=100)
     known_family_reports_review_status: InformationStatus = InformationStatus.NOT_ASSESSED
     known_family_reports: list[KnownFamilyReportRecord] = Field(default_factory=list, max_length=100)
+    pedigree_review_status: PedigreeReviewStatus = PedigreeReviewStatus.UNKNOWN
+    pedigree_relevant_to_referral: bool | None = None
+    pedigree_relevance_reason_exact: str | None = Field(default=None, max_length=400)
     context_review: PreTestContextReview = Field(default_factory=PreTestContextReview)
     supplied_missing_information_requests: list[SuppliedMissingInformationRequest] = Field(default_factory=list, max_length=100)
     testing_status: PreTestWorkflowOutcome = PreTestWorkflowOutcome.AWAITING_HUMAN_REVIEW
@@ -231,7 +330,10 @@ class MissingInformationPlanItem(FrozenPreTestModel):
     source: Literal["system_identified", "user_supplied"]
     linked_record_ids: list[str] = Field(default_factory=list)
     status: MissingInformationStatus = MissingInformationStatus.OPEN
+    readiness_impact: ReadinessImpact = ReadinessImpact.BLOCKING
     human_review_required: Literal[True] = True
+
+    _canonicalize_links = field_validator("linked_record_ids", mode="before")(_canonical_identifiers)
 
 
 class PreTestAssessmentResult(FrozenPreTestModel):
@@ -249,8 +351,15 @@ class PreTestAssessmentResult(FrozenPreTestModel):
     outcome_rationale_codes: list[str] = Field(default_factory=list)
     linkage_issues: list[PreTestLinkageIssue] = Field(default_factory=list)
     missing_information_plan: list[MissingInformationPlanItem] = Field(default_factory=list)
+    blocking_items: list[MissingInformationPlanItem] = Field(default_factory=list)
+    advisory_items: list[MissingInformationPlanItem] = Field(default_factory=list)
+    human_review_items: list[MissingInformationPlanItem] = Field(default_factory=list)
+    informational_items: list[MissingInformationPlanItem] = Field(default_factory=list)
     open_missing_information_count: int = 0
+    open_blocking_information_count: int = 0
+    open_human_review_count: int = 0
     clinician_checkpoint_status_counts: dict[str, int] = Field(default_factory=dict)
+    clinician_decisions: list[ClinicianCheckpoint] = Field(default_factory=list)
     ready_for_test_strategy_review: bool = False
     human_review_required: Literal[True] = True
     test_strategy_generated: Literal[False] = False

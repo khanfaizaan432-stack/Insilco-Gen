@@ -3,14 +3,18 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app.insilicopop.agent.loop import AgentLoop
 from app.insilicopop.agent.workbench import WorkbenchRunStore
+from app.insilicopop.clinical import build_clinical_case_full_bundle
 from app.main import app
 from backend.tests.test_pretest_assessment_v0312 import complete_case
+from backend.tests.test_v0311_workbench_dom import _javascript_function
 
 
 client = TestClient(app)
@@ -49,12 +53,15 @@ def test_run_writes_assessment_artifact_report_trace_checksum_and_runtime_lock(t
 
 def test_reordered_input_produces_identical_assessment_artifact_bytes(tmp_path):
     payload = complete_case()
+    payload["provenance"].append({"source_id": "SRC-Z", "source_type": "synthetic_fixture"})
+    payload["pre_test_assessment"]["referral_packet"]["provenance_source_ids"] = ["SRC-Z", "SRC-REF", "SRC-Z"]
     additional = copy.deepcopy(payload["pre_test_assessment"]["previous_investigations"][0])
     additional["investigation_id"] = "INV-1"
     payload["pre_test_assessment"]["previous_investigations"].append(additional)
     first = AgentLoop(generated_root=tmp_path).run(query="pre-test assessment", uploads={}, clinical_case_intake=payload)
     reordered = copy.deepcopy(payload)
     reordered["pre_test_assessment"]["previous_investigations"].reverse()
+    reordered["pre_test_assessment"]["referral_packet"]["provenance_source_ids"].reverse()
     second = AgentLoop(generated_root=tmp_path).run(query="pre-test assessment", uploads={}, clinical_case_intake=reordered)
     first_bytes = (Path(first["reproducibility_bundle"]["path"]) / "pre_test_assessment.json").read_bytes()
     second_bytes = (Path(second["reproducibility_bundle"]["path"]) / "pre_test_assessment.json").read_bytes()
@@ -112,6 +119,26 @@ def test_api_stored_run_allowlisted_artifact_and_workbench_expose_v0312():
     assert "Referral and Pre-Test Assessment Workspace" in ui
     assert "renderPreTestAssessment" in ui
     assert "does not recommend WES, WGS, or any other test" in ui
+
+
+def test_workbench_dom_renders_separate_readiness_categories_and_supplied_decisions():
+    node = shutil.which("node")
+    assert node is not None, "Node.js is required for the Workbench DOM contract test"
+    ui = client.get("/insilicopop/workbench").text
+    functions = "\n".join(_javascript_function(ui, name) for name in ("escapeHtml", "notAvailable", "renderPreTestAssessment"))
+    assessment = build_clinical_case_full_bundle(complete_case())[4].model_dump(mode="json")
+    script = f"""
+const target = {{className: "", textContent: "", innerHTML: ""}};
+globalThis.document = {{getElementById: () => target}};
+{functions}
+renderPreTestAssessment({json.dumps(assessment)});
+process.stdout.write(target.innerHTML);
+"""
+    rendered = subprocess.run([node, "-e", script], check=True, capture_output=True, text=True, timeout=15).stdout
+    for heading in ("Supplied referral and history", "Deterministic assessment", "Blocking information", "Advisory information", "Human-review items", "Clinician decisions (explicitly supplied only)"):
+        assert heading in rendered
+    assert "Readiness does not recommend or authorize any genetic test" in rendered
+    assert "pre_test_assessment_review" in rendered
 
 
 def test_old_stored_runs_remain_readable_without_pretest_assessment(tmp_path):

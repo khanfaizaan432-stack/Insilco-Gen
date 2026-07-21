@@ -1009,12 +1009,17 @@
       }
       const referral = assessment.referral_packet || {};
       const history = assessment.clinical_history || {};
-      const plan = (assessment.missing_information_plan || []).slice(0, 100);
-      const planRows = plan.map((item) => `<li><strong>${escapeHtml(item.category || "other")}</strong> — ${escapeHtml(item.code || "missing_information")} — ${escapeHtml(item.status || "open")} — ${escapeHtml(item.information_needed || "Human review required.")}</li>`).join("") || "<li>No missing-information requests recorded.</li>";
+      const renderAssessmentItems = (items, emptyText) => (items || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.category || "other")}</strong> — ${escapeHtml(item.code || "missing_information")} — ${escapeHtml(item.status || "open")} — ${escapeHtml(item.information_needed || "Human review required.")}</li>`).join("") || `<li>${escapeHtml(emptyText)}</li>`;
+      const blockingRows = renderAssessmentItems(assessment.blocking_items, "No blocking information items recorded.");
+      const advisoryRows = renderAssessmentItems(assessment.advisory_items, "No advisory information items recorded.");
+      const humanReviewRows = renderAssessmentItems(assessment.human_review_items, "No human-review items recorded.");
+      const informationalRows = renderAssessmentItems(assessment.informational_items, "No informational limitations recorded.");
+      const decisionRows = (assessment.clinician_decisions || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.checkpoint_type || "checkpoint")}</strong> — ${escapeHtml(item.status || "pending")} — ${escapeHtml(item.note_exact || "No supplied note.")}</li>`).join("") || "<li>No explicit clinician decisions supplied.</li>";
       const timelineRows = (assessment.previous_investigation_timeline || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.investigation_id || "investigation")}</strong> — ${escapeHtml(item.category || "other")} — ${escapeHtml(item.test_or_assessment_exact || "not supplied")} — report ${escapeHtml(item.report_availability || "unknown")}</li>`).join("") || "<li>No previous investigations supplied.</li>";
       const linkageRows = (assessment.linkage_issues || []).slice(0, 100).map((item) => `<li>${escapeHtml(item.code || "linkage_issue")} — ${escapeHtml(item.message || "Human review required.")}</li>`).join("") || "<li>No unresolved record linkages.</li>";
       target.className = "";
       target.innerHTML = `
+        <h3>Supplied referral and history</h3>
         <div class="metrics">
           <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(assessment.schema_version))}</div>
           <div class="metric"><strong>outcome</strong>${escapeHtml(notAvailable(assessment.assessment_outcome))}</div>
@@ -1022,13 +1027,25 @@
           <div class="metric"><strong>urgency context</strong>${escapeHtml(notAvailable(referral.urgency_context))}</div>
           <div class="metric"><strong>linked phenotypes</strong>${escapeHtml((history.phenotype_observation_ids || []).length)}</div>
           <div class="metric"><strong>linked pedigree members</strong>${escapeHtml((history.pedigree_member_ids || []).length)}</div>
+        </div>
+        <p><strong>Supplied referral reason:</strong> ${escapeHtml(notAvailable(referral.reason_exact))}</p>
+        <p><strong>Supplied/reported history:</strong> ${escapeHtml(notAvailable(history.summary_exact))}</p>
+        <h3>Deterministic assessment</h3>
+        <div class="metrics">
+          <div class="metric"><strong>readiness reasons</strong>${escapeHtml((assessment.outcome_rationale_codes || []).join(", ") || "none")}</div>
           <div class="metric"><strong>open information requests</strong>${escapeHtml(assessment.open_missing_information_count ?? 0)}</div>
+          <div class="metric"><strong>open blocking items</strong>${escapeHtml(assessment.open_blocking_information_count ?? 0)}</div>
+          <div class="metric"><strong>open human-review items</strong>${escapeHtml(assessment.open_human_review_count ?? 0)}</div>
           <div class="metric safe"><strong>human review required</strong>true</div>
           <div class="metric safe"><strong>test strategy generated</strong>false</div>
           <div class="metric safe"><strong>test ordered</strong>false</div>
         </div>
-        <p class="note"><strong>Structured pre-test assessment only.</strong> It does not recommend WES, WGS, or any other test; it does not approve or place an order; and it makes no diagnosis, treatment recommendation, or final classification.</p>
-        <h3>Missing-information plan</h3><ul>${planRows}</ul>
+        <p class="note"><strong>Structured pre-test assessment only.</strong> Readiness does not recommend or authorize any genetic test. It does not recommend WES, WGS, or any other test; it does not approve or place an order; and it makes no diagnosis, treatment recommendation, or final classification.</p>
+        <h3>Blocking information</h3><ul>${blockingRows}</ul>
+        <h3>Advisory information</h3><ul>${advisoryRows}</ul>
+        <h3>Human-review items</h3><ul>${humanReviewRows}</ul>
+        <h3>Informational limitations</h3><ul>${informationalRows}</ul>
+        <h3>Clinician decisions (explicitly supplied only)</h3><ul>${decisionRows}</ul>
         <h3>Previous-investigation timeline</h3><ul>${timelineRows}</ul>
         <h3>Linkage issues requiring review</h3><ul>${linkageRows}</ul>`;
     }
