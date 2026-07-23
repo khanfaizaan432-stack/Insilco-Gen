@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 GLOBAL_INTAKE_SCHEMA_VERSION = "0.31"
@@ -55,6 +55,13 @@ class TranslationReviewState(str, Enum):
     HUMAN_REVIEWED = "human_reviewed"
     NEEDS_REVISION = "needs_revision"
     UNKNOWN = "unknown"
+
+
+class RelationshipContextReviewStatus(str, Enum):
+    NOT_REVIEWED = "not_reviewed"
+    REVIEWED_CONFIRMED = "reviewed_confirmed"
+    REVIEWED_CORRECTED = "reviewed_corrected"
+    REQUIRES_CLARIFICATION = "requires_clarification"
 
 
 class ReportCompleteness(str, Enum):
@@ -207,6 +214,23 @@ class IndiaLocaleProfile(ExactTextModel):
     supplied_relationship: SuppliedConsanguinityRelationship = SuppliedConsanguinityRelationship.NOT_SUPPLIED
     relationship_translation_status: TranslationStatus = TranslationStatus.ORIGINAL
     relationship_translation_review_state: TranslationReviewState = TranslationReviewState.NOT_REQUIRED
+    relationship_context_review_status: RelationshipContextReviewStatus = RelationshipContextReviewStatus.NOT_REVIEWED
+    relationship_description_corrected: str | None = Field(default=None, max_length=240)
+    relationship_context_review_provenance_source_ids: list[str] = Field(default_factory=list, max_length=30)
+
+    @field_validator("relationship_context_review_provenance_source_ids", mode="before")
+    @classmethod
+    def canonicalize_relationship_review_provenance(cls, value):
+        return sorted(set(value or []))
+
+    @model_validator(mode="after")
+    def validate_corrected_relationship_review(self):
+        if self.relationship_context_review_status == RelationshipContextReviewStatus.REVIEWED_CORRECTED:
+            if not self.relationship_description_corrected:
+                raise ValueError("reviewed_corrected relationship context requires a corrected representation")
+            if not self.relationship_context_review_provenance_source_ids:
+                raise ValueError("reviewed_corrected relationship context requires review provenance")
+        return self
 
 
 LocaleProfile = Annotated[GlobalDefaultLocaleProfile | IndiaLocaleProfile, Field(discriminator="profile_type")]

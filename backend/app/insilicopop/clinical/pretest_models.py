@@ -96,6 +96,14 @@ class ClinicalHistoryAssertionType(str, Enum):
     MEDICATION_CONTEXT = "medication_context"
     ENVIRONMENTAL_OR_ACQUIRED_CONTEXT = "environmental_or_acquired_context"
     UNRESOLVED_QUESTION = "unresolved_question"
+    FAMILY_HISTORY = "family_history"
+    AFFECTED_RELATIVE = "affected_relative"
+    SEGREGATION_RELEVANT_UNAFFECTED_RELATIVE = "segregation_relevant_unaffected_relative"
+    FAMILIAL_DISORDER_CLAIM = "familial_disorder_claim"
+    KNOWN_FAMILIAL_VARIANT = "known_familial_variant"
+    RELATIVE_GENETIC_REPORT = "relative_genetic_report"
+    CONSANGUINITY_OR_PARENTAL_RELATIONSHIP = "consanguinity_or_parental_relationship"
+    INHERITANCE_QUESTION = "inheritance_question"
     OTHER = "other"
 
 
@@ -148,6 +156,7 @@ class CheckpointType(str, Enum):
     HISTORY_REVIEW = "history_review"
     PHENOTYPE_REVIEW = "phenotype_review"
     PEDIGREE_REVIEW = "pedigree_review"
+    RELATIONSHIP_CONTEXT_REVIEW = "relationship_context_review"
     PREVIOUS_INVESTIGATIONS_REVIEW = "previous_investigations_review"
     SAMPLE_AND_ACCESS_REVIEW = "sample_and_access_review"
     PRE_TEST_ASSESSMENT_REVIEW = "pre_test_assessment_review"
@@ -305,6 +314,8 @@ class PreTestAssessmentRequest(FrozenPreTestModel):
     pedigree_review_status: PedigreeReviewStatus = PedigreeReviewStatus.UNKNOWN
     pedigree_relevant_to_referral: bool | None = None
     pedigree_relevance_reason_exact: str | None = Field(default=None, max_length=400)
+    family_history_review_status: InformationStatus = InformationStatus.NOT_ASSESSED
+    family_history_summary_exact: str | None = Field(default=None, max_length=600)
     context_review: PreTestContextReview = Field(default_factory=PreTestContextReview)
     supplied_missing_information_requests: list[SuppliedMissingInformationRequest] = Field(default_factory=list, max_length=100)
     testing_status: PreTestWorkflowOutcome = PreTestWorkflowOutcome.AWAITING_HUMAN_REVIEW

@@ -711,6 +711,9 @@ def _global_intake_context_lines(context: dict[str, Any]) -> list[str]:
                 f"- consanguinity_status: `{_redact(str(locale.get('consanguinity_status', 'not_assessed')))}`",
                 f"- relationship_description_original: `{_redact(str(locale.get('relationship_description_original') or 'not supplied'))}`",
                 f"- relationship_description_translated: `{_redact(str(locale.get('relationship_description_translated') or 'not supplied'))}`",
+                f"- relationship_context_review_status: `{_redact(str(locale.get('relationship_context_review_status', 'not_reviewed')))}`",
+                f"- relationship_description_corrected: `{_redact(str(locale.get('relationship_description_corrected') or 'not supplied'))}`",
+                f"- relationship_context_review_provenance_source_ids: `{_redact(', '.join(str(item) for item in locale.get('relationship_context_review_provenance_source_ids', []) or []) or 'none')}`",
                 "- relationship_context_caveat: Descriptive user-supplied context only; no paternity, identity, or inheritance conclusion was inferred.",
             ]
         )

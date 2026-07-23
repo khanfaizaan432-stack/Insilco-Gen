@@ -9,6 +9,7 @@ from app.insilicopop.clinical.pretest_models import (
     AccessReviewStatus,
     CheckpointStatus,
     CheckpointType,
+    ClinicalHistoryAssertionType,
     ClinicalHistoryReviewStatus,
     InformationStatus,
     MissingInformationCategory,
@@ -37,6 +38,17 @@ _VALIDATION_WARNING_MAPPINGS = {
         ReadinessImpact.HUMAN_REVIEW_REQUIRED,
         "Review the supplied relationship or consanguinity context without inferring a family relationship.",
     ),
+}
+
+_FAMILIAL_ASSERTION_TYPES = {
+    ClinicalHistoryAssertionType.FAMILY_HISTORY,
+    ClinicalHistoryAssertionType.AFFECTED_RELATIVE,
+    ClinicalHistoryAssertionType.SEGREGATION_RELEVANT_UNAFFECTED_RELATIVE,
+    ClinicalHistoryAssertionType.FAMILIAL_DISORDER_CLAIM,
+    ClinicalHistoryAssertionType.KNOWN_FAMILIAL_VARIANT,
+    ClinicalHistoryAssertionType.RELATIVE_GENETIC_REPORT,
+    ClinicalHistoryAssertionType.CONSANGUINITY_OR_PARENTAL_RELATIONSHIP,
+    ClinicalHistoryAssertionType.INHERITANCE_QUESTION,
 }
 
 
@@ -150,6 +162,14 @@ def build_pretest_assessment(
     language = case.global_intake_context.language_context if case.global_intake_context else None
     if language and getattr(language.translation_review_state, "value", None) == "human_reviewed":
         effective_warnings = [item for item in effective_warnings if item.code != "machine_translation_requires_expert_review"]
+    locale = case.global_intake_context.locale_profile if case.global_intake_context else None
+    relationship_review_status = getattr(getattr(locale, "relationship_context_review_status", None), "value", None)
+    relationship_checkpoint_confirmed = _checkpoint_confirmed(request, CheckpointType.RELATIONSHIP_CONTEXT_REVIEW)
+    relationship_review_resolved = relationship_review_status in {"reviewed_confirmed", "reviewed_corrected"} or (
+        relationship_review_status == "not_reviewed" and relationship_checkpoint_confirmed
+    )
+    if relationship_review_resolved:
+        effective_warnings = [item for item in effective_warnings if item.code != "reported_relationship_context_requires_expert_review"]
     system_missing = map_readiness_relevant_upstream_findings(
         case.pseudonymous_case_id,
         validation_warnings=effective_warnings,
@@ -214,14 +234,59 @@ def build_pretest_assessment(
         for linked_id in sorted((set(history.pedigree_member_ids) | item_pedigree) - known_members):
             linkage_issues.append(_linkage_issue(case.pseudonymous_case_id, "unknown_pedigree_link", "clinical_history.pedigree_person_links", history.history_id, linked_id, "Linked pedigree member was not found in the supplied case."))
 
+    familial_claims = _familial_history_claims(request)
     pedigree_relevant = _pedigree_is_relevant(case, request)
     supplied_pedigree_links = set(history.pedigree_member_ids) | {link for item in history.items for link in item.pedigree_person_links} if history else set()
+    valid_supplied_pedigree_links = supplied_pedigree_links & known_members
+    pedigree_checkpoint_confirmed = _checkpoint_confirmed(request, CheckpointType.PEDIGREE_REVIEW)
+    represented_pedigree_review = bool(
+        case.pedigree
+        or valid_supplied_pedigree_links
+        or pedigree_checkpoint_confirmed
+        or (
+            request.family_history_review_status == InformationStatus.SUPPLIED
+            and request.family_history_summary_exact
+        )
+        or request.family_history_review_status == InformationStatus.NONE_REPORTED
+    )
+    if request.pedigree_review_status == PedigreeReviewStatus.SUPPLIED and not represented_pedigree_review:
+        add_missing(
+            "pedigree_supplied_without_represented_context",
+            MissingInformationCategory.PEDIGREE,
+            "Represent the supplied pedigree review with records, valid links, or an explicit reviewed family-history outcome.",
+            "The supplied pedigree-review state is inconsistent with the represented structured context.",
+            impact=ReadinessImpact.HUMAN_REVIEW_REQUIRED,
+        )
     if request.pedigree_review_status == PedigreeReviewStatus.NOT_RELEVANT and pedigree_relevant:
         add_missing("pedigree_relevance_conflict", MissingInformationCategory.PEDIGREE, "Review the conflict between supplied familial context and the not-relevant declaration.", "Pedigree relevance cannot be removed by inference.", impact=ReadinessImpact.HUMAN_REVIEW_REQUIRED)
     elif pedigree_relevant and not supplied_pedigree_links:
-        supplied_family_records_exist = bool(case.pedigree or request.known_family_reports)
-        impact = ReadinessImpact.BLOCKING if supplied_family_records_exist or request.pedigree_review_status not in {PedigreeReviewStatus.UNAVAILABLE, PedigreeReviewStatus.DEFERRED} else ReadinessImpact.ADVISORY
-        add_missing("pedigree_linkage_not_supplied", MissingInformationCategory.PEDIGREE, "Link relevant supplied pedigree members or document the reviewed limitation.", "The referral contains structured familial context that requires relationship-safe linkage.", impact=impact)
+        unavailable_limitation_accepted = (
+            request.pedigree_review_status == PedigreeReviewStatus.UNAVAILABLE
+            and pedigree_checkpoint_confirmed
+        )
+        if not unavailable_limitation_accepted:
+            claim_ids = [item.item_id for item in familial_claims]
+            code = "familial_claim_pedigree_context_not_supplied" if claim_ids else "pedigree_linkage_not_supplied"
+            information_needed = (
+                "Link the typed familial claim to represented pedigree context or complete the specific pedigree review."
+                if claim_ids
+                else "Link relevant supplied pedigree members or complete the specific pedigree review."
+            )
+            supplied_family_records_exist = bool(case.pedigree or request.known_family_reports)
+            impact = (
+                ReadinessImpact.HUMAN_REVIEW_REQUIRED
+                if not supplied_family_records_exist
+                and request.pedigree_review_status in {PedigreeReviewStatus.UNAVAILABLE, PedigreeReviewStatus.UNKNOWN}
+                else ReadinessImpact.BLOCKING
+            )
+            add_missing(
+                code,
+                MissingInformationCategory.PEDIGREE,
+                information_needed,
+                "The referral contains structured familial context that requires relationship-safe review.",
+                claim_ids,
+                impact,
+            )
     elif not pedigree_relevant:
         if request.pedigree_review_status == PedigreeReviewStatus.UNKNOWN:
             add_missing("pedigree_relevance_not_reviewed", MissingInformationCategory.PEDIGREE, "Record whether pedigree review is relevant to this referral.", "The system does not infer that pedigree is not relevant.", impact=ReadinessImpact.HUMAN_REVIEW_REQUIRED)
@@ -301,8 +366,24 @@ def _pedigree_is_relevant(case, request) -> bool:
     profile = case.global_intake_context.locale_profile if case.global_intake_context else None
     if profile and getattr(profile.consanguinity_status, "value", None) == "reported":
         return True
+    if _familial_history_claims(request):
+        return True
     history = request.clinical_history
     return bool(history and (history.pedigree_member_ids or any(item.pedigree_person_links for item in history.items)))
+
+
+def _familial_history_claims(request):
+    history = request.clinical_history
+    if history is None:
+        return []
+    return [item for item in history.items if item.assertion_type in _FAMILIAL_ASSERTION_TYPES]
+
+
+def _checkpoint_confirmed(request, checkpoint_type: CheckpointType) -> bool:
+    return any(
+        item.checkpoint_type == checkpoint_type and item.status == CheckpointStatus.CONFIRMED
+        for item in request.clinician_checkpoints
+    )
 
 
 def _add_family_report_item(report, add_missing) -> None:
