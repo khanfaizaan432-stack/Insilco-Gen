@@ -156,6 +156,8 @@ def validate_clinical_case(
         ("pretest_missing_request", [item.request_id for item in case.pre_test_assessment.supplied_missing_information_requests] if case.pre_test_assessment else []),
         ("pretest_checkpoint", [item.checkpoint_id for item in case.pre_test_assessment.clinician_checkpoints] if case.pre_test_assessment else []),
         ("pretest_history_item", [item.item_id for item in case.pre_test_assessment.clinical_history.items] if case.pre_test_assessment and case.pre_test_assessment.clinical_history else []),
+        ("test_strategy_rule_input", [item.rule_input_id for item in case.test_strategy_workspace.rule_inputs] if case.test_strategy_workspace else []),
+        ("test_strategy_fact", [fact.fact_id for item in case.test_strategy_workspace.rule_inputs for fact in item.trigger_facts] if case.test_strategy_workspace else []),
     ):
         for identifier, count in sorted(Counter(values).items()):
             if count > 1:

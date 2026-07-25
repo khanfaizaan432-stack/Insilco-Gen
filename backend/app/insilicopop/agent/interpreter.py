@@ -21,6 +21,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/pedigree_inheritance_audit.json",
     "reproducibility/variant_intelligence.json",
     "reproducibility/pre_test_assessment.json",
+    "reproducibility/test_strategy_workspace.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -58,6 +59,7 @@ class AgentInterpreter:
         pedigree_inheritance_audit: dict[str, Any] | None = None,
         variant_intelligence: dict[str, Any] | None = None,
         pre_test_assessment: dict[str, Any] | None = None,
+        test_strategy_workspace: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -85,6 +87,7 @@ class AgentInterpreter:
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
         variant_intelligence = variant_intelligence or {}
         pre_test_assessment = pre_test_assessment or {}
+        test_strategy_workspace = test_strategy_workspace or {}
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -169,7 +172,12 @@ class AgentInterpreter:
             "",
             *_pedigree_inheritance_audit_lines(pedigree_inheritance_audit),
             "",
-            *_pre_test_assessment_lines(pre_test_assessment),
+            *_pre_test_assessment_lines(
+                pre_test_assessment,
+                strategy_generated=bool(test_strategy_workspace.get("test_strategy_generated", False)),
+            ),
+            "",
+            *_test_strategy_workspace_lines(test_strategy_workspace),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -768,7 +776,11 @@ def _phenotype_hpo_curation_lines(curation: dict[str, Any]) -> list[str]:
     ]
 
 
-def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
+def _pre_test_assessment_lines(
+    assessment: dict[str, Any],
+    *,
+    strategy_generated: bool = False,
+) -> list[str]:
     if not assessment:
         return []
     referral = assessment.get("referral_packet") or {}
@@ -777,7 +789,11 @@ def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
     lines = [
         "## Referral and Pre-Test Clinical Assessment",
         "",
-        "Deterministic organization of supplied pre-test information only. No test strategy was generated, no WES/WGS or other test was recommended, and no test was approved or ordered.",
+        (
+            "Deterministic organization of supplied pre-test information only. The separate staged strategy workspace may contain proposed-not-approved options; this assessment does not recommend, approve, or order a test."
+            if strategy_generated
+            else "Deterministic organization of supplied pre-test information only. No test strategy was generated, no WES/WGS or other test was recommended, and no test was approved or ordered."
+        ),
         "",
         "### Supplied Referral and History",
         f"- schema_version: `{_redact(str(assessment.get('schema_version', 'unknown')))}`",
@@ -835,6 +851,72 @@ def _pre_test_assessment_lines(assessment: dict[str, Any]) -> list[str]:
         "- final_acmg_classification_made: `false`",
         "- human_review_required: `true`",
     ])
+    return lines
+
+
+def _test_strategy_workspace_lines(workspace: dict[str, Any]) -> list[str]:
+    if not workspace:
+        return []
+    options = workspace.get("options", []) or []
+    review_items = workspace.get("rule_review_items", []) or []
+    linkage_issues = workspace.get("linkage_issues", []) or []
+    lines = [
+        "## Staged Test-Strategy Workspace",
+        "",
+        "Bounded test and investigation classes for clinician comparison. Every option is proposed, not approved; no final test was selected, approved, or ordered.",
+        f"- schema_version: `{_redact(str(workspace.get('schema_version', 'unknown')))}`",
+        f"- algorithm_version: `{_redact(str(workspace.get('algorithm_version', 'unknown')))}`",
+        f"- catalogue_version: `{_redact(str(workspace.get('catalogue_version', 'unknown')))}`",
+        f"- rule_spec_version: `{_redact(str(workspace.get('rule_spec_version', 'unknown')))}`",
+        f"- workspace_status: `{_redact(str(workspace.get('workspace_status', 'unknown')))}`",
+        f"- pre_test_assessment_outcome: `{_redact(str(workspace.get('pre_test_assessment_outcome', 'not supplied')))}`",
+        f"- proposed_option_count: `{len(options)}`",
+        f"- rule_review_item_count: `{len(review_items)}`",
+        f"- linkage_issue_count: `{len(linkage_issues)}`",
+        "",
+        "### Proposed Options for Human Review",
+    ]
+    if not options:
+        lines.append("- No catalogue option was surfaced.")
+    for option in options:
+        if not isinstance(option, dict):
+            continue
+        facts = option.get("trigger_facts", []) or []
+        lines.extend(
+            [
+                f"- `{_redact(str(option.get('test_class', 'unknown')))}` — status `{_redact(str(option.get('status', 'proposed_not_approved')))}` — feasibility `{_redact(str(option.get('feasibility_status', 'unknown')))}`",
+                f"  - why surfaced: {_redact('; '.join(str(item) for item in option.get('why_surfaced', []) or []) or 'not recorded')}",
+                f"  - explicit trigger facts: {_redact('; '.join(str(item.get('fact_summary_exact', 'not recorded')) for item in facts if isinstance(item, dict)) or 'none')}",
+                f"  - general detection scope: {_redact('; '.join(str(item) for item in option.get('general_detection_scope', []) or []) or 'not recorded')}",
+                f"  - important blind spots: {_redact('; '.join(str(item) for item in option.get('important_blind_spots', []) or []) or 'not recorded')}",
+                f"  - prerequisites: {_redact('; '.join(str(item) for item in option.get('prerequisites', []) or []) or 'none')}",
+                f"  - reasons to defer: {_redact('; '.join(str(item) for item in option.get('reasons_to_defer', []) or []) or 'none')}",
+                f"  - after a negative result: {_redact('; '.join(str(item) for item in option.get('after_negative_result', []) or []) or 'not recorded')}",
+            ]
+        )
+    review_codes = sorted(
+        str(item.get("code", "requires_rule_review")) for item in review_items if isinstance(item, dict)
+    )
+    lines.extend(
+        [
+            "",
+            "### Rule and Linkage Review",
+            f"- rule_review_codes: `{_redact(', '.join(review_codes) if review_codes else 'none')}`",
+            f"- linkage_issue_count: `{len(linkage_issues)}`",
+            "",
+            "### Safety Boundary",
+            "- every option status: `proposed_not_approved`",
+            "- human_review_required: `true`",
+            "- test_recommendation_made: `false`",
+            "- test_approved: `false`",
+            "- test_order_placed: `false`",
+            "- final_test_selected: `false`",
+            "- medically_necessary_claim_made: `false`",
+            "- diagnosis_made: `false`",
+            "- treatment_recommendation_made: `false`",
+            "- final_acmg_classification_made: `false`",
+        ]
+    )
     return lines
 
 

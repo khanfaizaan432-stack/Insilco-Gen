@@ -45,6 +45,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_pedigree_inheritance_audit": "pedigree_inheritance_audit.json",
     "repro_variant_intelligence": "variant_intelligence.json",
     "repro_pre_test_assessment": "pre_test_assessment.json",
+    "repro_test_strategy_workspace": "test_strategy_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -94,6 +95,9 @@ def write_reproducibility_bundle(
     if state.pre_test_assessment:
         paths["repro_pre_test_assessment"] = optional_paths["repro_pre_test_assessment"]
         _write_json(paths["repro_pre_test_assessment"], state.pre_test_assessment.model_dump())
+    if state.test_strategy_workspace:
+        paths["repro_test_strategy_workspace"] = optional_paths["repro_test_strategy_workspace"]
+        _write_json(paths["repro_test_strategy_workspace"], state.test_strategy_workspace.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -274,6 +278,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
         "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
+        "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -508,6 +513,16 @@ def _provenance_index(
             "artifact_class": "deterministic_clinical_research_assessment",
             "human_review_required": True,
         }
+    strategy_path = repro_paths.get("repro_test_strategy_workspace")
+    if strategy_path and state.test_strategy_workspace:
+        payload["test_strategy_workspace"] = {
+            "path": _relative_to_run(run_dir, strategy_path),
+            "json_pointer": "/",
+            "artifact_class": "deterministic_proposed_not_approved_test_strategy",
+            "catalogue_version": state.test_strategy_workspace.catalogue_version,
+            "rule_spec_version": state.test_strategy_workspace.rule_spec_version,
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -565,7 +580,14 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "pre_test_assessment_algorithm_version": state.pre_test_assessment.algorithm_version if state.pre_test_assessment else None,
         "pre_test_assessment_artifact_available": state.pre_test_assessment is not None,
         "pre_test_assessment_outcome": state.pre_test_assessment.assessment_outcome.value if state.pre_test_assessment else None,
-        "test_strategy_generated": False,
+        "test_strategy_workspace_schema_version": state.test_strategy_workspace.schema_version if state.test_strategy_workspace else None,
+        "test_strategy_workspace_algorithm_version": state.test_strategy_workspace.algorithm_version if state.test_strategy_workspace else None,
+        "test_strategy_catalogue_version": state.test_strategy_workspace.catalogue_version if state.test_strategy_workspace else None,
+        "test_strategy_rule_spec_version": state.test_strategy_workspace.rule_spec_version if state.test_strategy_workspace else None,
+        "test_strategy_workspace_artifact_available": state.test_strategy_workspace is not None,
+        "test_strategy_workspace_status": state.test_strategy_workspace.workspace_status.value if state.test_strategy_workspace else None,
+        "test_strategy_proposed_option_count": state.test_strategy_workspace.proposed_option_count if state.test_strategy_workspace else 0,
+        "test_strategy_generated": state.test_strategy_workspace.test_strategy_generated if state.test_strategy_workspace else False,
         "test_recommendation_made": False,
         "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,

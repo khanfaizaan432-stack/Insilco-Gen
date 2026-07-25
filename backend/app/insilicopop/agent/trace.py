@@ -62,6 +62,7 @@ def write_agent_outputs(root: Path, state: AgentState) -> dict[str, Any]:
         pedigree_inheritance_audit=state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
         variant_intelligence=state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         pre_test_assessment=state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
+        test_strategy_workspace=state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
         byok_runtime=state.byok_runtime.model_dump() if state.byok_runtime else None,
         carried_memory=state.carried_memory,
         llm_provider=state.llm_provider,

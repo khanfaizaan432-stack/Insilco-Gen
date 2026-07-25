@@ -10,6 +10,7 @@ from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditReq
 from app.insilicopop.clinical.variant_models import VariantIntelligenceRequest
 from app.insilicopop.clinical.global_intake_models import GlobalIntakeContext
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentRequest
+from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceRequest
 
 
 SCHEMA_VERSION = "0.27"
@@ -156,6 +157,7 @@ class ClinicalCaseIntake(FrozenModel):
     variant_intelligence: VariantIntelligenceRequest | None = None
     global_intake_context: GlobalIntakeContext | None = None
     pre_test_assessment: PreTestAssessmentRequest | None = None
+    test_strategy_workspace: TestStrategyWorkspaceRequest | None = None
 
 
 class ClinicalIntakeIssue(FrozenModel):

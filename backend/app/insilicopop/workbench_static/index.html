@@ -450,6 +450,8 @@
           <div id="pedigree-inheritance-audit" class="muted">No pedigree/inheritance audit loaded.</div>
           <h3>Referral and Pre-Test Assessment Workspace</h3>
           <div id="pre-test-assessment" class="muted">No referral/pre-test assessment loaded.</div>
+          <h3>Staged Test-Strategy Workspace</h3>
+          <div id="test-strategy-workspace" class="muted">No staged test-strategy workspace loaded.</div>
           <h3>Variant Intelligence Workspace</h3>
           <div id="variant-intelligence" class="muted">No variant intelligence data loaded.</div>
           <h3>Results-only audit preview</h3>
@@ -1050,6 +1052,68 @@
         <h3>Linkage issues requiring review</h3><ul>${linkageRows}</ul>`;
     }
 
+    function renderTestStrategyWorkspace(workspace) {
+      const target = document.getElementById("test-strategy-workspace");
+      if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
+        target.className = "muted";
+        target.textContent = "No staged test-strategy workspace loaded. This is expected for runs created before v0.31.3 or without an explicit strategy declaration.";
+        return;
+      }
+      const options = (workspace.options || []).slice(0, 100);
+      const ruleReviewRows = (workspace.rule_review_items || []).slice(0, 100).map((item) =>
+        `<li><strong>${escapeHtml(item.code || "requires_rule_review")}</strong> — ${escapeHtml(item.message || "Human rule review required.")}</li>`
+      ).join("") || "<li>No open rule-review items.</li>";
+      const linkageRows = (workspace.linkage_issues || []).slice(0, 100).map((item) =>
+        `<li><strong>${escapeHtml(item.code || "linkage_issue")}</strong> — ${escapeHtml(item.source_record_id || "unknown record")} — ${escapeHtml(item.message || "Human review required.")}</li>`
+      ).join("") || "<li>No unresolved strategy-fact links.</li>";
+      const optionRows = options.map((option) => {
+        const context = option.supplied_context || {};
+        const facts = (option.trigger_facts || []).map((fact) =>
+          `<li><strong>${escapeHtml(fact.fact_id || "fact")}</strong> — ${escapeHtml(fact.fact_summary_exact || "not supplied")} <span class="muted">(${escapeHtml(fact.source_path || "unknown source")})</span></li>`
+        ).join("") || "<li>No explicit trigger fact represented.</li>";
+        const renderList = (items, emptyText) => (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>${escapeHtml(emptyText)}</li>`;
+        return `<details>
+          <summary>${escapeHtml(option.display_name || option.test_class || "option")} — ${escapeHtml(option.status || "proposed_not_approved")} — ${escapeHtml(option.feasibility_status || "unknown")}</summary>
+          <p><strong>Why surfaced:</strong> ${escapeHtml((option.why_surfaced || []).join("; ") || "Not recorded.")}</p>
+          <h4>Explicit supplied trigger facts</h4><ul>${facts}</ul>
+          <h4>What this class can generally detect</h4><ul>${renderList(option.general_detection_scope, "Detection scope not recorded.")}</ul>
+          <h4>Important blind spots</h4><ul>${renderList(option.important_blind_spots, "Blind spots not recorded.")}</ul>
+          <h4>Proband sample requirements</h4><ul>${renderList(option.proband_sample_requirements, "Not recorded.")}</ul>
+          <h4>Family-sample requirements</h4><ul>${renderList(option.family_sample_requirements, "Not recorded.")}</ul>
+          <h4>Supplied availability and cost context</h4>
+          <ul>
+            <li>care setting: ${escapeHtml(notAvailable(context.care_setting))}</li>
+            <li>locale profile: ${escapeHtml(notAvailable(context.locale_profile_type))}</li>
+            <li>laboratory context: ${escapeHtml((context.laboratory_availability_context || []).join("; ") || "not supplied")}</li>
+            <li>access constraints: ${escapeHtml((context.access_constraints || []).join("; ") || "not supplied")}</li>
+            <li>turnaround time: ${escapeHtml(notAvailable(context.turnaround_time_exact))}</li>
+            <li>affordability context: ${escapeHtml(notAvailable(context.affordability_context_exact))}</li>
+            <li>family samples: ${escapeHtml((context.family_sample_context || []).join("; ") || "not supplied")}</li>
+            <li>universal price assumed: false</li>
+          </ul>
+          <h4>Prerequisites</h4><ul>${renderList(option.prerequisites, "None recorded.")}</ul>
+          <h4>Reasons to defer</h4><ul>${renderList(option.reasons_to_defer, "No catalogue deferral reason recorded.")}</ul>
+          <h4>After a negative result</h4><ul>${renderList(option.after_negative_result, "No next-stage context recorded.")}</ul>
+        </details>`;
+      }).join("") || "<p>No catalogue options were surfaced.</p>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(workspace.schema_version))}</div>
+          <div class="metric"><strong>workspace status</strong>${escapeHtml(notAvailable(workspace.workspace_status))}</div>
+          <div class="metric"><strong>pre-test outcome</strong>${escapeHtml(notAvailable(workspace.pre_test_assessment_outcome))}</div>
+          <div class="metric"><strong>proposed options</strong>${escapeHtml(workspace.proposed_option_count ?? options.length)}</div>
+          <div class="metric"><strong>constrained options</strong>${escapeHtml(workspace.constrained_option_count ?? 0)}</div>
+          <div class="metric safe"><strong>every option</strong>proposed_not_approved</div>
+          <div class="metric safe"><strong>test approved</strong>false</div>
+          <div class="metric safe"><strong>test ordered</strong>false</div>
+        </div>
+        <p class="note"><strong>Clinician comparison only.</strong> These are test or investigation classes, not patient-specific orders. The workspace does not select a final test, claim medical necessity, diagnose, recommend treatment, or make a final ACMG classification.</p>
+        <h3>Proposed-not-approved options</h3>${optionRows}
+        <h3>Rule review required</h3><ul>${ruleReviewRows}</ul>
+        <h3>Strategy-fact linkage issues</h3><ul>${linkageRows}</ul>`;
+    }
+
     // VARIANT_BADGE_LABELS_START
     function variantBadgeLabels(item) {
       const snapshot = item?.supplied_request_snapshot || {};
@@ -1215,6 +1279,7 @@
       renderPhenotypeHpoCuration(data.phenotype_hpo_curation || data.final_state?.phenotype_hpo_curation);
       renderPedigreeInheritanceAudit(data.pedigree_inheritance_audit || data.final_state?.pedigree_inheritance_audit);
       renderPreTestAssessment(data.pre_test_assessment || data.final_state?.pre_test_assessment);
+      renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
       renderResultsAudit(data.results_audit || data.final_state?.results_audit);
       renderCommandPreviews(data.command_previews || [], recipe);
@@ -1269,6 +1334,7 @@
         renderPhenotypeHpoCuration(detail?.phenotype_hpo_curation);
         renderPedigreeInheritanceAudit(detail?.pedigree_inheritance_audit);
         renderPreTestAssessment(detail?.pre_test_assessment);
+        renderTestStrategyWorkspace(detail?.test_strategy_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);
         renderResultsAudit(detail?.results_audit);
         const workflowTarget = document.getElementById("workflow-selection");
