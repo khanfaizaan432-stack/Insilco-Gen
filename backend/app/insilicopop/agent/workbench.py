@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -37,6 +38,8 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
     "reproducibility/variant_intelligence.json",
+    "reproducibility/pre_test_assessment.json",
+    "reproducibility/test_strategy_workspace.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -44,7 +47,27 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/checksums.sha256",
 }
 
-SECRET_KEY_MARKERS = ("api_key", "authorization", "auth_header", "bearer", "password", "secret", "token")
+SECRET_KEY_NAMES = {
+    "api_key",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "auth_token",
+    "authorization",
+    "authorization_header",
+    "auth_header",
+    "bearer",
+    "password",
+    "client_secret",
+    "private_key",
+    "credential",
+    "credentials",
+    "token",
+    "secret",
+}
+SECRET_TEXT_PATTERN = re.compile(
+    r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|auth[_ -]?header|password|client[_ -]?secret|private[_ -]?key|credentials?)\b\s*[:=]|\bbearer\s+[A-Za-z0-9._~-]+)"
+)
 REDACTED = "[REDACTED]"
 
 
@@ -55,6 +78,10 @@ class AgentRunSummary(BaseModel):
     llm_provider: str = "mock"
     external_llm_called: bool = False
     external_tools_executed: bool = False
+    byok_provider: str | None = None
+    byok_model: str | None = None
+    byok_request_count: int = 0
+    byok_estimated_cost_usd: float = 0.0
     current_step: str | None = None
     research_lane: str | None = None
     evidence_retrieval_mode: str | None = None
@@ -82,6 +109,15 @@ class AgentRunSummary(BaseModel):
     variant_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_equivalence_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_intelligence_artifact_available: bool = False
+    pre_test_assessment_outcome: str | None = None
+    pre_test_open_missing_information_count: int = 0
+    pre_test_linkage_issue_count: int = 0
+    pre_test_assessment_artifact_available: bool = False
+    test_strategy_workspace_status: str | None = None
+    test_strategy_proposed_option_count: int = 0
+    test_strategy_constrained_option_count: int = 0
+    test_strategy_rule_review_item_count: int = 0
+    test_strategy_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -105,6 +141,9 @@ class AgentRunDetail(AgentRunSummary):
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
     variant_intelligence: dict[str, Any] | None = None
+    pre_test_assessment: dict[str, Any] | None = None
+    test_strategy_workspace: dict[str, Any] | None = None
+    byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
 
@@ -160,6 +199,9 @@ class WorkbenchRunStore:
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
+            pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
+            test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
+            byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
 
@@ -231,6 +273,12 @@ class WorkbenchRunStore:
         pedigree_inheritance_audit = pedigree_inheritance_audit if isinstance(pedigree_inheritance_audit, dict) else {}
         variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
         variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
+        pre_test_assessment = state.get("pre_test_assessment", {}) if isinstance(state, dict) else {}
+        pre_test_assessment = pre_test_assessment if isinstance(pre_test_assessment, dict) else {}
+        test_strategy_workspace = state.get("test_strategy_workspace", {}) if isinstance(state, dict) else {}
+        test_strategy_workspace = test_strategy_workspace if isinstance(test_strategy_workspace, dict) else {}
+        byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
+        byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
         inheritance_status_counts: dict[str, int] = {}
         for item in inheritance_audits:
@@ -246,6 +294,10 @@ class WorkbenchRunStore:
             llm_provider=str(state.get("llm_provider", "mock")),
             external_llm_called=bool(state.get("external_llm_called", False)),
             external_tools_executed=bool(state.get("external_tools_executed", False)),
+            byok_provider=byok_runtime.get("provider"),
+            byok_model=byok_runtime.get("model"),
+            byok_request_count=int(byok_runtime.get("request_count", 0) or 0),
+            byok_estimated_cost_usd=float(byok_runtime.get("estimated_cost_usd", 0) or 0),
             current_step=state.get("current_step"),
             research_lane=state.get("research_lane"),
             evidence_retrieval_mode=evidence_retrieval.get("retrieval_mode"),
@@ -273,6 +325,15 @@ class WorkbenchRunStore:
             variant_normalization_status_counts=_safe_count_dict(variant_intelligence.get("normalization_status_counts", {})),
             variant_equivalence_status_counts=_safe_count_dict(variant_intelligence.get("equivalence_status_counts", {})),
             variant_intelligence_artifact_available=(run_dir / "reproducibility" / "variant_intelligence.json").is_file(),
+            pre_test_assessment_outcome=pre_test_assessment.get("assessment_outcome"),
+            pre_test_open_missing_information_count=int(pre_test_assessment.get("open_missing_information_count", 0) or 0),
+            pre_test_linkage_issue_count=len(pre_test_assessment.get("linkage_issues", []) or []),
+            pre_test_assessment_artifact_available=(run_dir / "reproducibility" / "pre_test_assessment.json").is_file(),
+            test_strategy_workspace_status=test_strategy_workspace.get("workspace_status"),
+            test_strategy_proposed_option_count=int(test_strategy_workspace.get("proposed_option_count", 0) or 0),
+            test_strategy_constrained_option_count=int(test_strategy_workspace.get("constrained_option_count", 0) or 0),
+            test_strategy_rule_review_item_count=len(test_strategy_workspace.get("rule_review_items", []) or []),
+            test_strategy_workspace_artifact_available=(run_dir / "reproducibility" / "test_strategy_workspace.json").is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),
             selected_recipe_maturity_tier=selected_recipe.get("maturity_tier"),
@@ -341,7 +402,7 @@ def _redact_text(text: str) -> str:
     redacted_lines = []
     for line in text.splitlines():
         lowered = line.lower()
-        if any(marker in lowered for marker in SECRET_KEY_MARKERS):
+        if SECRET_TEXT_PATTERN.search(line):
             redacted_lines.append(REDACTED)
         else:
             redacted_lines.append(line)
@@ -349,8 +410,9 @@ def _redact_text(text: str) -> str:
 
 
 def _is_secret_key(key: str) -> bool:
-    lowered = key.lower()
-    return any(marker in lowered for marker in SECRET_KEY_MARKERS)
+    separated = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+    lowered = re.sub(r"[_\-\s]+", "_", separated).strip("_").lower()
+    return lowered in SECRET_KEY_NAMES or lowered.endswith(("_api_key", "_token", "_secret", "_password", "_credential"))
 
 
 def _file_type(path: Path) -> str:

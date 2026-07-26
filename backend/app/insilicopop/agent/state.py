@@ -9,6 +9,9 @@ from app.insilicopop.clinical.models import ClinicalCaseIntakeResult
 from app.insilicopop.clinical.hpo_models import PhenotypeHpoCurationResult
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditResult
 from app.insilicopop.clinical.variant_models import VariantIntelligenceResult
+from app.insilicopop.clinical.pretest_models import PreTestAssessmentResult
+from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceResult
+from app.insilicopop.llm.byok_runtime import BYOKPublicStatus
 
 
 class AgentState(BaseModel):
@@ -47,6 +50,9 @@ class AgentState(BaseModel):
     phenotype_hpo_curation: PhenotypeHpoCurationResult | None = None
     pedigree_inheritance_audit: PedigreeInheritanceAuditResult | None = None
     variant_intelligence: VariantIntelligenceResult | None = None
+    pre_test_assessment: PreTestAssessmentResult | None = None
+    test_strategy_workspace: TestStrategyWorkspaceResult | None = None
+    byok_runtime: BYOKPublicStatus | None = None
 
     def record_action(self, action: AgentAction) -> None:
         self.planned_actions.append(action)

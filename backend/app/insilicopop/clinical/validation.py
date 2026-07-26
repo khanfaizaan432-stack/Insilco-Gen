@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import Counter
+from typing import Any
+
+from pydantic import BaseModel
 
 from app.insilicopop.clinical.models import (
     ClinicalCaseIntake,
@@ -11,10 +15,91 @@ from app.insilicopop.clinical.models import (
 )
 
 
+EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+PATIENT_NAME_PATTERN = re.compile(
+    r"\b(?:patient|proband|subject)\s*(?:full\s*)?name\s*[:#-]\s*[^\r\n,;]{2,100}",
+    re.IGNORECASE,
+)
+CLINICAL_ID_PATTERN = re.compile(
+    r"\b(?P<label>uhid|mrn|medical\s+record(?:\s+number)?|hospital\s+(?:id|number|registration(?:\s+(?:id|number|no\.?))?)|registration\s+(?:id|number|no\.?)|patient\s+id)"
+    r"\s*(?:[:#=-]\s*|\s+)[A-Z0-9][A-Z0-9./-]{3,}\b",
+    re.IGNORECASE,
+)
+AADHAAR_PATTERN = re.compile(
+    r"\b(?:aadhaar|aadhar|uidai)(?:\s+(?:id|number|no\.?))?\s*[:#-]?\s*\d{4}[ -]?\d{4}[ -]?\d{4}\b",
+    re.IGNORECASE,
+)
+PASSPORT_PATTERN = re.compile(r"\bpassport(?:\s+(?:id|number|no\.?))?\s*[:#-]?\s*[A-Z][0-9]{7}\b", re.IGNORECASE)
+INSURANCE_PATTERN = re.compile(
+    r"\b(?:insurance|member|beneficiary)(?:\s+(?:member))?\s*(?:id|number|no\.?)\s*[:#-]?\s*[A-Z0-9][A-Z0-9./-]{4,}\b",
+    re.IGNORECASE,
+)
+PHONE_LABEL_PATTERN = re.compile(
+    r"\b(?:patient\s+)?(?:phone|mobile|telephone|tel|contact|whatsapp)(?:\s+(?:number|no\.?))?\s*[:#-]\s*(?:\+?\d[\d ()-]{7,}\d)",
+    re.IGNORECASE,
+)
+INTERNATIONAL_PHONE_PATTERN = re.compile(r"(?<![A-Z0-9_])\+\d{1,3}[ ()-]+\d[\d ()-]{6,}\d\b", re.IGNORECASE)
+FORMATTED_PHONE_PATTERN = re.compile(r"(?<![A-Z0-9_])(?:\(?\d{2,4}\)?[ -]){2,}\d{3,5}\b")
+ADDRESS_LABEL_PATTERN = re.compile(r"\b(?:patient|home|postal|residential|mailing)?\s*address\s*[:#-]", re.IGNORECASE)
+STREET_ADDRESS_PATTERN = re.compile(
+    r"\b(?:flat|house|plot|door|room)?\s*[A-Z0-9/-]{1,8}[, ]+(?:[A-Z0-9.'’-]+[ ,]+){1,8}"
+    r"(?:street|st|road|rd|avenue|ave|lane|ln|marg|nagar|colony|sector|block)\b",
+    re.IGNORECASE,
+)
+POSTAL_LINE_PATTERN = re.compile(r"\b(?:pin|pincode|postal\s+code|zip)\s*[:#-]?\s*[A-Z0-9 -]{4,10}\b", re.IGNORECASE)
+
+# Retained as a narrow compatibility export. Field-aware validation below is
+# authoritative and deliberately does not contain a catch-all numeric rule.
 DIRECT_IDENTIFIER_RULES = (
-    ("email_address", re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)),
-    ("phone_number", re.compile(r"\b(?:\+?\d[\d .()-]{7,}\d)\b")),
-    ("medical_record_number", re.compile(r"\b(?:mrn|medical record|hospital id)\s*[:#-]?\s*[A-Z0-9-]{4,}\b", re.IGNORECASE)),
+    ("email_address", EMAIL_PATTERN),
+    ("patient_name", PATIENT_NAME_PATTERN),
+    ("medical_record_number", CLINICAL_ID_PATTERN),
+    ("aadhaar_number", AADHAAR_PATTERN),
+    ("passport_number", PASSPORT_PATTERN),
+    ("insurance_member_number", INSURANCE_PATTERN),
+    ("phone_number", PHONE_LABEL_PATTERN),
+    ("street_address", STREET_ADDRESS_PATTERN),
+)
+
+SCIENTIFIC_FIELD_MARKERS = (
+    "variant",
+    "hgvs",
+    "spdi",
+    "chromosome",
+    "position",
+    "coordinate",
+    "interval",
+    "transcript",
+    "accession",
+    "genome_build",
+    "notation",
+    "report_date",
+    "pmid",
+    "doi",
+    "digest",
+    "hash",
+    "source_id",
+    "claim_id",
+    "sample_id",
+    "model",
+    "assay",
+    "sequencing_method",
+    "test_identifier",
+    "test_type",
+    "sample_type",
+    "platform_identifier",
+)
+
+SCIENTIFIC_VALUE_PATTERNS = (
+    re.compile(r"^(?:chr)?(?:[0-9]{1,2}|X|Y|MT):\d+(?:-\d+)?(?:\s+[ACGTN-]+>[ACGTN-]+)?$", re.IGNORECASE),
+    re.compile(r"^[A-Z]{1,8}_[0-9]+(?:\.[0-9]+)?:\d+:[A-Z-]*:[A-Z-]*$", re.IGNORECASE),
+    re.compile(r"^[A-Z]{1,8}_[0-9]+(?:\.[0-9]+)?:[cgmnpr]\.\S+$", re.IGNORECASE),
+    re.compile(r"^(?:PMID\s*:\s*)?\d{1,9}$", re.IGNORECASE),
+    re.compile(r"^\d{4}-\d{2}-\d{2}$"),
+    re.compile(r"^(?:HP|MONDO|ORPHA):\d+$", re.IGNORECASE),
+    re.compile(r"^[A-Z]{1,10}_?\d{3,}(?:\.\d+)?$", re.IGNORECASE),
+    re.compile(r"^(?:sha(?:1|224|256|384|512)\s*:\s*)?[A-F0-9]{32,}$", re.IGNORECASE),
+    re.compile(r"^doi\s*:\s*10\.\d{4,9}/\S+$", re.IGNORECASE),
 )
 
 POLICY_RULES = (
@@ -22,6 +107,8 @@ POLICY_RULES = (
     ("treatment_request", "treatment", ("treatment recommendation", "recommend treatment", "prescribe", "therapy recommendation")),
     ("final_classification_request", "classification", ("final acmg", "acmg classification", "classify pathogenic", "classify benign", "pathogenic conclusion", "benign conclusion")),
     ("clinical_sign_out_request", "clinical_sign_out", ("clinical sign-out", "sign out this case", "signout")),
+    ("test_order_request", "test_order", ("order a genetic test", "order genetic test", "order this test", "place a test order", "automatically order")),
+    ("test_recommendation_request", "test_strategy", ("recommend wes", "recommend wgs", "recommend a genetic test", "which genetic test", "select a genetic test")),
     ("patient_return_request", "patient_return", ("return results to patient", "patient-facing result", "send result to patient")),
     ("secondary_findings_return_request", "secondary_findings", ("return secondary findings", "secondary findings return")),
     ("external_raw_data_request", "external_data", ("send raw genomic", "upload vcf externally", "send unredacted", "external llm", "external api")),
@@ -29,6 +116,9 @@ POLICY_RULES = (
     ("caste_community_religion_request", "social_identity", ("infer caste", "infer community", "infer religion", "caste", "religion inference")),
     ("purity_superiority_request", "social_identity", ("genetic purity", "superior population", "infer purity", "racial superiority")),
     ("pca_admixture_identity_request", "population_identity", ("pca proves identity", "admixture proves ancestry", "literal ancestry from admixture")),
+    ("paternity_inference_request", "family_identity", ("infer paternity", "prove paternity", "hidden paternity", "non-paternity event")),
+    ("sample_identity_inference_request", "sample_identity", ("infer sample swap", "identify a sample swap", "prove sample identity")),
+    ("automatic_locale_inference_request", "locale", ("infer locale", "guess locale", "infer country from genetics", "infer nationality")),
 )
 
 
@@ -61,6 +151,13 @@ def validate_clinical_case(
         ("pedigree", [item.family_member_id for item in case.pedigree]),
         ("hypothesis", [item.hypothesis_id for item in case.hypotheses]),
         ("phenotype_snippet", [item.snippet_id for item in case.phenotype_curation.snippets] if case.phenotype_curation else []),
+        ("pretest_investigation", [item.investigation_id for item in case.pre_test_assessment.previous_investigations] if case.pre_test_assessment else []),
+        ("pretest_family_report", [item.family_report_id for item in case.pre_test_assessment.known_family_reports] if case.pre_test_assessment else []),
+        ("pretest_missing_request", [item.request_id for item in case.pre_test_assessment.supplied_missing_information_requests] if case.pre_test_assessment else []),
+        ("pretest_checkpoint", [item.checkpoint_id for item in case.pre_test_assessment.clinician_checkpoints] if case.pre_test_assessment else []),
+        ("pretest_history_item", [item.item_id for item in case.pre_test_assessment.clinical_history.items] if case.pre_test_assessment and case.pre_test_assessment.clinical_history else []),
+        ("test_strategy_rule_input", [item.rule_input_id for item in case.test_strategy_workspace.rule_inputs] if case.test_strategy_workspace else []),
+        ("test_strategy_fact", [fact.fact_id for item in case.test_strategy_workspace.rule_inputs for fact in item.trigger_facts] if case.test_strategy_workspace else []),
     ):
         for identifier, count in sorted(Counter(values).items()):
             if count > 1:
@@ -109,10 +206,66 @@ def validate_clinical_case(
             text_fields.append(("phenotype_curation.source_label", snippet.source_label, snippet.snippet_id))
             text_fields.append(("phenotype_curation.supplied_onset", snippet.supplied_onset, snippet.snippet_id))
             text_fields.append(("phenotype_curation.supplied_temporal_context", snippet.supplied_temporal_context, snippet.snippet_id))
+    if case.global_intake_context:
+        text_fields.extend(_global_intake_text_fields(case.global_intake_context))
+        language = case.global_intake_context.language_context
+        if language and language.translation_status.value == "machine_translated":
+            warnings.append(
+                _issue(
+                    "machine_translation_requires_expert_review",
+                    "global_intake_context.language_context",
+                    "Machine-translated clinical wording is preserved separately and requires human review before research use.",
+                )
+            )
+        for laboratory in case.global_intake_context.laboratory_contexts:
+            if laboratory.accreditation_wording_exact:
+                warnings.append(
+                    _issue(
+                        "laboratory_accreditation_not_independently_verified",
+                        "global_intake_context.laboratory_contexts.accreditation_wording_exact",
+                        "Supplied laboratory accreditation wording was preserved but not independently verified.",
+                        laboratory.laboratory_source_id,
+                    )
+                )
+            if laboratory.genome_build_exact or laboratory.transcript_exact or laboratory.variant_notation_exact:
+                warnings.append(
+                    _issue(
+                        "laboratory_notation_not_validated",
+                        "global_intake_context.laboratory_contexts",
+                        "Supplied build, transcript, and variant notation are preserved exactly and were not normalized or validated.",
+                        laboratory.laboratory_source_id,
+                    )
+                )
+        profile = case.global_intake_context.locale_profile
+        if profile and profile.profile_type == "india" and profile.consanguinity_status.value == "reported":
+            warnings.append(
+                _issue(
+                    "reported_relationship_context_requires_expert_review",
+                    "global_intake_context.locale_profile.consanguinity_status",
+                    "Reported family relationship context is descriptive only; no paternity, identity, or inheritance conclusion was inferred.",
+                )
+            )
+    # Scan every bounded string field, including nested provenance and future
+    # optional extensions. Field-aware rules preserve recognized science.
+    text_fields.extend(_global_intake_text_fields(case, root_path="clinical_case_intake"))
     for field, value, record_id in text_fields:
-        for rule_code, pattern in DIRECT_IDENTIFIER_RULES:
-            if value and pattern.search(value):
-                blocks.append(ClinicalPolicyBlock(code=rule_code, category="direct_identifier", message=f"Bounded direct-identifier rule matched {field}{' for ' + record_id if record_id else ''}."))
+        for rule_code in detect_direct_identifiers(value, field):
+            blocks.append(
+                ClinicalPolicyBlock(
+                    code=rule_code,
+                    category="direct_identifier",
+                    message=f"Bounded direct-identifier rule matched {field}; source values and record identifiers are not reproduced.",
+                )
+            )
+
+    for rule_code in detect_direct_identifiers(request_text, "request_text"):
+        blocks.append(
+            ClinicalPolicyBlock(
+                code=rule_code,
+                category="direct_identifier",
+                message="Bounded direct-identifier rule matched request_text; the source value was removed before persistent state creation.",
+            )
+        )
 
     policy_text = " ".join([*(case.requested_actions or []), request_text or ""]).lower()
     for code, category, terms in POLICY_RULES:
@@ -122,8 +275,73 @@ def validate_clinical_case(
     return errors, warnings, missing, _deduplicate_blocks(blocks)
 
 
+def sanitized_global_intake_context(case: ClinicalCaseIntake) -> dict[str, Any] | None:
+    """Return persistence-safe v0.31 context without mutating exact in-memory source text."""
+
+    if case.global_intake_context is None:
+        return None
+    return _sanitize_value(case.global_intake_context.model_dump(mode="json"), "global_intake_context")
+
+
+def sanitized_clinical_case(case: ClinicalCaseIntake) -> ClinicalCaseIntake:
+    """Return a recursively sanitized case for every downstream computation."""
+
+    sanitized = _sanitize_value(case.model_dump(mode="json"), "clinical_case_intake")
+    return ClinicalCaseIntake.model_validate(sanitized)
+
+
+def sanitized_clinical_free_text(value: str | None, field_path: str = "clinical_free_text") -> str | None:
+    """Remove an identifier-bearing free-text value before it can enter persistent state."""
+
+    if value is None or not detect_direct_identifiers(value, field_path):
+        return value
+    return "[REDACTED_DIRECT_IDENTIFIER]"
+
+
+def detect_direct_identifiers(value: str | None, field_path: str = "") -> list[str]:
+    """Detect labelled identifiers while preserving recognized scientific forms."""
+
+    if not value:
+        return []
+    matches: list[str] = []
+    for code, pattern in (
+        ("email_address", EMAIL_PATTERN),
+        ("patient_name", PATIENT_NAME_PATTERN),
+        ("medical_record_number", CLINICAL_ID_PATTERN),
+        ("aadhaar_number", AADHAAR_PATTERN),
+        ("passport_number", PASSPORT_PATTERN),
+        ("insurance_member_number", INSURANCE_PATTERN),
+    ):
+        if pattern.search(value):
+            matches.append(code)
+    if _looks_like_address(value):
+        matches.append("street_address")
+    # Explicitly labelled contact data is governed regardless of the containing
+    # field. The scientific-context exception applies only to ambiguous,
+    # unlabelled numeric forms such as bounded assay identifiers.
+    if PHONE_LABEL_PATTERN.search(value):
+        matches.append("phone_number")
+    elif not _is_scientific_context(field_path, value):
+        if INTERNATIONAL_PHONE_PATTERN.search(value) or FORMATTED_PHONE_PATTERN.search(value):
+            matches.append("phone_number")
+    return list(dict.fromkeys(matches))
+
+
+def contains_direct_identifier(value: Any, field_path: str = "") -> bool:
+    if isinstance(value, dict):
+        return any(contains_direct_identifier(item, f"{field_path}.{key}" if field_path else str(key)) for key, item in value.items())
+    if isinstance(value, list):
+        return any(contains_direct_identifier(item, f"{field_path}.{index}" if field_path else str(index)) for index, item in enumerate(value))
+    return isinstance(value, str) and bool(detect_direct_identifiers(value, field_path))
+
+
 def _issue(code: str, field: str, message: str, record_id: str | None = None) -> ClinicalIntakeIssue:
-    return ClinicalIntakeIssue(code=code, field=field, record_id=record_id, message=message)
+    safe_record_id = (
+        "REDACTED_RECORD_ID"
+        if record_id and detect_direct_identifiers(record_id, "validation_issue.record_id")
+        else record_id
+    )
+    return ClinicalIntakeIssue(code=code, field=field, record_id=safe_record_id, message=message)
 
 
 def _deduplicate_blocks(blocks: list[ClinicalPolicyBlock]) -> list[ClinicalPolicyBlock]:
@@ -148,3 +366,70 @@ def _candidate_biological_strings(variant) -> list[tuple[str, str]]:
     values.extend((f"submitted_hgvs.{index}", value) for index, value in enumerate(variant.submitted_hgvs))
     values.extend((f"provenance.{index}.reference", item.reference) for index, item in enumerate(variant.provenance))
     return [(field, value) for field, value in values if value is not None]
+
+
+def _global_intake_text_fields(
+    context: BaseModel,
+    *,
+    root_path: str = "global_intake_context",
+) -> list[tuple[str, str | None, str | None]]:
+    fields: list[tuple[str, str | None, str | None]] = []
+
+    def visit(value: Any, path: str, record_id: str | None = None) -> None:
+        if isinstance(value, BaseModel):
+            local_record_id = getattr(value, "laboratory_source_id", None) or getattr(value, "family_member_id", None) or record_id
+            for name in type(value).model_fields:
+                visit(getattr(value, name), f"{path}.{name}" if path else name, local_record_id)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, f"{path}.{index}", record_id)
+        elif isinstance(value, str):
+            fields.append((path, value, record_id))
+
+    visit(context, root_path)
+    return fields
+
+
+def _sanitize_value(value: Any, path: str = "") -> Any:
+    if isinstance(value, dict):
+        return {key: _sanitize_value(item, f"{path}.{key}" if path else str(key)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value(item, f"{path}.{index}" if path else str(index)) for index, item in enumerate(value)]
+    if isinstance(value, str) and detect_direct_identifiers(value, path):
+        return _redacted_value_for_path(path)
+    return value
+
+
+def _is_scientific_context(field_path: str, value: str) -> bool:
+    lowered_path = field_path.lower()
+    if any(marker in lowered_path for marker in SCIENTIFIC_FIELD_MARKERS):
+        return True
+    stripped = value.strip()
+    return any(pattern.fullmatch(stripped) for pattern in SCIENTIFIC_VALUE_PATTERNS)
+
+
+def _looks_like_address(value: str) -> bool:
+    if STREET_ADDRESS_PATTERN.search(value) or POSTAL_LINE_PATTERN.search(value):
+        return True
+    if not ADDRESS_LABEL_PATTERN.search(value):
+        return False
+    following = value[ADDRESS_LABEL_PATTERN.search(value).end() :]
+    lines = [line.strip() for line in following.splitlines() if line.strip()]
+    if len(lines) >= 2:
+        return True
+    return bool(lines and (re.search(r"\b\d{5,6}\b", lines[0]) or STREET_ADDRESS_PATTERN.search(lines[0])))
+
+
+def _redacted_value_for_path(path: str) -> str:
+    final_name = path.rsplit(".", 1)[-1].lower()
+    if final_name.endswith("_id") or final_name in {
+        "pseudonymous_case_id",
+        "observation_id",
+        "candidate_id",
+        "family_member_id",
+        "hypothesis_id",
+        "snippet_id",
+    }:
+        suffix = hashlib.sha256(path.encode("utf-8")).hexdigest()[:12]
+        return f"REDACTED-ID-{suffix}"
+    return "[REDACTED_DIRECT_IDENTIFIER]"

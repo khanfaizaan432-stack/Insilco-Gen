@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -20,6 +22,7 @@ from app.insilicopop.audit_service import InSilicoPopAuditService, capabilities
 from app.insilicopop.benchmarks.agent_trace import AgentMemoryBenchmarkRunner
 from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
 from app.insilicopop.memory.compressor import DomainMemoryCompressor
+from app.insilicopop.llm.byok_runtime import BYOKSessionConfiguration, byok_runtime
 from app.schemas.memory import MemoryCompressRequest, MemoryCompressResponse
 from app.workflows.dry_biotics import DryBioticsWorkflow
 
@@ -29,6 +32,27 @@ app = FastAPI(
     version="0.1.0",
     description="Local agentic workflow backend for dry-lab computational biology.",
 )
+
+MAX_BYOK_CONFIGURATION_BYTES = 64_000
+CAPABILITY_PATH_PATTERN = re.compile(r"(/insilicopop/byok/session/)[A-Za-z0-9_.:%-]+")
+
+
+def _redact_capability_path(value: str) -> str:
+    return CAPABILITY_PATH_PATTERN.sub(r"\1[REDACTED_CAPABILITY]", value)
+
+
+class _CapabilityAccessLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(_redact_capability_path(item) if isinstance(item, str) else item for item in record.args)
+        if isinstance(record.msg, str):
+            record.msg = _redact_capability_path(record.msg)
+        return True
+
+
+_access_logger = logging.getLogger("uvicorn.access")
+if not any(isinstance(item, _CapabilityAccessLogFilter) for item in _access_logger.filters):
+    _access_logger.addFilter(_CapabilityAccessLogFilter())
 
 WORKBENCH_HTML_PATH = Path(__file__).resolve().parent / "insilicopop" / "workbench_static" / "index.html"
 
@@ -42,6 +66,56 @@ class AgentMemoryBenchmarkRequest(BaseModel):
     scenario: str = Field(default="all")
     budget_chars: int = Field(default=1500, ge=1)
     memory_mode: str = Field(default="compact")
+
+
+@app.post("/insilicopop/byok/session")
+async def configure_byok_session(request: Request) -> dict[str, object]:
+    """Parse BYOK configuration without framework errors echoing request values."""
+
+    try:
+        declared_length = request.headers.get("content-length")
+        if declared_length is not None:
+            if not re.fullmatch(r"\d+", declared_length):
+                raise ValueError("BYOK configuration Content-Length is invalid.")
+            if int(declared_length) > MAX_BYOK_CONFIGURATION_BYTES:
+                raise ValueError("BYOK configuration body is too large.")
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_BYOK_CONFIGURATION_BYTES:
+                raise ValueError("BYOK configuration body is too large.")
+            raw.extend(chunk)
+        payload = json.loads(bytes(raw))
+        if not isinstance(payload, dict):
+            raise ValueError("BYOK configuration must be an object.")
+        config = BYOKSessionConfiguration.model_validate(payload)
+        return byok_runtime.configure(config).model_dump()
+    except (json.JSONDecodeError, TypeError, UnicodeDecodeError, ValueError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid BYOK configuration. Check provider, endpoint, model, key presence, and bounded budget values.",
+        ) from exc
+
+
+@app.get("/insilicopop/byok/session/{session_id}")
+def byok_session_status(session_id: str) -> dict[str, object]:
+    try:
+        return byok_runtime.status(session_id).model_dump()
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/insilicopop/byok/session/{session_id}/test")
+def test_byok_session(session_id: str) -> dict[str, object]:
+    try:
+        return byok_runtime.test_connection(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.delete("/insilicopop/byok/session/{session_id}")
+def forget_byok_session(session_id: str) -> dict[str, object]:
+    byok_runtime.forget(session_id)
+    return {"status": "forgotten"}
 
 
 @app.get("/health")
@@ -162,6 +236,7 @@ async def insilicopop_agent_run(
     data_use_agreement_scope: str | None = Form(None),
     metadata_registry: str | None = Form(None),
     clinical_case_intake: str | None = Form(None),
+    byok_session_id: str | None = Form(None),
     metadata_file: UploadFile | None = File(None),
     pca_file: UploadFile | None = File(None),
     admixture_file: UploadFile | None = File(None),
@@ -244,8 +319,9 @@ async def insilicopop_agent_run(
             data_use_agreement_scope=_parse_data_use_agreement_scope(data_use_agreement_scope),
             metadata_registry=_parse_json_object_form(metadata_registry, "metadata_registry"),
             clinical_case_intake=_parse_json_object_form(clinical_case_intake, "clinical_case_intake"),
+            byok_runtime=byok_runtime.public_provenance(byok_session_id) if byok_session_id else None,
         )
-    except ValueError as exc:
+    except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

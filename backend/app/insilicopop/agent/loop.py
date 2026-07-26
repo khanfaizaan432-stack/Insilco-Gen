@@ -16,7 +16,8 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_extended_bundle
+from app.insilicopop.clinical.service import build_clinical_case_strategy_bundle
+from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
 from app.insilicopop.llm.provider_factory import build_llm_provider
@@ -43,9 +44,18 @@ class AgentLoop:
         data_use_agreement_scope: dict[str, Any] | None = None,
         metadata_registry: dict[str, Any] | None = None,
         clinical_case_intake: dict[str, Any] | None = None,
+        byok_runtime: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         run_id = uuid4().hex[:12]
-        state = AgentState(run_id=run_id, query=query, uploaded_files=_uploaded_file_names(uploads), llm_provider=llm_provider)
+        request_text = query
+        query = sanitized_clinical_free_text(query, "query")
+        state = AgentState(
+            run_id=run_id,
+            query=query,
+            uploaded_files=_uploaded_file_names(uploads),
+            llm_provider=llm_provider,
+            byok_runtime=byok_runtime,
+        )
         self._step(state, "initialize_state", {"max_steps": max_steps, "memory_budget_chars": memory_budget_chars, "memory_mode": memory_mode, "llm_provider": llm_provider})
 
         if max_steps <= 0:
@@ -63,7 +73,7 @@ class AgentLoop:
             return self._response(state, generated)
 
         if clinical_case_intake is not None:
-            return self._run_clinical_intake(state, clinical_case_intake)
+            return self._run_clinical_intake(state, clinical_case_intake, request_text=request_text)
 
         parse_action = make_action(1, "parse_inputs", "Parse uploaded population-genetics inputs.", "Use existing native parsers through the audit service.", expected_outputs=["ParsedTable objects"])
         audit_action = make_action(2, "audit_inputs", "Audit parsed inputs.", "Run deterministic InSilicoPop auditors.", expected_outputs=["audit_report", "risk_flags", "reliability_score"])
@@ -294,7 +304,13 @@ class AgentLoop:
             carried = result.carried_memory
         return carried
 
-    def _run_clinical_intake(self, state: AgentState, payload: dict[str, Any]) -> dict[str, Any]:
+    def _run_clinical_intake(
+        self,
+        state: AgentState,
+        payload: dict[str, Any],
+        *,
+        request_text: str | None,
+    ) -> dict[str, Any]:
         state.llm_provider = "mock"
         state.research_lane = "clinical_genetics_research_curation"
         state.workflow_selection = WorkflowFamilySelector().select(
@@ -308,7 +324,9 @@ class AgentLoop:
             state.phenotype_hpo_curation,
             state.pedigree_inheritance_audit,
             state.variant_intelligence,
-        ) = build_clinical_case_extended_bundle(payload, request_text=state.query)
+            state.pre_test_assessment,
+            state.test_strategy_workspace,
+        ) = build_clinical_case_strategy_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -402,6 +420,53 @@ class AgentLoop:
                     "raw_genomic_files_parsed": False,
                 }
             )
+        if state.pre_test_assessment:
+            assessment = state.pre_test_assessment
+            state.decision_trace.append(
+                {
+                    "event": "referral_pretest_assessment_completed",
+                    "schema_version": assessment.schema_version,
+                    "algorithm_version": assessment.algorithm_version,
+                    "pseudonymous_case_id": assessment.pseudonymous_case_id,
+                    "assessment_outcome": assessment.assessment_outcome.value,
+                    "open_missing_information_count": assessment.open_missing_information_count,
+                    "linkage_issue_count": len(assessment.linkage_issues),
+                    "ready_for_test_strategy_review": assessment.ready_for_test_strategy_review,
+                    "test_strategy_generated": False,
+                    "test_order_placed": False,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                    "raw_genomic_files_parsed": False,
+                }
+            )
+        if state.test_strategy_workspace:
+            strategy = state.test_strategy_workspace
+            state.decision_trace.append(
+                {
+                    "event": "staged_test_strategy_workspace_completed",
+                    "schema_version": strategy.schema_version,
+                    "algorithm_version": strategy.algorithm_version,
+                    "catalogue_version": strategy.catalogue_version,
+                    "rule_spec_version": strategy.rule_spec_version,
+                    "pseudonymous_case_id": strategy.pseudonymous_case_id,
+                    "workspace_status": strategy.workspace_status.value,
+                    "proposed_option_count": strategy.proposed_option_count,
+                    "test_classes": [item.test_class.value for item in strategy.options],
+                    "option_statuses": [item.status for item in strategy.options],
+                    "rule_review_item_count": len(strategy.rule_review_items),
+                    "linkage_issue_count": len(strategy.linkage_issues),
+                    "test_recommendation_made": False,
+                    "test_approved": False,
+                    "test_order_placed": False,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                    "raw_genomic_files_parsed": False,
+                }
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -435,6 +500,9 @@ class AgentLoop:
             "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
             "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
             "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
+            "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
+            "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
+            "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),
             "generated_files": generated_files,

@@ -20,6 +20,8 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
     "reproducibility/variant_intelligence.json",
+    "reproducibility/pre_test_assessment.json",
+    "reproducibility/test_strategy_workspace.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -56,6 +58,9 @@ class AgentInterpreter:
         phenotype_hpo_curation: dict[str, Any] | None = None,
         pedigree_inheritance_audit: dict[str, Any] | None = None,
         variant_intelligence: dict[str, Any] | None = None,
+        pre_test_assessment: dict[str, Any] | None = None,
+        test_strategy_workspace: dict[str, Any] | None = None,
+        byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
         external_llm_called: bool = False,
@@ -81,6 +86,9 @@ class AgentInterpreter:
         phenotype_hpo_curation = phenotype_hpo_curation or {}
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
         variant_intelligence = variant_intelligence or {}
+        pre_test_assessment = pre_test_assessment or {}
+        test_strategy_workspace = test_strategy_workspace or {}
+        byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
 
@@ -154,11 +162,22 @@ class AgentInterpreter:
             "",
             *_orchestration_trace_lines(orchestration_trace),
             "",
+            *_byok_runtime_lines(byok_runtime),
+            "",
             *_clinical_case_intake_lines(clinical_case_intake),
+            "",
+            *_global_intake_context_lines(clinical_case_intake.get("global_intake_context") or {}),
             "",
             *_phenotype_hpo_curation_lines(phenotype_hpo_curation),
             "",
             *_pedigree_inheritance_audit_lines(pedigree_inheritance_audit),
+            "",
+            *_pre_test_assessment_lines(
+                pre_test_assessment,
+                strategy_generated=bool(test_strategy_workspace.get("test_strategy_generated", False)),
+            ),
+            "",
+            *_test_strategy_workspace_lines(test_strategy_workspace),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -618,6 +637,97 @@ def _clinical_case_intake_lines(clinical_case_intake: dict[str, Any]) -> list[st
     ]
 
 
+def _byok_runtime_lines(runtime: dict[str, Any]) -> list[str]:
+    if not runtime:
+        return []
+    budget = runtime.get("budget") or {}
+    return [
+        "## BYOK Runtime Provenance",
+        "",
+        "Non-secret, session-derived configuration and usage only. Credentials and request prompts are never included in this report.",
+        f"- provider: `{_redact(str(runtime.get('provider', 'mock')))}`",
+        f"- model: `{_redact(str(runtime.get('model', 'mock')))}`",
+        f"- external_provider_configured: `{str(runtime.get('provider') != 'mock').lower()}`",
+        f"- request_count: `{int(runtime.get('request_count', 0) or 0)}`",
+        f"- provider_attempt_count: `{int(runtime.get('provider_attempt_count', 0) or 0)}`",
+        f"- workflow_provider_attempt_count: `{int(runtime.get('workflow_provider_attempt_count', 0) or 0)}`",
+        f"- connection_test_attempt_count: `{int(runtime.get('connection_test_attempt_count', 0) or 0)}`",
+        f"- connection_test_request_count: `{int(runtime.get('connection_test_request_count', 0) or 0)}`",
+        f"- connection_test_success_count: `{int(runtime.get('connection_test_success_count', 0) or 0)}`",
+        f"- connection_test_failure_count: `{int(runtime.get('connection_test_failure_count', 0) or 0)}`",
+        f"- remaining_connection_tests: `{int(runtime.get('remaining_connection_tests', 0) or 0)}`",
+        f"- cache_hit_count: `{int(runtime.get('cache_hit_count', 0) or 0)}`",
+        f"- retry_count: `{int(runtime.get('retry_count', 0) or 0)}`",
+        f"- input_tokens: `{int(runtime.get('input_tokens', 0) or 0)}`",
+        f"- output_tokens: `{int(runtime.get('output_tokens', 0) or 0)}`",
+        f"- estimated_cost_usd: `{float(runtime.get('estimated_cost_usd', 0) or 0):.8f}`",
+        f"- max_calls: `{int(budget.get('max_calls', 0) or 0)}`",
+        f"- max_total_tokens: `{int(budget.get('max_total_tokens', 0) or 0)}`",
+        f"- external_call_made: `{str(bool(runtime.get('external_call_made', False))).lower()}`",
+        f"- external_workflow_call_made: `{str(bool(runtime.get('external_workflow_call_made', False))).lower()}`",
+    ]
+
+
+def _global_intake_context_lines(context: dict[str, Any]) -> list[str]:
+    if not context:
+        return []
+    language = context.get("language_context") or {}
+    laboratories = context.get("laboratory_contexts") or []
+    family_samples = context.get("family_sample_contexts") or []
+    access = context.get("testing_access_context") or {}
+    governance = context.get("governance_consent_context") or {}
+    locale = context.get("locale_profile") or {}
+    constraints = access.get("constraints") or []
+    lines = [
+        "### Global Intake and Care Context",
+        "",
+        "Optional user-supplied care and laboratory context. Values are descriptive, unverified, and do not alter clinical conclusions.",
+        f"- schema_version: `{_redact(str(context.get('schema_version', 'unknown')))}`",
+        f"- country_code: `{_redact(str(context.get('country_code') or 'not supplied'))}`",
+        f"- care_setting: `{_redact(str(context.get('care_setting', 'unknown')))}`",
+        f"- care_stage: `{_redact(str(context.get('care_stage', 'unknown')))}`",
+        f"- referral_context_exact: `{_redact(str(context.get('referral_context_exact') or 'not supplied'))}`",
+        f"- laboratory_context_count: `{len(laboratories)}`",
+        f"- family_sample_context_count: `{len(family_samples)}`",
+        f"- testing_access_constraints: `{_redact(', '.join(str(item) for item in constraints) if constraints else 'none supplied')}`",
+        f"- governance_context_supplied: `{str(bool(governance)).lower()}`",
+    ]
+    if language:
+        lines.extend(
+            [
+                f"- original_language: `{_redact(str(language.get('original_language_code') or 'not supplied'))}`",
+                f"- original_text: `{_redact(str(language.get('original_text') or 'not supplied'))}`",
+                f"- translated_language: `{_redact(str(language.get('translated_language_code') or 'not supplied'))}`",
+                f"- translated_text: `{_redact(str(language.get('translated_text') or 'not supplied'))}`",
+                f"- translation_status: `{_redact(str(language.get('translation_status', 'unknown')))}`",
+                f"- translation_review_state: `{_redact(str(language.get('translation_review_state', 'unreviewed')))}`",
+            ]
+        )
+        if language.get("translation_status") == "machine_translated":
+            lines.append("- translation_caveat: Machine-translated wording requires human expert review; original and translated text remain separate.")
+    if locale.get("profile_type") == "india":
+        lines.extend(
+            [
+                "",
+                "#### India Locale Context",
+                "",
+                "This locale profile was explicitly selected; it was not inferred from genetic, language, name, or location data.",
+                f"- state_or_union_territory_code: `{_redact(str(locale.get('state_or_union_territory_code') or 'not supplied'))}`",
+                f"- district_or_region_exact: `{_redact(str(locale.get('district_or_region_exact') or 'not supplied'))}`",
+                f"- care_setting: `{_redact(str(locale.get('care_setting', 'unknown')))}`",
+                f"- public_program_or_scheme_exact: `{_redact(str(locale.get('public_program_or_scheme_exact') or 'not supplied'))}`",
+                f"- consanguinity_status: `{_redact(str(locale.get('consanguinity_status', 'not_assessed')))}`",
+                f"- relationship_description_original: `{_redact(str(locale.get('relationship_description_original') or 'not supplied'))}`",
+                f"- relationship_description_translated: `{_redact(str(locale.get('relationship_description_translated') or 'not supplied'))}`",
+                f"- relationship_context_review_status: `{_redact(str(locale.get('relationship_context_review_status', 'not_reviewed')))}`",
+                f"- relationship_description_corrected: `{_redact(str(locale.get('relationship_description_corrected') or 'not supplied'))}`",
+                f"- relationship_context_review_provenance_source_ids: `{_redact(', '.join(str(item) for item in locale.get('relationship_context_review_provenance_source_ids', []) or []) or 'none')}`",
+                "- relationship_context_caveat: Descriptive user-supplied context only; no paternity, identity, or inheritance conclusion was inferred.",
+            ]
+        )
+    return lines
+
+
 def _phenotype_hpo_curation_lines(curation: dict[str, Any]) -> list[str]:
     if not curation:
         return []
@@ -664,6 +774,150 @@ def _phenotype_hpo_curation_lines(curation: dict[str, Any]) -> list[str]:
         "- treatment_recommendation_made: `false`",
         "- final_acmg_classification_made: `false`",
     ]
+
+
+def _pre_test_assessment_lines(
+    assessment: dict[str, Any],
+    *,
+    strategy_generated: bool = False,
+) -> list[str]:
+    if not assessment:
+        return []
+    referral = assessment.get("referral_packet") or {}
+    history = assessment.get("clinical_history") or {}
+    checkpoints = assessment.get("clinician_checkpoint_status_counts") or {}
+    lines = [
+        "## Referral and Pre-Test Clinical Assessment",
+        "",
+        (
+            "Deterministic organization of supplied pre-test information only. The separate staged strategy workspace may contain proposed-not-approved options; this assessment does not recommend, approve, or order a test."
+            if strategy_generated
+            else "Deterministic organization of supplied pre-test information only. No test strategy was generated, no WES/WGS or other test was recommended, and no test was approved or ordered."
+        ),
+        "",
+        "### Supplied Referral and History",
+        f"- schema_version: `{_redact(str(assessment.get('schema_version', 'unknown')))}`",
+        f"- referral_source: `{_redact(str(referral.get('source', 'not supplied')))}`",
+        f"- referral_urgency_context: `{_redact(str(referral.get('urgency_context', 'not supplied')))}`",
+        f"- supplied_referral_reason: `{_redact(str(referral.get('reason_exact', 'not supplied')))}`",
+        f"- clinical_history_supplied: `{str(bool(history)).lower()}`",
+        f"- supplied_history_summary: `{_redact(str(history.get('summary_exact', 'not supplied')))}`",
+        f"- structured_history_item_count: `{len(history.get('items', []) or [])}`",
+        f"- linked_phenotype_count: `{len(history.get('phenotype_observation_ids', []) or [])}`",
+        f"- linked_pedigree_member_count: `{len(history.get('pedigree_member_ids', []) or [])}`",
+        f"- previous_investigation_count: `{len(assessment.get('previous_investigation_timeline', []) or [])}`",
+        f"- known_family_report_count: `{len(assessment.get('known_family_reports', []) or [])}`",
+        "",
+        "### Deterministic Assessment",
+        f"- algorithm_version: `{_redact(str(assessment.get('algorithm_version', 'unknown')))}`",
+        f"- testing_status_as_supplied: `{_redact(str(assessment.get('testing_status_as_supplied', 'unknown')))}`",
+        f"- assessment_outcome: `{_redact(str(assessment.get('assessment_outcome', 'unknown')))}`",
+        f"- outcome_rationale_codes: `{_redact(', '.join(str(item) for item in assessment.get('outcome_rationale_codes', []) or []) or 'none')}`",
+        f"- open_missing_information_count: `{int(assessment.get('open_missing_information_count', 0) or 0)}`",
+        f"- open_blocking_information_count: `{int(assessment.get('open_blocking_information_count', 0) or 0)}`",
+        f"- open_human_review_count: `{int(assessment.get('open_human_review_count', 0) or 0)}`",
+        f"- linkage_issue_count: `{len(assessment.get('linkage_issues', []) or [])}`",
+        f"- ready_for_test_strategy_review: `{str(bool(assessment.get('ready_for_test_strategy_review', False))).lower()}`",
+    ]
+    for heading, key in (
+        ("Blocking Information", "blocking_items"),
+        ("Advisory Information", "advisory_items"),
+        ("Human-Review Items", "human_review_items"),
+        ("Informational Limitations", "informational_items"),
+    ):
+        items = assessment.get(key, []) or []
+        codes = sorted(str(item.get("code", "missing_information")) for item in items if isinstance(item, dict))
+        lines.extend(["", f"### {heading}", f"- item_codes: `{_redact(', '.join(codes) if codes else 'none')}`"])
+    decisions = assessment.get("clinician_decisions", []) or []
+    decision_values = sorted(
+        f"{item.get('checkpoint_type', 'unknown')}={item.get('status', 'unknown')}"
+        for item in decisions
+        if isinstance(item, dict)
+    )
+    lines.extend([
+        "",
+        "### Clinician Decisions (Explicitly Supplied Only)",
+        f"- supplied_checkpoint_decisions: `{_redact(', '.join(decision_values) if decision_values else 'none')}`",
+        f"- clinician_checkpoint_status_counts: `{_redact(', '.join(f'{key}={checkpoints[key]}' for key in sorted(checkpoints)) or 'none')}`",
+        "",
+        "### Safety Boundary",
+        "- readiness does not recommend or authorize any genetic test.",
+        "- test_strategy_generated: `false`",
+        "- test_recommendation_made: `false`",
+        "- test_order_placed: `false`",
+        "- automatic_wes_or_wgs_recommendation_made: `false`",
+        "- diagnosis_made: `false`",
+        "- treatment_recommendation_made: `false`",
+        "- final_acmg_classification_made: `false`",
+        "- human_review_required: `true`",
+    ])
+    return lines
+
+
+def _test_strategy_workspace_lines(workspace: dict[str, Any]) -> list[str]:
+    if not workspace:
+        return []
+    options = workspace.get("options", []) or []
+    review_items = workspace.get("rule_review_items", []) or []
+    linkage_issues = workspace.get("linkage_issues", []) or []
+    lines = [
+        "## Staged Test-Strategy Workspace",
+        "",
+        "Bounded test and investigation classes for clinician comparison. Every option is proposed, not approved; no final test was selected, approved, or ordered.",
+        f"- schema_version: `{_redact(str(workspace.get('schema_version', 'unknown')))}`",
+        f"- algorithm_version: `{_redact(str(workspace.get('algorithm_version', 'unknown')))}`",
+        f"- catalogue_version: `{_redact(str(workspace.get('catalogue_version', 'unknown')))}`",
+        f"- rule_spec_version: `{_redact(str(workspace.get('rule_spec_version', 'unknown')))}`",
+        f"- workspace_status: `{_redact(str(workspace.get('workspace_status', 'unknown')))}`",
+        f"- pre_test_assessment_outcome: `{_redact(str(workspace.get('pre_test_assessment_outcome', 'not supplied')))}`",
+        f"- proposed_option_count: `{len(options)}`",
+        f"- rule_review_item_count: `{len(review_items)}`",
+        f"- linkage_issue_count: `{len(linkage_issues)}`",
+        "",
+        "### Proposed Options for Human Review",
+    ]
+    if not options:
+        lines.append("- No catalogue option was surfaced.")
+    for option in options:
+        if not isinstance(option, dict):
+            continue
+        facts = option.get("trigger_facts", []) or []
+        lines.extend(
+            [
+                f"- `{_redact(str(option.get('test_class', 'unknown')))}` — status `{_redact(str(option.get('status', 'proposed_not_approved')))}` — feasibility `{_redact(str(option.get('feasibility_status', 'unknown')))}`",
+                f"  - why surfaced: {_redact('; '.join(str(item) for item in option.get('why_surfaced', []) or []) or 'not recorded')}",
+                f"  - explicit trigger facts: {_redact('; '.join(str(item.get('fact_summary_exact', 'not recorded')) for item in facts if isinstance(item, dict)) or 'none')}",
+                f"  - general detection scope: {_redact('; '.join(str(item) for item in option.get('general_detection_scope', []) or []) or 'not recorded')}",
+                f"  - important blind spots: {_redact('; '.join(str(item) for item in option.get('important_blind_spots', []) or []) or 'not recorded')}",
+                f"  - prerequisites: {_redact('; '.join(str(item) for item in option.get('prerequisites', []) or []) or 'none')}",
+                f"  - reasons to defer: {_redact('; '.join(str(item) for item in option.get('reasons_to_defer', []) or []) or 'none')}",
+                f"  - after a negative result: {_redact('; '.join(str(item) for item in option.get('after_negative_result', []) or []) or 'not recorded')}",
+            ]
+        )
+    review_codes = sorted(
+        str(item.get("code", "requires_rule_review")) for item in review_items if isinstance(item, dict)
+    )
+    lines.extend(
+        [
+            "",
+            "### Rule and Linkage Review",
+            f"- rule_review_codes: `{_redact(', '.join(review_codes) if review_codes else 'none')}`",
+            f"- linkage_issue_count: `{len(linkage_issues)}`",
+            "",
+            "### Safety Boundary",
+            "- every option status: `proposed_not_approved`",
+            "- human_review_required: `true`",
+            "- test_recommendation_made: `false`",
+            "- test_approved: `false`",
+            "- test_order_placed: `false`",
+            "- final_test_selected: `false`",
+            "- medically_necessary_claim_made: `false`",
+            "- diagnosis_made: `false`",
+            "- treatment_recommendation_made: `false`",
+            "- final_acmg_classification_made: `false`",
+        ]
+    )
+    return lines
 
 
 def _pedigree_inheritance_audit_lines(audit: dict[str, Any]) -> list[str]:

@@ -44,6 +44,8 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_phenotype_hpo_curation": "phenotype_hpo_curation.json",
     "repro_pedigree_inheritance_audit": "pedigree_inheritance_audit.json",
     "repro_variant_intelligence": "variant_intelligence.json",
+    "repro_pre_test_assessment": "pre_test_assessment.json",
+    "repro_test_strategy_workspace": "test_strategy_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -90,8 +92,14 @@ def write_reproducibility_bundle(
     if state.variant_intelligence:
         paths["repro_variant_intelligence"] = optional_paths["repro_variant_intelligence"]
         _write_json(paths["repro_variant_intelligence"], state.variant_intelligence.model_dump())
+    if state.pre_test_assessment:
+        paths["repro_pre_test_assessment"] = optional_paths["repro_pre_test_assessment"]
+        _write_json(paths["repro_pre_test_assessment"], state.pre_test_assessment.model_dump())
+    if state.test_strategy_workspace:
+        paths["repro_test_strategy_workspace"] = optional_paths["repro_test_strategy_workspace"]
+        _write_json(paths["repro_test_strategy_workspace"], state.test_strategy_workspace.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
-    _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, generated_artifacts, paths))
+    _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
     paths["repro_checksums"].write_text(
         _checksums(run_dir, generated_artifacts, paths),
@@ -252,6 +260,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "llm_provider": state.llm_provider,
         "external_llm_called": state.external_llm_called,
         "external_tools_executed": state.external_tools_executed,
+        "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
         "workflow_family": state.workflow_selection.get("workflow_family", "unknown"),
         "research_lane": state.research_lane,
         "selected_recipe_id": (state.selected_recipe or {}).get("recipe_id"),
@@ -268,6 +277,8 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
         "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
         "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
+        "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
+        "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -279,6 +290,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
             "Generated command previews are not executed.",
             "Raw genomic input files are inventoried by filename/category only for this bundle.",
             "Reports are research workflow guidance, not clinical diagnosis or genetic counseling.",
+            "Pre-test assessment outputs do not select, recommend, approve, or order a test.",
         ],
     }
 
@@ -462,8 +474,13 @@ def _selected_recipe_payload(state: AgentState) -> dict[str, Any]:
     }
 
 
-def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
-    return {
+def _provenance_index(
+    run_dir: Path,
+    state: AgentState,
+    generated_artifacts: dict[str, Path],
+    repro_paths: dict[str, Path],
+) -> dict[str, Any]:
+    payload = {
         "run_id": run_dir.name,
         "selected_recipe": {
             "path": "reproducibility/selected_recipe.json",
@@ -480,9 +497,37 @@ def _provenance_index(run_dir: Path, generated_artifacts: dict[str, Path], repro
         "checksum_scope": "Generated run artifacts and reproducibility files only; raw uploaded genomic files are excluded.",
         "provenance_scope": "Run-level artifact provenance index; not row-level parser provenance.",
     }
+    clinical_path = repro_paths.get("repro_clinical_case_intake")
+    if clinical_path and state.clinical_case_intake and state.clinical_case_intake.global_intake_context:
+        payload["global_intake_context"] = {
+            "path": _relative_to_run(run_dir, clinical_path),
+            "json_pointer": "/global_intake_context",
+            "artifact_class": "sanitized_user_supplied_context",
+            "source_wording_verified": False,
+        }
+    pretest_path = repro_paths.get("repro_pre_test_assessment")
+    if pretest_path and state.pre_test_assessment:
+        payload["pre_test_assessment"] = {
+            "path": _relative_to_run(run_dir, pretest_path),
+            "json_pointer": "/",
+            "artifact_class": "deterministic_clinical_research_assessment",
+            "human_review_required": True,
+        }
+    strategy_path = repro_paths.get("repro_test_strategy_workspace")
+    if strategy_path and state.test_strategy_workspace:
+        payload["test_strategy_workspace"] = {
+            "path": _relative_to_run(run_dir, strategy_path),
+            "json_pointer": "/",
+            "artifact_class": "deterministic_proposed_not_approved_test_strategy",
+            "catalogue_version": state.test_strategy_workspace.catalogue_version,
+            "rule_spec_version": state.test_strategy_workspace.rule_spec_version,
+            "human_review_required": True,
+        }
+    return payload
 
 
 def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
+    byok = state.byok_runtime
     return {
         "run_id": state.run_id,
         "timestamp_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -493,12 +538,30 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "llm_provider": state.llm_provider,
         "external_llm_called": state.external_llm_called,
         "external_tools_executed": state.external_tools_executed,
+        "byok_schema_version": byok.schema_version if byok else None,
+        "byok_policy_version": byok.policy_version if byok else None,
+        "byok_provider": byok.provider if byok else None,
+        "byok_default_model": byok.model if byok else None,
+        "byok_resolved_role_models": byok.resolved_role_models if byok else {},
+        "byok_logical_request_count": byok.logical_request_count if byok else 0,
+        "byok_workflow_provider_attempt_count": byok.workflow_provider_attempt_count if byok else 0,
+        "byok_connection_test_attempt_count": byok.connection_test_attempt_count if byok else 0,
+        "byok_connection_test_request_count": byok.connection_test_request_count if byok else 0,
+        "byok_connection_test_success_count": byok.connection_test_success_count if byok else 0,
+        "byok_connection_test_failure_count": byok.connection_test_failure_count if byok else 0,
+        "byok_remaining_connection_tests": byok.remaining_connection_tests if byok else 0,
+        "byok_cache_hit_count": byok.cache_hit_count if byok else 0,
+        "byok_retry_count": byok.retry_count if byok else 0,
+        "byok_external_workflow_call_made": byok.external_workflow_call_made if byok else False,
         "workflow_family": state.workflow_selection.get("workflow_family", "unknown"),
         "selected_recipe_id": (state.selected_recipe or {}).get("recipe_id"),
         "orchestration_backend": state.orchestration_trace.get("orchestration_backend") if state.orchestration_trace else None,
         "orchestration_fallback_used": state.orchestration_trace.get("fallback_used") if state.orchestration_trace else None,
         "clinical_intake_schema_version": state.clinical_case_intake.schema_version if state.clinical_case_intake else None,
         "clinical_intake_research_use_only": state.clinical_case_intake.research_use_only if state.clinical_case_intake else None,
+        "global_intake_schema_version": (state.clinical_case_intake.global_intake_context or {}).get("schema_version") if state.clinical_case_intake else None,
+        "locale_profile_type": ((state.clinical_case_intake.global_intake_context or {}).get("locale_profile") or {}).get("profile_type") if state.clinical_case_intake else None,
+        "locale_profile_explicitly_selected": bool(((state.clinical_case_intake.global_intake_context or {}).get("locale_profile") or {}).get("profile_type")) if state.clinical_case_intake else False,
         "phenotype_hpo_curation_schema_version": state.phenotype_hpo_curation.schema_version if state.phenotype_hpo_curation else None,
         "hpo_registry_version": state.phenotype_hpo_curation.registry_version if state.phenotype_hpo_curation else None,
         "hpo_algorithm_version": state.phenotype_hpo_curation.algorithm_version if state.phenotype_hpo_curation else None,
@@ -513,6 +576,20 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "variant_intelligence_artifact_available": state.variant_intelligence is not None,
         "variant_validation_performed": state.variant_intelligence is not None,
         "variant_normalization_performed": state.variant_intelligence.variant_normalization_performed if state.variant_intelligence else False,
+        "pre_test_assessment_schema_version": state.pre_test_assessment.schema_version if state.pre_test_assessment else None,
+        "pre_test_assessment_algorithm_version": state.pre_test_assessment.algorithm_version if state.pre_test_assessment else None,
+        "pre_test_assessment_artifact_available": state.pre_test_assessment is not None,
+        "pre_test_assessment_outcome": state.pre_test_assessment.assessment_outcome.value if state.pre_test_assessment else None,
+        "test_strategy_workspace_schema_version": state.test_strategy_workspace.schema_version if state.test_strategy_workspace else None,
+        "test_strategy_workspace_algorithm_version": state.test_strategy_workspace.algorithm_version if state.test_strategy_workspace else None,
+        "test_strategy_catalogue_version": state.test_strategy_workspace.catalogue_version if state.test_strategy_workspace else None,
+        "test_strategy_rule_spec_version": state.test_strategy_workspace.rule_spec_version if state.test_strategy_workspace else None,
+        "test_strategy_workspace_artifact_available": state.test_strategy_workspace is not None,
+        "test_strategy_workspace_status": state.test_strategy_workspace.workspace_status.value if state.test_strategy_workspace else None,
+        "test_strategy_proposed_option_count": state.test_strategy_workspace.proposed_option_count if state.test_strategy_workspace else 0,
+        "test_strategy_generated": state.test_strategy_workspace.test_strategy_generated if state.test_strategy_workspace else False,
+        "test_recommendation_made": False,
+        "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,
         "transcript_selection_performed": False,
         "raw_genomic_files_parsed": False,

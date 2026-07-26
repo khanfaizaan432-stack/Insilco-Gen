@@ -73,7 +73,7 @@
       margin: 10px 0 4px;
       font-size: 13px;
     }
-    input, textarea {
+    input, textarea, select {
       width: 100%;
       border: 1px solid var(--line);
       border-radius: 4px;
@@ -238,6 +238,67 @@
             <textarea id="clinical_case_intake" name="clinical_case_intake" placeholder='{"schema_version":"0.27","pseudonymous_case_id":"CASE-001","intended_use":"clinical_genetics_research_curation","redaction_declared":true,"reviewer_status":"pending","human_review_required":true,"pedigree_inheritance_audit":{"schema_version":"0.29","proband_member_id":"MEM-P","relationships":[],"variant_observations":[],"audit_targets":[],"phase_declarations":[],"human_review_required":true}}'></textarea>
             <p class="note">Optional structured, redacted research-curation intake. Supplying this declaration explicitly selects the clinical intake lane. No diagnosis, classification, treatment recommendation, or external data transmission is performed.</p>
 
+            <details id="global-intake-panel">
+              <summary><strong>Global Care and Intake Context (optional)</strong></summary>
+              <p class="note">Secondary v0.31 context only. Leave every field blank to preserve the legacy intake exactly. Locale is never inferred.</p>
+              <div class="form-grid">
+                <div><label for="global_country">ISO country code or unknown</label><input id="global_country" maxlength="2" placeholder="US"></div>
+                <div><label for="global_region">Region / administrative area</label><input id="global_region" placeholder="Supplied broad region only"></div>
+                <div><label for="global_care_setting">Care setting</label><select id="global_care_setting"><option value="">Not supplied</option><option>primary_care</option><option>district_or_regional_hospital</option><option>tertiary_hospital</option><option>university_or_medical_college</option><option>private_clinic</option><option>diagnostic_laboratory</option><option>research_study</option><option>teleconsultation</option><option>other</option></select></div>
+                <div><label for="global_care_stage">Care stage</label><select id="global_care_stage"><option value="">Not supplied</option><option>prenatal</option><option>neonatal</option><option>pediatric</option><option>adult</option><option>unspecified</option></select></div>
+                <div><label for="preferred_language">Preferred language</label><input id="preferred_language" placeholder="Explicitly supplied"></div>
+                <div><label for="source_language">Source language</label><input id="source_language" placeholder="Explicitly supplied"></div>
+                <div><label for="translation_status">Translation provenance</label><select id="translation_status"><option value="">Not supplied</option><option>original</option><option>clinician_translated</option><option>qualified_interpreter_translated</option><option>family_translated</option><option>machine_translated</option><option>translation_status_unknown</option></select></div>
+                <div><label for="translation_review">Translation review</label><select id="translation_review"><option value="">Not supplied</option><option>unreviewed</option><option>human_reviewed</option><option>needs_revision</option></select></div>
+              </div>
+              <label for="original_clinical_wording">Exact original-language clinical wording</label>
+              <textarea id="original_clinical_wording" placeholder="Redacted, bounded source wording; never overwritten"></textarea>
+              <label for="translated_clinical_text">Separate translated working text</label>
+              <textarea id="translated_clinical_text" placeholder="Label machine translation truthfully; human review required"></textarea>
+              <div class="form-grid">
+                <div><label for="laboratory_source_id">Laboratory record ID (for stable edit)</label><input id="laboratory_source_id" placeholder="Optional stable record ID"></div>
+                <div><label for="laboratory_source_label">Laboratory source label</label><input id="laboratory_source_label" placeholder="Bounded supplied label"></div>
+                <div><label for="laboratory_report_date">Laboratory report date</label><input id="laboratory_report_date" type="date"></div>
+                <div><label for="laboratory_test_type">Test type</label><input id="laboratory_test_type" placeholder="Exactly supplied"></div>
+                <div><label for="laboratory_sample_type">Sample type</label><input id="laboratory_sample_type" placeholder="Exactly supplied"></div>
+                <div><label for="laboratory_method">Assay / sequencing method</label><input id="laboratory_method" placeholder="Exactly supplied"></div>
+                <div><label for="family_member_id">Family record ID (for stable edit)</label><input id="family_member_id" placeholder="Optional pedigree-person or record ID"></div>
+                <div><label for="family_sample_context">Relationship to proband</label><input id="family_sample_context" placeholder="Exactly supplied relationship"></div>
+                <div><label for="family_sample_availability">Sample availability</label><select id="family_sample_availability"><option value="">Leave unchanged / not supplied</option><option>available</option><option>unavailable</option><option>uncertain</option><option>unknown</option></select></div>
+                <div><label for="access_constraints">Access limitations</label><input id="access_constraints" placeholder="travel_limitation_reported,follow_up_uncertain"></div>
+                <div><label for="locale_profile">Optional locale profile</label><select id="locale_profile"><option value="">None / not supplied</option><option value="global_default">Global default</option><option value="india">India</option></select></div>
+              </div>
+              <div id="india-locale-fields" hidden>
+                <h4>India locale additions</h4>
+                <p class="note">Shown only after explicit India selection. These values add context; they never replace global fields or infer identity.</p>
+                <div class="form-grid">
+                  <div><label for="india_state">State / union territory code</label><input id="india_state" placeholder="Explicitly supplied code"></div>
+                  <div><label for="india_care_setting">Care/referral pathway</label><select id="india_care_setting"><option value="">Not supplied</option><option>government_hospital</option><option>private_hospital</option><option>medical_college</option><option>diagnostic_laboratory</option><option>research_study</option><option>teleconsultation</option><option>other</option></select></div>
+                  <div><label for="india_relationship">Supplied relationship category</label><select id="india_relationship"><option value="not_supplied">Not supplied</option><option>first_cousins</option><option>second_cousins</option><option>uncle_niece</option><option>aunt_nephew</option><option>related_degree_unknown</option><option value="no_known_relatedness">No known supplied relatedness</option><option>other</option></select></div>
+                  <div><label for="india_relationship_exact">Exact supplied relationship wording</label><input id="india_relationship_exact" placeholder="Preserved exactly"></div>
+                </div>
+              </div>
+            </details>
+
+            <details id="byok-panel">
+              <summary><strong>Provider Settings — session-memory BYOK (optional)</strong></summary>
+              <p class="note">Mock remains the run default. An external key is held only in backend memory for this page session, is never shown again, and is not stored in browser storage or run artifacts.</p>
+              <div class="form-grid">
+                <div><label for="byok_provider">Provider type</label><select id="byok_provider"><option value="mock">mock</option><option value="openai_compatible">openai_compatible</option></select></div>
+                <div><label for="byok_base_url">Base URL</label><input id="byok_base_url" placeholder="https://provider.example/v1"></div>
+                <div><label for="byok_model">Model</label><input id="byok_model" value="mock"></div>
+                <div><label for="byok_api_key">API key</label><input id="byok_api_key" type="password" autocomplete="off" placeholder="Held in backend memory only"></div>
+                <div><label for="byok_max_calls">Maximum calls</label><input id="byok_max_calls" type="number" min="0" max="50" value="4"></div>
+                <div><label for="byok_input_tokens">Maximum input tokens</label><input id="byok_input_tokens" type="number" min="0" value="12000"></div>
+                <div><label for="byok_output_tokens">Maximum output tokens</label><input id="byok_output_tokens" type="number" min="0" value="2000"></div>
+                <div><label for="byok_total_tokens">Maximum total tokens</label><input id="byok_total_tokens" type="number" min="0" value="14000"></div>
+                <div><label for="byok_cost_ceiling">Estimated cost ceiling (USD)</label><input id="byok_cost_ceiling" type="number" min="0" step="0.01" value="1.00"></div>
+                <div><label for="byok_concurrency">Maximum concurrent calls</label><input id="byok_concurrency" type="number" min="1" max="8" value="1"></div>
+              </div>
+              <div class="badge-row"><button type="button" id="byok-configure">Configure in memory</button><button type="button" class="secondary" id="byok-test">Test connection</button><button type="button" class="secondary" id="byok-forget">Forget key</button></div>
+              <div id="byok-status" class="status">Mock mode; no BYOK session configured.</div>
+            </details>
+
             <h3>2. Input Inventory Form</h3>
             <p class="note">These are inventoried as declared inputs. The local demo does not upload, parse, or checksum raw genomic files. The UI sends tiny placeholder multipart parts named after these paths so the backend can inventory filenames. Commands are previews only.</p>
             <div class="form-grid">
@@ -387,6 +448,10 @@
           <div id="phenotype-hpo-curation" class="muted">No phenotype/HPO curation loaded.</div>
           <h3>Pedigree and Inheritance Audit Preview</h3>
           <div id="pedigree-inheritance-audit" class="muted">No pedigree/inheritance audit loaded.</div>
+          <h3>Referral and Pre-Test Assessment Workspace</h3>
+          <div id="pre-test-assessment" class="muted">No referral/pre-test assessment loaded.</div>
+          <h3>Staged Test-Strategy Workspace</h3>
+          <div id="test-strategy-workspace" class="muted">No staged test-strategy workspace loaded.</div>
           <h3>Variant Intelligence Workspace</h3>
           <div id="variant-intelligence" class="muted">No variant intelligence data loaded.</div>
           <h3>Results-only audit preview</h3>
@@ -414,6 +479,7 @@
     const runButton = document.getElementById("run-button");
     const refreshRunsButton = document.getElementById("refresh-runs");
     const statusBox = document.getElementById("status");
+    let activeByokSessionId = null;
 
     const apiFields = Array.from(document.querySelectorAll("[data-api-field]"));
 
@@ -472,8 +538,145 @@
     }
 
     function appendClinicalCaseIntake(formData) {
+      mergeOptionalGlobalIntake();
       appendJsonObjectField(formData, "clinical_case_intake", "Clinical case intake");
     }
+
+    function rawValueOf(id) { return document.getElementById(id).value; }
+    function valueOf(id) { return rawValueOf(id).trim(); }
+
+    function nextUiId(items, prefix, idField) {
+      const used = new Set(items.map((item) => item && item[idField]).filter(Boolean));
+      let index = 1;
+      while (used.has(`${prefix}${index}`)) index += 1;
+      return `${prefix}${index}`;
+    }
+
+    function upsertContextEntry(items, entry, idField, compositeFields, prefix) {
+      const normalizedPart = (value) => String(value ?? "").trim().toLowerCase();
+      const composite = (item) => compositeFields.map((field) => normalizedPart(item?.[field])).join("\u001f");
+      let index = entry[idField] ? items.findIndex((item) => item && item[idField] === entry[idField]) : -1;
+      const suppliedCompositeParts = compositeFields.filter((field) => normalizedPart(entry[field]));
+      if (index < 0 && !entry[idField] && suppliedCompositeParts.length >= 2) {
+        const signature = composite(entry);
+        index = items.findIndex((item) => item && composite(item) === signature);
+      }
+      if (index >= 0) {
+        const updated = [...items];
+        entry[idField] = items[index][idField];
+        const merged = {...items[index]};
+        Object.entries(entry).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && String(value) !== "") merged[key] = value;
+        });
+        updated[index] = merged;
+        return updated;
+      }
+      entry[idField] = entry[idField] || nextUiId(items, prefix, idField);
+      return [...items, {...entry}];
+    }
+
+    function mergeOptionalGlobalIntake() {
+      const field = document.getElementById("clinical_case_intake");
+      const raw = field.value.trim();
+      const localeType = valueOf("locale_profile");
+      const values = ["global_country", "global_region", "global_care_setting", "global_care_stage", "preferred_language", "source_language", "translation_status", "translation_review", "original_clinical_wording", "translated_clinical_text", "laboratory_source_id", "laboratory_source_label", "laboratory_report_date", "laboratory_test_type", "laboratory_sample_type", "laboratory_method", "family_member_id", "family_sample_context", "family_sample_availability", "access_constraints"];
+      if (!values.some((id) => valueOf(id)) && !localeType) return;
+      if (!raw) throw new Error("Enter the core structured clinical case JSON before adding optional global context.");
+      const intake = JSON.parse(raw);
+      const existingContext = intake.global_intake_context && typeof intake.global_intake_context === "object" && !Array.isArray(intake.global_intake_context) ? intake.global_intake_context : {};
+      const context = {...existingContext, schema_version: "0.31", enabled: true};
+      if (valueOf("global_country")) context.country_code = valueOf("global_country").toUpperCase();
+      if (valueOf("global_region")) context.region_or_administrative_area_exact = valueOf("global_region");
+      if (valueOf("global_care_setting")) context.care_setting = valueOf("global_care_setting");
+      if (valueOf("global_care_stage")) context.care_stage = valueOf("global_care_stage");
+      const language = {...(context.language_context || {})};
+      if (valueOf("preferred_language")) language.preferred_language = valueOf("preferred_language");
+      if (valueOf("source_language")) language.source_language = valueOf("source_language");
+      if (valueOf("translation_status")) language.translation_status = valueOf("translation_status");
+      if (valueOf("translation_review")) language.translation_review_state = valueOf("translation_review");
+      if (valueOf("original_clinical_wording")) language.original_text = rawValueOf("original_clinical_wording");
+      if (valueOf("translated_clinical_text")) language.translated_text = rawValueOf("translated_clinical_text");
+      if (Object.keys(language).length) context.language_context = language;
+      const laboratoryValues = ["laboratory_source_id", "laboratory_source_label", "laboratory_report_date", "laboratory_test_type", "laboratory_sample_type", "laboratory_method"];
+      if (laboratoryValues.some((id) => valueOf(id))) {
+        const existingLaboratories = Array.isArray(context.laboratory_contexts) ? context.laboratory_contexts : [];
+        const laboratoryId = valueOf("laboratory_source_id");
+        const existingLaboratory = laboratoryId ? existingLaboratories.find((item) => item?.laboratory_source_id === laboratoryId) : null;
+        if (!valueOf("laboratory_source_label") && !existingLaboratory) throw new Error("A laboratory source label is required when adding a laboratory record.");
+        const laboratory = {};
+        if (laboratoryId) laboratory.laboratory_source_id = laboratoryId;
+        if (valueOf("laboratory_source_label")) laboratory.source_label = valueOf("laboratory_source_label");
+        if (valueOf("laboratory_report_date")) laboratory.report_date = valueOf("laboratory_report_date");
+        if (rawValueOf("laboratory_test_type").trim()) laboratory.test_type_exact = rawValueOf("laboratory_test_type");
+        if (rawValueOf("laboratory_sample_type").trim()) laboratory.sample_type_exact = rawValueOf("laboratory_sample_type");
+        if (rawValueOf("laboratory_method").trim()) laboratory.assay_or_sequencing_method_exact = rawValueOf("laboratory_method");
+        context.laboratory_contexts = upsertContextEntry(existingLaboratories, laboratory, "laboratory_source_id", ["source_label", "report_date", "test_type_exact", "sample_type_exact", "assay_or_sequencing_method_exact"], "UI-LAB-");
+        document.getElementById("laboratory_source_id").value = laboratory.laboratory_source_id;
+      }
+      if (valueOf("family_member_id") || valueOf("family_sample_context") || valueOf("family_sample_availability")) {
+        const existingFamily = Array.isArray(context.family_sample_contexts) ? context.family_sample_contexts : [];
+        const familyId = valueOf("family_member_id");
+        const existingFamilyRecord = familyId ? existingFamily.find((item) => item?.family_member_id === familyId) : null;
+        if (!valueOf("family_sample_context") && !existingFamilyRecord) throw new Error("A relationship is required when adding a family-sample record.");
+        const family = {};
+        if (familyId) family.family_member_id = familyId;
+        if (rawValueOf("family_sample_context").trim()) family.relationship_to_proband_exact = rawValueOf("family_sample_context");
+        if (valueOf("family_sample_availability")) family.sample_availability = valueOf("family_sample_availability");
+        context.family_sample_contexts = upsertContextEntry(existingFamily, family, "family_member_id", [], "UI-FAMILY-");
+        document.getElementById("family_member_id").value = family.family_member_id;
+      }
+      if (valueOf("access_constraints")) context.testing_access_context = {...(context.testing_access_context || {}), constraints: valueOf("access_constraints").split(",").map((item) => item.trim()).filter(Boolean)};
+      if (localeType === "global_default") {
+        const existingLocale = context.locale_profile?.profile_type === "global_default" ? context.locale_profile : {};
+        context.locale_profile = {...existingLocale, profile_type: "global_default"};
+      }
+      if (localeType === "india") {
+        const existingLocale = context.locale_profile?.profile_type === "india" ? context.locale_profile : {};
+        const india = {...existingLocale, profile_type: "india", country_code: "IN"};
+        if (valueOf("india_state")) india.state_or_union_territory_code = valueOf("india_state");
+        if (valueOf("india_care_setting")) india.care_setting = valueOf("india_care_setting");
+        if (valueOf("india_relationship")) india.supplied_relationship = valueOf("india_relationship");
+        if (valueOf("india_relationship_exact")) india.relationship_description_original = rawValueOf("india_relationship_exact");
+        context.locale_profile = india;
+      }
+      intake.global_intake_context = context;
+      field.value = JSON.stringify(intake, null, 2);
+    }
+
+    function renderByokStatus(status) {
+      const target = document.getElementById("byok-status");
+      target.textContent = status ? `${status.provider} / ${status.model}; key in memory: ${Boolean(status.key_present_in_memory)}; calls: ${status.request_count}; tokens: ${status.total_tokens}; estimated USD: ${status.estimated_cost_usd}; connection tests remaining: ${status.remaining_connection_tests}; external call: ${Boolean(status.external_call_made)}` : "Mock mode; no BYOK session configured.";
+    }
+
+    document.getElementById("locale_profile").addEventListener("change", (event) => {
+      document.getElementById("india-locale-fields").hidden = event.target.value !== "india";
+    });
+
+    document.getElementById("byok-configure").addEventListener("click", async () => {
+      const previousSessionId = activeByokSessionId;
+      activeByokSessionId = null;
+      const payload = {provider: valueOf("byok_provider"), model: valueOf("byok_model") || "mock", base_url: valueOf("byok_base_url") || null, api_key: valueOf("byok_api_key") || null, budget: {max_calls: Number(valueOf("byok_max_calls")), max_input_tokens: Number(valueOf("byok_input_tokens")), max_output_tokens: Number(valueOf("byok_output_tokens")), max_total_tokens: Number(valueOf("byok_total_tokens")), estimated_cost_ceiling_usd: Number(valueOf("byok_cost_ceiling")), max_concurrent_calls: Number(valueOf("byok_concurrency")), max_retries: 1}};
+      try {
+        if (previousSessionId) await requestJson(`/insilicopop/byok/session/${encodeURIComponent(previousSessionId)}`, {method: "DELETE"}, "Replace BYOK session");
+        const status = await requestJson("/insilicopop/byok/session", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)}, "BYOK configuration");
+        activeByokSessionId = status.session_id;
+        renderByokStatus(status);
+      } catch (error) { activeByokSessionId = null; renderByokStatus(null); setStatus(friendlyError(error, "BYOK configuration failed."), true); }
+      finally { document.getElementById("byok_api_key").value = ""; }
+    });
+
+    document.getElementById("byok-test").addEventListener("click", async () => {
+      if (!activeByokSessionId) return setStatus("Configure a session-memory provider first.", true);
+      const result = await requestJson(`/insilicopop/byok/session/${encodeURIComponent(activeByokSessionId)}/test`, {method: "POST"}, "BYOK connection test");
+      setStatus(result.status === "success" ? "BYOK connection test succeeded." : "BYOK connection test failed; no credential details were returned.", result.status !== "success");
+    });
+
+    document.getElementById("byok-forget").addEventListener("click", async () => {
+      if (activeByokSessionId) await requestJson(`/insilicopop/byok/session/${encodeURIComponent(activeByokSessionId)}`, {method: "DELETE"}, "Forget BYOK key");
+      activeByokSessionId = null;
+      document.getElementById("byok_api_key").value = "";
+      renderByokStatus(null);
+    });
 
     function appendJsonObjectField(formData, fieldId, label) {
       const field = document.getElementById(fieldId);
@@ -511,7 +714,7 @@
       const recipe = data.selected_recipe || state.selected_recipe || detail?.selected_recipe || {};
       const evidence = data.evidence_retrieval || state.evidence_retrieval || detail?.evidence_retrieval || {};
       const orchestration = data.orchestration_trace || state.orchestration_trace || detail?.orchestration_trace || {};
-      const artifactCount = detail?.artifact_count ?? Object.keys(data.generated_files || {}).length || "not available";
+      const artifactCount = detail?.artifact_count ?? (Object.keys(data.generated_files || {}).length || "not available");
       const humanReview = "required";
       summary.innerHTML = `
         <div class="metrics">
@@ -721,6 +924,9 @@
       const counts = clinicalIntake.phenotype_state_counts || {};
       const blocks = (clinicalIntake.policy_blocks || []).map((item) => `<li>${escapeHtml(item.code || "policy_block")}</li>`).join("") || "<li>No policy blocks recorded.</li>";
       const warnings = (clinicalIntake.validation_warnings || []).map((item) => `<li>${escapeHtml(item.code || "validation_warning")}</li>`).join("") || "<li>No validation warnings recorded.</li>";
+      const globalContext = clinicalIntake.global_intake_context || null;
+      const locale = globalContext?.locale_profile || null;
+      const globalSection = globalContext ? `<h3>Global Intake and Care Context</h3><p class="note">Supplied context only; not a clinical interpretation.</p><div class="metrics"><div class="metric"><strong>country</strong>${escapeHtml(notAvailable(globalContext.country_code))}</div><div class="metric"><strong>care setting</strong>${escapeHtml(notAvailable(globalContext.care_setting))}</div><div class="metric"><strong>care stage</strong>${escapeHtml(notAvailable(globalContext.care_stage))}</div><div class="metric"><strong>original text</strong>${escapeHtml(notAvailable(globalContext.language_context?.original_text))}</div><div class="metric"><strong>translated text</strong>${escapeHtml(notAvailable(globalContext.language_context?.translated_text))}</div></div>${locale?.profile_type === "india" ? `<h4>India Locale Context</h4><p class="note">Explicitly selected and never inferred. State/UT: ${escapeHtml(notAvailable(locale.state_or_union_territory_code))}; supplied relationship: ${escapeHtml(notAvailable(locale.relationship_description_original))}; relationship review: ${escapeHtml(notAvailable(locale.relationship_context_review_status))}; corrected representation: ${escapeHtml(notAvailable(locale.relationship_description_corrected))}. No hidden family relationship was inferred.</p>` : ""}` : "";
       target.className = "";
       target.innerHTML = `
         <div class="metrics">
@@ -736,7 +942,7 @@
         </div>
         <p class="note">Bounded structured intake only. No inheritance calculation, variant normalization, diagnosis, treatment recommendation, final classification, external call, or raw genomic parsing.</p>
         <h3>Validation warnings</h3><ul>${warnings}</ul>
-        <h3>Policy blocks</h3><ul>${blocks}</ul>`;
+        <h3>Policy blocks</h3><ul>${blocks}</ul>${globalSection}`;
     }
 
     function renderPhenotypeHpoCuration(curation) {
@@ -794,6 +1000,118 @@
         <p class="note">Deterministic consistency audit of supplied structured records only. It does not establish diagnosis, pathogenicity, inheritance, or any family relationship.</p>
         <h3>Bounded hypothesis statuses</h3><ul>${rows}</ul>
         <h3>Supplied-record issue codes</h3><ul>${issueCodes}</ul>`;
+    }
+
+    function renderPreTestAssessment(assessment) {
+      const target = document.getElementById("pre-test-assessment");
+      if (!assessment || typeof assessment !== "object" || Object.keys(assessment).length === 0) {
+        target.className = "muted";
+        target.textContent = "No referral/pre-test assessment loaded. This is expected for runs created before v0.31.2.";
+        return;
+      }
+      const referral = assessment.referral_packet || {};
+      const history = assessment.clinical_history || {};
+      const renderAssessmentItems = (items, emptyText) => (items || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.category || "other")}</strong> — ${escapeHtml(item.code || "missing_information")} — ${escapeHtml(item.status || "open")} — ${escapeHtml(item.information_needed || "Human review required.")}</li>`).join("") || `<li>${escapeHtml(emptyText)}</li>`;
+      const blockingRows = renderAssessmentItems(assessment.blocking_items, "No blocking information items recorded.");
+      const advisoryRows = renderAssessmentItems(assessment.advisory_items, "No advisory information items recorded.");
+      const humanReviewRows = renderAssessmentItems(assessment.human_review_items, "No human-review items recorded.");
+      const informationalRows = renderAssessmentItems(assessment.informational_items, "No informational limitations recorded.");
+      const decisionRows = (assessment.clinician_decisions || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.checkpoint_type || "checkpoint")}</strong> — ${escapeHtml(item.status || "pending")} — ${escapeHtml(item.note_exact || "No supplied note.")}</li>`).join("") || "<li>No explicit clinician decisions supplied.</li>";
+      const timelineRows = (assessment.previous_investigation_timeline || []).slice(0, 100).map((item) => `<li><strong>${escapeHtml(item.investigation_id || "investigation")}</strong> — ${escapeHtml(item.category || "other")} — ${escapeHtml(item.test_or_assessment_exact || "not supplied")} — report ${escapeHtml(item.report_availability || "unknown")}</li>`).join("") || "<li>No previous investigations supplied.</li>";
+      const linkageRows = (assessment.linkage_issues || []).slice(0, 100).map((item) => `<li>${escapeHtml(item.code || "linkage_issue")} — ${escapeHtml(item.message || "Human review required.")}</li>`).join("") || "<li>No unresolved record linkages.</li>";
+      target.className = "";
+      target.innerHTML = `
+        <h3>Supplied referral and history</h3>
+        <div class="metrics">
+          <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(assessment.schema_version))}</div>
+          <div class="metric"><strong>outcome</strong>${escapeHtml(notAvailable(assessment.assessment_outcome))}</div>
+          <div class="metric"><strong>referral source</strong>${escapeHtml(notAvailable(referral.source))}</div>
+          <div class="metric"><strong>urgency context</strong>${escapeHtml(notAvailable(referral.urgency_context))}</div>
+          <div class="metric"><strong>linked phenotypes</strong>${escapeHtml((history.phenotype_observation_ids || []).length)}</div>
+          <div class="metric"><strong>linked pedigree members</strong>${escapeHtml((history.pedigree_member_ids || []).length)}</div>
+        </div>
+        <p><strong>Supplied referral reason:</strong> ${escapeHtml(notAvailable(referral.reason_exact))}</p>
+        <p><strong>Supplied/reported history:</strong> ${escapeHtml(notAvailable(history.summary_exact))}</p>
+        <h3>Deterministic assessment</h3>
+        <div class="metrics">
+          <div class="metric"><strong>readiness reasons</strong>${escapeHtml((assessment.outcome_rationale_codes || []).join(", ") || "none")}</div>
+          <div class="metric"><strong>open information requests</strong>${escapeHtml(assessment.open_missing_information_count ?? 0)}</div>
+          <div class="metric"><strong>open blocking items</strong>${escapeHtml(assessment.open_blocking_information_count ?? 0)}</div>
+          <div class="metric"><strong>open human-review items</strong>${escapeHtml(assessment.open_human_review_count ?? 0)}</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+          <div class="metric safe"><strong>test strategy generated</strong>false</div>
+          <div class="metric safe"><strong>test ordered</strong>false</div>
+        </div>
+        <p class="note"><strong>Structured pre-test assessment only.</strong> Readiness does not recommend or authorize any genetic test. It does not recommend WES, WGS, or any other test; it does not approve or place an order; and it makes no diagnosis, treatment recommendation, or final classification.</p>
+        <h3>Blocking information</h3><ul>${blockingRows}</ul>
+        <h3>Advisory information</h3><ul>${advisoryRows}</ul>
+        <h3>Human-review items</h3><ul>${humanReviewRows}</ul>
+        <h3>Informational limitations</h3><ul>${informationalRows}</ul>
+        <h3>Clinician decisions (explicitly supplied only)</h3><ul>${decisionRows}</ul>
+        <h3>Previous-investigation timeline</h3><ul>${timelineRows}</ul>
+        <h3>Linkage issues requiring review</h3><ul>${linkageRows}</ul>`;
+    }
+
+    function renderTestStrategyWorkspace(workspace) {
+      const target = document.getElementById("test-strategy-workspace");
+      if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
+        target.className = "muted";
+        target.textContent = "No staged test-strategy workspace loaded. This is expected for runs created before v0.31.3 or without an explicit strategy declaration.";
+        return;
+      }
+      const options = (workspace.options || []).slice(0, 100);
+      const ruleReviewRows = (workspace.rule_review_items || []).slice(0, 100).map((item) =>
+        `<li><strong>${escapeHtml(item.code || "requires_rule_review")}</strong> — ${escapeHtml(item.message || "Human rule review required.")}</li>`
+      ).join("") || "<li>No open rule-review items.</li>";
+      const linkageRows = (workspace.linkage_issues || []).slice(0, 100).map((item) =>
+        `<li><strong>${escapeHtml(item.code || "linkage_issue")}</strong> — ${escapeHtml(item.source_record_id || "unknown record")} — ${escapeHtml(item.message || "Human review required.")}</li>`
+      ).join("") || "<li>No unresolved strategy-fact links.</li>";
+      const optionRows = options.map((option) => {
+        const context = option.supplied_context || {};
+        const facts = (option.trigger_facts || []).map((fact) =>
+          `<li><strong>${escapeHtml(fact.fact_id || "fact")}</strong> — ${escapeHtml(fact.fact_summary_exact || "not supplied")} <span class="muted">(${escapeHtml(fact.source_path || "unknown source")})</span></li>`
+        ).join("") || "<li>No explicit trigger fact represented.</li>";
+        const renderList = (items, emptyText) => (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || `<li>${escapeHtml(emptyText)}</li>`;
+        return `<details>
+          <summary>${escapeHtml(option.display_name || option.test_class || "option")} — ${escapeHtml(option.status || "proposed_not_approved")} — ${escapeHtml(option.feasibility_status || "unknown")}</summary>
+          <p><strong>Why surfaced:</strong> ${escapeHtml((option.why_surfaced || []).join("; ") || "Not recorded.")}</p>
+          <h4>Explicit supplied trigger facts</h4><ul>${facts}</ul>
+          <h4>What this class can generally detect</h4><ul>${renderList(option.general_detection_scope, "Detection scope not recorded.")}</ul>
+          <h4>Important blind spots</h4><ul>${renderList(option.important_blind_spots, "Blind spots not recorded.")}</ul>
+          <h4>Proband sample requirements</h4><ul>${renderList(option.proband_sample_requirements, "Not recorded.")}</ul>
+          <h4>Family-sample requirements</h4><ul>${renderList(option.family_sample_requirements, "Not recorded.")}</ul>
+          <h4>Supplied availability and cost context</h4>
+          <ul>
+            <li>care setting: ${escapeHtml(notAvailable(context.care_setting))}</li>
+            <li>locale profile: ${escapeHtml(notAvailable(context.locale_profile_type))}</li>
+            <li>laboratory context: ${escapeHtml((context.laboratory_availability_context || []).join("; ") || "not supplied")}</li>
+            <li>access constraints: ${escapeHtml((context.access_constraints || []).join("; ") || "not supplied")}</li>
+            <li>turnaround time: ${escapeHtml(notAvailable(context.turnaround_time_exact))}</li>
+            <li>affordability context: ${escapeHtml(notAvailable(context.affordability_context_exact))}</li>
+            <li>family samples: ${escapeHtml((context.family_sample_context || []).join("; ") || "not supplied")}</li>
+            <li>universal price assumed: false</li>
+          </ul>
+          <h4>Prerequisites</h4><ul>${renderList(option.prerequisites, "None recorded.")}</ul>
+          <h4>Reasons to defer</h4><ul>${renderList(option.reasons_to_defer, "No catalogue deferral reason recorded.")}</ul>
+          <h4>After a negative result</h4><ul>${renderList(option.after_negative_result, "No next-stage context recorded.")}</ul>
+        </details>`;
+      }).join("") || "<p>No catalogue options were surfaced.</p>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>schema</strong>${escapeHtml(notAvailable(workspace.schema_version))}</div>
+          <div class="metric"><strong>workspace status</strong>${escapeHtml(notAvailable(workspace.workspace_status))}</div>
+          <div class="metric"><strong>pre-test outcome</strong>${escapeHtml(notAvailable(workspace.pre_test_assessment_outcome))}</div>
+          <div class="metric"><strong>proposed options</strong>${escapeHtml(workspace.proposed_option_count ?? options.length)}</div>
+          <div class="metric"><strong>constrained options</strong>${escapeHtml(workspace.constrained_option_count ?? 0)}</div>
+          <div class="metric safe"><strong>every option</strong>proposed_not_approved</div>
+          <div class="metric safe"><strong>test approved</strong>false</div>
+          <div class="metric safe"><strong>test ordered</strong>false</div>
+        </div>
+        <p class="note"><strong>Clinician comparison only.</strong> These are test or investigation classes, not patient-specific orders. The workspace does not select a final test, claim medical necessity, diagnose, recommend treatment, or make a final ACMG classification.</p>
+        <h3>Proposed-not-approved options</h3>${optionRows}
+        <h3>Rule review required</h3><ul>${ruleReviewRows}</ul>
+        <h3>Strategy-fact linkage issues</h3><ul>${linkageRows}</ul>`;
     }
 
     // VARIANT_BADGE_LABELS_START
@@ -960,6 +1278,8 @@
       renderClinicalCaseIntake(data.clinical_case_intake || data.final_state?.clinical_case_intake);
       renderPhenotypeHpoCuration(data.phenotype_hpo_curation || data.final_state?.phenotype_hpo_curation);
       renderPedigreeInheritanceAudit(data.pedigree_inheritance_audit || data.final_state?.pedigree_inheritance_audit);
+      renderPreTestAssessment(data.pre_test_assessment || data.final_state?.pre_test_assessment);
+      renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
       renderResultsAudit(data.results_audit || data.final_state?.results_audit);
       renderCommandPreviews(data.command_previews || [], recipe);
@@ -1013,6 +1333,8 @@
         renderClinicalCaseIntake(detail?.clinical_case_intake);
         renderPhenotypeHpoCuration(detail?.phenotype_hpo_curation);
         renderPedigreeInheritanceAudit(detail?.pedigree_inheritance_audit);
+        renderPreTestAssessment(detail?.pre_test_assessment);
+        renderTestStrategyWorkspace(detail?.test_strategy_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);
         renderResultsAudit(detail?.results_audit);
         const workflowTarget = document.getElementById("workflow-selection");
@@ -1103,6 +1425,7 @@
         const formData = new FormData();
         formData.append("query", document.getElementById("query").value);
         formData.append("llm_provider", "mock");
+        if (activeByokSessionId) formData.append("byok_session_id", activeByokSessionId);
         formData.append("memory_mode", "compact");
         formData.append("max_steps", "8");
         appendGovernanceScope(formData);
