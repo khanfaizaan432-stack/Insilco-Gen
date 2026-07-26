@@ -22,6 +22,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/variant_intelligence.json",
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
+    "reproducibility/result_evidence_workspace.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -60,6 +61,7 @@ class AgentInterpreter:
         variant_intelligence: dict[str, Any] | None = None,
         pre_test_assessment: dict[str, Any] | None = None,
         test_strategy_workspace: dict[str, Any] | None = None,
+        result_evidence_workspace: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -88,6 +90,7 @@ class AgentInterpreter:
         variant_intelligence = variant_intelligence or {}
         pre_test_assessment = pre_test_assessment or {}
         test_strategy_workspace = test_strategy_workspace or {}
+        result_evidence_workspace = result_evidence_workspace or {}
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -178,6 +181,8 @@ class AgentInterpreter:
             ),
             "",
             *_test_strategy_workspace_lines(test_strategy_workspace),
+            "",
+            *_result_evidence_workspace_lines(result_evidence_workspace),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -915,6 +920,102 @@ def _test_strategy_workspace_lines(workspace: dict[str, Any]) -> list[str]:
             "- diagnosis_made: `false`",
             "- treatment_recommendation_made: `false`",
             "- final_acmg_classification_made: `false`",
+        ]
+    )
+    return lines
+
+
+def _result_evidence_workspace_lines(workspace: dict[str, Any]) -> list[str]:
+    if not workspace:
+        return []
+    findings = workspace.get("normalized_findings", []) or []
+    retrievals = workspace.get("retrieval_records", []) or []
+    entries = workspace.get("ledger_entries", []) or []
+    summaries = workspace.get("generated_summaries", []) or []
+    conflicts = [item for item in entries if item.get("conflict_detected")]
+    duplicates = [item for item in entries if item.get("duplicate_of")]
+    lines = [
+        "## Result and Evidence Workspace",
+        "",
+        "Externally reported content is preserved beside deterministic normalized representations. "
+        "The evidence ledger records source statements and does not assign ACMG criteria, evidence strength, "
+        "pathogenicity, causality, diagnosis, treatment, or clinical sign-out.",
+        f"- result_intake_version: `{_redact(str(workspace.get('result_intake_version', 'unknown')))}`",
+        f"- normalization_version: `{_redact(str(workspace.get('normalization_version', 'unknown')))}`",
+        f"- retrieval_version: `{_redact(str(workspace.get('retrieval_version', 'unknown')))}`",
+        f"- ledger_version: `{_redact(str(workspace.get('ledger_version', 'unknown')))}`",
+        f"- source_result_count: `{len(workspace.get('source_results', []) or [])}`",
+        f"- normalized_finding_count: `{len(findings)}`",
+        f"- retrieval_record_count: `{len(retrievals)}`",
+        f"- evidence_ledger_entry_count: `{len(entries)}`",
+        f"- conflict_count: `{len(conflicts)}`",
+        f"- duplicate_count: `{len(duplicates)}`",
+        "",
+        "### Reported and Normalized Findings",
+    ]
+    if not findings:
+        lines.append("- None supplied.")
+    for finding in findings:
+        lines.extend(
+            [
+                f"- finding_id: `{_redact(str(finding.get('finding_id', 'unknown')))}`",
+                f"  - category: `{_redact(str(finding.get('category', 'unknown')))}`",
+                f"  - normalization_status: `{_redact(str(finding.get('normalization_status', 'unknown')))}`",
+                f"  - normalization_rule_id: `{_redact(str(finding.get('normalization_rule_id', 'unknown')))}`",
+                "  - Reported finding remains preserved in `reported_finding_snapshot`.",
+                "  - Normalized representation is additive and human-reviewable.",
+            ]
+        )
+    lines.extend(["", "### Controlled Retrieval"])
+    if not retrievals:
+        lines.append("- No retrieval was attempted.")
+    for retrieval in retrievals:
+        lines.append(
+            f"- `{_redact(str(retrieval.get('query_id', 'unknown')))}` / "
+            f"`{_redact(str(retrieval.get('source_name', 'unknown')))}`: "
+            f"`{_redact(str(retrieval.get('state', 'unknown')))}`"
+        )
+        if retrieval.get("no_records_wording"):
+            lines.append(f"  - {_redact(str(retrieval['no_records_wording']))}")
+    lines.extend(["", "### Evidence Ledger"])
+    if not entries:
+        lines.append("- No source-backed ledger entries were created.")
+    for entry in entries:
+        lines.extend(
+            [
+                f"- ledger_entry_id: `{_redact(str(entry.get('ledger_entry_id', 'unknown')))}`",
+                f"  - Source statement: {_redact(str(entry.get('source_statement', 'not supplied')))}",
+                f"  - source_identifier: `{_redact(str(entry.get('source_identifier', 'unknown')))}`",
+                f"  - source_version: `{_redact(str(entry.get('source_version', 'unknown')))}`",
+            ]
+        )
+        if entry.get("conflict_detected"):
+            lines.append(
+                "  - Sources provide differing observations or interpretations. "
+                "InSilicoPop has not resolved the conflict."
+            )
+    lines.extend(["", "### Proposed Evidence Summaries"])
+    if not summaries:
+        lines.append("- None requested.")
+    for summary in summaries:
+        lines.extend(
+            [
+                f"- summary_status: `{_redact(str(summary.get('summary_status', 'unknown')))}`",
+                f"  - System-generated summary: {_redact(str(summary.get('system_summary', 'not supplied')))}",
+                f"  - source ledger IDs: `{', '.join(_redact(str(item)) for item in summary.get('summary_based_on_source_ids', []))}`",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "- External laboratory classification: classification reported by the external source; not assigned by InSilicoPop.",
+            "- External interpretation recorded: not assigned by InSilicoPop.",
+            "- human_review_required: `true`",
+            "- diagnosis_made: `false`",
+            "- treatment_recommendation_made: `false`",
+            "- final_acmg_classification_made: `false`",
+            "- acmg_criteria_generated: `false`",
+            "- clinical_sign_out_made: `false`",
         ]
     )
     return lines

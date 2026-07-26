@@ -40,6 +40,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/variant_intelligence.json",
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
+    "reproducibility/result_evidence_workspace.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -118,6 +119,14 @@ class AgentRunSummary(BaseModel):
     test_strategy_constrained_option_count: int = 0
     test_strategy_rule_review_item_count: int = 0
     test_strategy_workspace_artifact_available: bool = False
+    result_intake_count: int = 0
+    result_finding_count: int = 0
+    result_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
+    result_retrieval_status_counts: dict[str, int] = Field(default_factory=dict)
+    evidence_ledger_entry_count: int = 0
+    evidence_conflict_count: int = 0
+    evidence_duplicate_count: int = 0
+    result_evidence_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -143,6 +152,7 @@ class AgentRunDetail(AgentRunSummary):
     variant_intelligence: dict[str, Any] | None = None
     pre_test_assessment: dict[str, Any] | None = None
     test_strategy_workspace: dict[str, Any] | None = None
+    result_evidence_workspace: dict[str, Any] | None = None
     byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
@@ -201,6 +211,7 @@ class WorkbenchRunStore:
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
             pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
+            result_evidence_workspace=state.get("result_evidence_workspace") if isinstance(state.get("result_evidence_workspace"), dict) else None,
             byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
@@ -277,6 +288,8 @@ class WorkbenchRunStore:
         pre_test_assessment = pre_test_assessment if isinstance(pre_test_assessment, dict) else {}
         test_strategy_workspace = state.get("test_strategy_workspace", {}) if isinstance(state, dict) else {}
         test_strategy_workspace = test_strategy_workspace if isinstance(test_strategy_workspace, dict) else {}
+        result_evidence_workspace = state.get("result_evidence_workspace", {}) if isinstance(state, dict) else {}
+        result_evidence_workspace = result_evidence_workspace if isinstance(result_evidence_workspace, dict) else {}
         byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
         byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
@@ -286,6 +299,19 @@ class WorkbenchRunStore:
                 status = str(item.get("status", "cannot_evaluate"))
                 inheritance_status_counts[status] = inheritance_status_counts.get(status, 0) + 1
         transmission_summary = pedigree_inheritance_audit.get("available_parent_child_transmission_summary", {}) or {}
+        normalized_findings = result_evidence_workspace.get("normalized_findings", []) or []
+        retrieval_records = result_evidence_workspace.get("retrieval_records", []) or []
+        ledger_entries = result_evidence_workspace.get("ledger_entries", []) or []
+        normalization_status_counts: dict[str, int] = {}
+        retrieval_status_counts: dict[str, int] = {}
+        for item in normalized_findings:
+            if isinstance(item, dict):
+                status = str(item.get("normalization_status", "requires_rule_review"))
+                normalization_status_counts[status] = normalization_status_counts.get(status, 0) + 1
+        for item in retrieval_records:
+            if isinstance(item, dict):
+                status = str(item.get("state", "not_attempted"))
+                retrieval_status_counts[status] = retrieval_status_counts.get(status, 0) + 1
         artifacts = [name for name in ALLOWED_ARTIFACTS | ALLOWED_REPRODUCIBILITY_ARTIFACTS if (run_dir / name).is_file()]
         return AgentRunSummary(
             run_id=run_dir.name,
@@ -334,6 +360,24 @@ class WorkbenchRunStore:
             test_strategy_constrained_option_count=int(test_strategy_workspace.get("constrained_option_count", 0) or 0),
             test_strategy_rule_review_item_count=len(test_strategy_workspace.get("rule_review_items", []) or []),
             test_strategy_workspace_artifact_available=(run_dir / "reproducibility" / "test_strategy_workspace.json").is_file(),
+            result_intake_count=len(result_evidence_workspace.get("source_results", []) or []),
+            result_finding_count=len(normalized_findings),
+            result_normalization_status_counts={
+                key: normalization_status_counts[key] for key in sorted(normalization_status_counts)
+            },
+            result_retrieval_status_counts={
+                key: retrieval_status_counts[key] for key in sorted(retrieval_status_counts)
+            },
+            evidence_ledger_entry_count=len(ledger_entries),
+            evidence_conflict_count=sum(
+                1 for item in ledger_entries if isinstance(item, dict) and item.get("conflict_detected")
+            ),
+            evidence_duplicate_count=sum(
+                1 for item in ledger_entries if isinstance(item, dict) and item.get("duplicate_of")
+            ),
+            result_evidence_workspace_artifact_available=(
+                run_dir / "reproducibility" / "result_evidence_workspace.json"
+            ).is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),
             selected_recipe_maturity_tier=selected_recipe.get("maturity_tier"),

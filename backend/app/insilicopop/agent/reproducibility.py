@@ -46,6 +46,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_variant_intelligence": "variant_intelligence.json",
     "repro_pre_test_assessment": "pre_test_assessment.json",
     "repro_test_strategy_workspace": "test_strategy_workspace.json",
+    "repro_result_evidence_workspace": "result_evidence_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -98,6 +99,12 @@ def write_reproducibility_bundle(
     if state.test_strategy_workspace:
         paths["repro_test_strategy_workspace"] = optional_paths["repro_test_strategy_workspace"]
         _write_json(paths["repro_test_strategy_workspace"], state.test_strategy_workspace.model_dump())
+    if state.result_evidence_workspace:
+        paths["repro_result_evidence_workspace"] = optional_paths["repro_result_evidence_workspace"]
+        _write_json(
+            paths["repro_result_evidence_workspace"],
+            state.result_evidence_workspace.model_dump(),
+        )
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -279,6 +286,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
+        "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -523,6 +531,18 @@ def _provenance_index(
             "rule_spec_version": state.test_strategy_workspace.rule_spec_version,
             "human_review_required": True,
         }
+    result_evidence_path = repro_paths.get("repro_result_evidence_workspace")
+    if result_evidence_path and state.result_evidence_workspace:
+        payload["result_evidence_workspace"] = {
+            "path": _relative_to_run(run_dir, result_evidence_path),
+            "json_pointer": "/",
+            "artifact_class": "immutable_source_linked_result_and_evidence_workspace",
+            "result_intake_version": state.result_evidence_workspace.result_intake_version,
+            "normalization_version": state.result_evidence_workspace.normalization_version,
+            "retrieval_version": state.result_evidence_workspace.retrieval_version,
+            "ledger_version": state.result_evidence_workspace.ledger_version,
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -588,6 +608,21 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "test_strategy_workspace_status": state.test_strategy_workspace.workspace_status.value if state.test_strategy_workspace else None,
         "test_strategy_proposed_option_count": state.test_strategy_workspace.proposed_option_count if state.test_strategy_workspace else 0,
         "test_strategy_generated": state.test_strategy_workspace.test_strategy_generated if state.test_strategy_workspace else False,
+        "result_intake_version": state.result_evidence_workspace.result_intake_version if state.result_evidence_workspace else None,
+        "normalization_version": state.result_evidence_workspace.normalization_version if state.result_evidence_workspace else None,
+        "normalization_rules": state.result_evidence_workspace.normalization_rules if state.result_evidence_workspace else [],
+        "source_document_hashes": state.result_evidence_workspace.source_document_hashes if state.result_evidence_workspace else [],
+        "retrieval_queries": [item.model_dump() for item in state.result_evidence_workspace.retrieval_queries] if state.result_evidence_workspace else [],
+        "retrieval_source_versions": state.result_evidence_workspace.retrieval_source_versions if state.result_evidence_workspace else {},
+        "retrieval_timestamps": [item.retrieved_at for item in state.result_evidence_workspace.retrieval_records if item.retrieved_at] if state.result_evidence_workspace else [],
+        "raw_response_hashes": state.result_evidence_workspace.raw_response_hashes if state.result_evidence_workspace else [],
+        "ledger_entry_ids": [item.ledger_entry_id for item in state.result_evidence_workspace.ledger_entries] if state.result_evidence_workspace else [],
+        "human_review_actions": [item.model_dump() for item in state.result_evidence_workspace.review_actions] if state.result_evidence_workspace else [],
+        "result_evidence_external_llm_called": state.result_evidence_workspace.external_llm_called if state.result_evidence_workspace else False,
+        "result_evidence_provider": state.result_evidence_workspace.provider if state.result_evidence_workspace else None,
+        "result_evidence_byok_used": state.result_evidence_workspace.byok_used if state.result_evidence_workspace else False,
+        "evidence_ledger_version": state.result_evidence_workspace.ledger_version if state.result_evidence_workspace else None,
+        "result_evidence_workspace_artifact_available": state.result_evidence_workspace is not None,
         "test_recommendation_made": False,
         "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,

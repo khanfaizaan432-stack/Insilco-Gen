@@ -16,7 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_strategy_bundle
+from app.insilicopop.clinical.service import build_clinical_case_result_evidence_bundle
 from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
@@ -326,7 +326,8 @@ class AgentLoop:
             state.variant_intelligence,
             state.pre_test_assessment,
             state.test_strategy_workspace,
-        ) = build_clinical_case_strategy_bundle(payload, request_text=request_text)
+            state.result_evidence_workspace,
+        ) = build_clinical_case_result_evidence_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -467,6 +468,43 @@ class AgentLoop:
                     "raw_genomic_files_parsed": False,
                 }
             )
+        if state.result_evidence_workspace:
+            workspace = state.result_evidence_workspace
+            state.decision_trace.append(
+                {
+                    "event": "result_evidence_workspace_completed",
+                    "schema_version": workspace.schema_version,
+                    "result_intake_version": workspace.result_intake_version,
+                    "normalization_version": workspace.normalization_version,
+                    "retrieval_version": workspace.retrieval_version,
+                    "ledger_version": workspace.ledger_version,
+                    "pseudonymous_case_id": workspace.pseudonymous_case_id,
+                    "result_count": len(workspace.source_results),
+                    "finding_count": len(workspace.normalized_findings),
+                    "normalization_statuses": [
+                        item.normalization_status.value for item in workspace.normalized_findings
+                    ],
+                    "retrieval_states": [
+                        item.state.value for item in workspace.retrieval_records
+                    ],
+                    "ledger_entry_ids": [
+                        item.ledger_entry_id for item in workspace.ledger_entries
+                    ],
+                    "conflict_count": sum(
+                        1 for item in workspace.ledger_entries if item.conflict_detected
+                    ),
+                    "duplicate_count": sum(
+                        1 for item in workspace.ledger_entries if item.duplicate_of
+                    ),
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "diagnosis_made": False,
+                    "treatment_recommendation_made": False,
+                    "final_acmg_classification_made": False,
+                    "external_llm_called": workspace.external_llm_called,
+                    "byok_used": workspace.byok_used,
+                }
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -502,6 +540,7 @@ class AgentLoop:
             "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
             "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
             "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
+            "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
             "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),
