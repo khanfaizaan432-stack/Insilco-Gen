@@ -28,6 +28,8 @@ from app.insilicopop.clinical.pretest_assessment import build_pretest_assessment
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentResult
 from app.insilicopop.clinical.test_strategy import build_test_strategy_workspace
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceResult
+from app.insilicopop.clinical.result_evidence import build_result_evidence_workspace
+from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceResult
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -178,6 +180,54 @@ def build_clinical_case_strategy_bundle(
         pedigree_audit=inheritance_audit,
     )
     return intake, curation, inheritance_audit, variant_intelligence, pretest_assessment, strategy_workspace
+
+
+def build_clinical_case_result_evidence_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+    PreTestAssessmentResult | None,
+    TestStrategyWorkspaceResult | None,
+    ResultEvidenceWorkspaceResult | None,
+]:
+    (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+    ) = build_clinical_case_strategy_bundle(payload, request_text=request_text)
+    try:
+        case = ClinicalCaseIntake.model_validate(payload)
+    except ValidationError:
+        return (
+            intake,
+            curation,
+            inheritance_audit,
+            variant_intelligence,
+            pretest_assessment,
+            strategy_workspace,
+            None,
+        )
+    safe_case = sanitized_clinical_case(case)
+    result_evidence_workspace = build_result_evidence_workspace(
+        safe_case,
+        pretest_assessment=pretest_assessment,
+        test_strategy_workspace=strategy_workspace,
+    )
+    return (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+        result_evidence_workspace,
+    )
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:

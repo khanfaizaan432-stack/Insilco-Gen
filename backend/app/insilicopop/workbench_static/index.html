@@ -452,6 +452,8 @@
           <div id="pre-test-assessment" class="muted">No referral/pre-test assessment loaded.</div>
           <h3>Staged Test-Strategy Workspace</h3>
           <div id="test-strategy-workspace" class="muted">No staged test-strategy workspace loaded.</div>
+          <h3>Result and Evidence Workspace</h3>
+          <div id="result-evidence-workspace" class="muted">No result and evidence workspace loaded.</div>
           <h3>Variant Intelligence Workspace</h3>
           <div id="variant-intelligence" class="muted">No variant intelligence data loaded.</div>
           <h3>Results-only audit preview</h3>
@@ -1114,6 +1116,102 @@
         <h3>Strategy-fact linkage issues</h3><ul>${linkageRows}</ul>`;
     }
 
+    function renderResultEvidenceWorkspace(workspace) {
+      const target = document.getElementById("result-evidence-workspace");
+      if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
+        target.className = "muted";
+        target.textContent = "No result and evidence workspace loaded. This is expected for runs created before v0.32 or without an explicit result declaration.";
+        return;
+      }
+      const results = (workspace.source_results || []).slice(0, 100);
+      const findings = (workspace.normalized_findings || []).slice(0, 500);
+      const retrievals = (workspace.retrieval_records || []).slice(0, 500);
+      const entries = (workspace.ledger_entries || []).slice(0, 1000);
+      const summaries = (workspace.generated_summaries || []).slice(0, 200);
+      const actions = (workspace.review_actions || []).slice(0, 500);
+      const interpretations = (workspace.external_interpretations || []).slice(0, 500);
+      const intakeRows = results.map((result) => {
+        const provenance = result.provenance || {};
+        return `<details>
+          <summary>Source report — ${escapeHtml(result.result_id || "result")} — source_reported</summary>
+          <p><strong>Result category:</strong> ${escapeHtml(notAvailable(result.category))}</p>
+          <p><strong>Source document:</strong> ${escapeHtml(notAvailable(provenance.source_document_name))}</p>
+          <p><strong>Source document hash:</strong> ${escapeHtml(notAvailable(provenance.source_document_hash))}</p>
+          <p><strong>Report version:</strong> ${escapeHtml(notAvailable(provenance.report_version))}</p>
+          <p><strong>Reporting laboratory:</strong> ${escapeHtml(notAvailable(provenance.reporting_laboratory))}</p>
+          <p><strong>Translation status:</strong> ${escapeHtml(notAvailable(provenance.translation_status))}</p>
+          <p><strong>Transcription status:</strong> ${escapeHtml(notAvailable(provenance.transcription_status))}</p>
+        </details>`;
+      }).join("") || "<p>No source reports recorded.</p>";
+      const findingRows = findings.map((finding) => {
+        const snapshot = finding.reported_finding_snapshot || {};
+        const externalClassification = snapshot.external_laboratory_classification || {};
+        return `<details>
+          <summary>Reported finding / Normalized representation — ${escapeHtml(finding.finding_id || "finding")} — ${escapeHtml(finding.normalization_status || "requires_rule_review")}</summary>
+          <p><strong>State: source_reported</strong> — ${escapeHtml(snapshot.original_text || "not supplied")}</p>
+          <p><strong>State: normalized</strong></p><pre>${escapeHtml(asJson(finding.normalized_value || {}))}</pre>
+          <p><strong>Normalization rule:</strong> ${escapeHtml(notAvailable(finding.normalization_rule_id))} / ${escapeHtml(notAvailable(finding.normalization_version))}</p>
+          <p><strong>Warnings and unresolved ambiguity:</strong> ${escapeHtml((finding.normalization_warnings || []).join("; ") || "none")}</p>
+          <p><strong>External laboratory classification:</strong> ${escapeHtml(notAvailable(externalClassification.value_as_reported))}</p>
+          <p class="note">Classification reported by the external source; not assigned by InSilicoPop.</p>
+        </details>`;
+      }).join("") || "<p>No reported findings recorded.</p>";
+      const retrievalRows = retrievals.map((retrieval) =>
+        `<li><strong>Human-reviewed query ${escapeHtml(retrieval.query_id || "query")}</strong> — ${escapeHtml(retrieval.source_name || "source")} — ${escapeHtml(retrieval.state || "not_attempted")} — ${escapeHtml(retrieval.no_records_wording || (retrieval.errors || []).join("; ") || `${retrieval.result_count || 0} record(s)`)}</li>`
+      ).join("") || "<li>No controlled retrieval attempted.</li>";
+      const ledgerRows = entries.map((entry) =>
+        `<details>
+          <summary>Source statement — ${escapeHtml(entry.ledger_entry_id || "entry")} — ${escapeHtml(entry.evidence_domain || "other")}</summary>
+          <p><strong>State: source_reported</strong></p>
+          <p>${escapeHtml(entry.source_statement || "not supplied")}</p>
+          <p><strong>Source:</strong> ${escapeHtml(entry.source_title || "unknown")} / ${escapeHtml(entry.source_identifier || "unknown")} / version ${escapeHtml(entry.source_version || "unknown")}</p>
+          <p><strong>Conflict:</strong> ${escapeHtml(entry.conflict_detected === true)} ${escapeHtml(entry.conflict_description || "")}</p>
+          <p><strong>Duplicate of:</strong> ${escapeHtml(notAvailable(entry.duplicate_of))}</p>
+          <p><strong>Newer version of:</strong> ${escapeHtml(notAvailable(entry.newer_version_of))}</p>
+          <p><strong>Human review:</strong> ${escapeHtml(notAvailable(entry.human_review_status))}</p>
+        </details>`
+      ).join("") || "<p>No source-backed evidence ledger entries.</p>";
+      const summaryRows = summaries.map((summary) =>
+        `<details>
+          <summary>Proposed evidence summary — ${escapeHtml(summary.summary_id || "summary")} — proposed_not_approved</summary>
+          <p><strong>State: system_generated</strong></p>
+          <p><strong>System-generated summary:</strong> ${escapeHtml(summary.system_summary || "not supplied")}</p>
+          <p><strong>Source ledger IDs:</strong> ${escapeHtml((summary.summary_based_on_source_ids || []).join(", ") || "none")}</p>
+          <p><strong>Limitations:</strong> ${escapeHtml((summary.summary_limitations || []).join("; ") || "none")}</p>
+        </details>`
+      ).join("") || "<p>No proposed evidence summary requested.</p>";
+      const interpretationRows = interpretations.map((item) =>
+        `<li><strong>External interpretation</strong> — ${escapeHtml(item.external_interpretation_source || "source")} — ${escapeHtml(item.external_interpretation_text || "not supplied")} — external_decision. External interpretation recorded; not assigned by InSilicoPop.</li>`
+      ).join("") || "<li>No external interpretation recorded.</li>";
+      const actionRows = actions.map((action) =>
+        `<li><strong>State: human_reviewed</strong> — ${escapeHtml(action.action || "review_action")} — ${escapeHtml(action.target_type || "target")} ${escapeHtml(action.target_id || "unknown")} — reviewer role ${escapeHtml(action.reviewer_role || "unknown")} — ${escapeHtml(action.timestamp || "unknown")}</li>`
+      ).join("") || "<li>No human-review actions recorded.</li>";
+      const conflicts = entries.filter((entry) => entry.conflict_detected === true);
+      const duplicates = entries.filter((entry) => entry.duplicate_of);
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>result intake</strong>${escapeHtml(workspace.result_intake_version || "unknown")}</div>
+          <div class="metric"><strong>normalization</strong>${escapeHtml(workspace.normalization_version || "unknown")}</div>
+          <div class="metric"><strong>source reports</strong>${escapeHtml(results.length)}</div>
+          <div class="metric"><strong>reported findings</strong>${escapeHtml(findings.length)}</div>
+          <div class="metric"><strong>ledger entries</strong>${escapeHtml(entries.length)}</div>
+          <div class="metric warn"><strong>requires review conflicts</strong>${escapeHtml(conflicts.length)}</div>
+          <div class="metric"><strong>duplicates retained</strong>${escapeHtml(duplicates.length)}</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <p class="note"><strong>State separation:</strong> source_reported, normalized, system_generated, human_reviewed, and external_decision are displayed as explicit text labels. The workspace records external content and source statements; it does not diagnose, assign ACMG criteria or a final classification, recommend treatment, or sign out a result.</p>
+        <p class="note"><strong>Status terminology:</strong> Requires review; No records returned; Source unavailable. These states describe workspace or selected-source status and are not clinical conclusions.</p>
+        <h3>Source report and result metadata</h3>${intakeRows}
+        <h3>Reported findings and normalized findings</h3>${findingRows}
+        <h3>Evidence-query builder and retrieval status</h3><ul>${retrievalRows}</ul>
+        <h3>Evidence ledger</h3>${ledgerRows}
+        <h3>Conflicts and duplicates</h3><p>${escapeHtml(conflicts.length)} conflict-linked record(s); ${escapeHtml(duplicates.length)} exact duplicate record(s). Differing sources remain unresolved.</p>
+        <h3>System-generated summaries</h3>${summaryRows}
+        <h3>External interpretation</h3><ul>${interpretationRows}</ul>
+        <h3>Human-review actions and audit history</h3><ul>${actionRows}</ul>`;
+    }
+
     // VARIANT_BADGE_LABELS_START
     function variantBadgeLabels(item) {
       const snapshot = item?.supplied_request_snapshot || {};
@@ -1280,6 +1378,7 @@
       renderPedigreeInheritanceAudit(data.pedigree_inheritance_audit || data.final_state?.pedigree_inheritance_audit);
       renderPreTestAssessment(data.pre_test_assessment || data.final_state?.pre_test_assessment);
       renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
+      renderResultEvidenceWorkspace(data.result_evidence_workspace || data.final_state?.result_evidence_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
       renderResultsAudit(data.results_audit || data.final_state?.results_audit);
       renderCommandPreviews(data.command_previews || [], recipe);
@@ -1335,6 +1434,7 @@
         renderPedigreeInheritanceAudit(detail?.pedigree_inheritance_audit);
         renderPreTestAssessment(detail?.pre_test_assessment);
         renderTestStrategyWorkspace(detail?.test_strategy_workspace);
+        renderResultEvidenceWorkspace(detail?.result_evidence_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);
         renderResultsAudit(detail?.results_audit);
         const workflowTarget = document.getElementById("workflow-selection");
