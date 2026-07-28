@@ -12,6 +12,7 @@ from app.insilicopop.clinical.variant_models import VariantIntelligenceResult
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentResult
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceResult
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceResult
+from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceResult
 from app.insilicopop.llm.byok_runtime import BYOKPublicStatus
 
 
@@ -54,6 +55,7 @@ class AgentState(BaseModel):
     pre_test_assessment: PreTestAssessmentResult | None = None
     test_strategy_workspace: TestStrategyWorkspaceResult | None = None
     result_evidence_workspace: ResultEvidenceWorkspaceResult | None = None
+    specialist_agent_workspace: SpecialistAgentWorkspaceResult | None = None
     byok_runtime: BYOKPublicStatus | None = None
 
     def record_action(self, action: AgentAction) -> None:

@@ -41,6 +41,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
+    "reproducibility/specialist_agent_workspace.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -127,6 +128,12 @@ class AgentRunSummary(BaseModel):
     evidence_conflict_count: int = 0
     evidence_duplicate_count: int = 0
     result_evidence_workspace_artifact_available: bool = False
+    specialist_agent_spawn_request_count: int = 0
+    specialist_agent_output_count: int = 0
+    specialist_agent_review_ready_output_count: int = 0
+    candidate_acmg_evidence_count: int = 0
+    specialist_disagreement_group_count: int = 0
+    specialist_agent_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -153,6 +160,7 @@ class AgentRunDetail(AgentRunSummary):
     pre_test_assessment: dict[str, Any] | None = None
     test_strategy_workspace: dict[str, Any] | None = None
     result_evidence_workspace: dict[str, Any] | None = None
+    specialist_agent_workspace: dict[str, Any] | None = None
     byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
@@ -212,6 +220,7 @@ class WorkbenchRunStore:
             pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
             result_evidence_workspace=state.get("result_evidence_workspace") if isinstance(state.get("result_evidence_workspace"), dict) else None,
+            specialist_agent_workspace=state.get("specialist_agent_workspace") if isinstance(state.get("specialist_agent_workspace"), dict) else None,
             byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
@@ -290,6 +299,8 @@ class WorkbenchRunStore:
         test_strategy_workspace = test_strategy_workspace if isinstance(test_strategy_workspace, dict) else {}
         result_evidence_workspace = state.get("result_evidence_workspace", {}) if isinstance(state, dict) else {}
         result_evidence_workspace = result_evidence_workspace if isinstance(result_evidence_workspace, dict) else {}
+        specialist_agent_workspace = state.get("specialist_agent_workspace", {}) if isinstance(state, dict) else {}
+        specialist_agent_workspace = specialist_agent_workspace if isinstance(specialist_agent_workspace, dict) else {}
         byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
         byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
@@ -377,6 +388,14 @@ class WorkbenchRunStore:
             ),
             result_evidence_workspace_artifact_available=(
                 run_dir / "reproducibility" / "result_evidence_workspace.json"
+            ).is_file(),
+            specialist_agent_spawn_request_count=len(specialist_agent_workspace.get("spawn_requests", []) or []),
+            specialist_agent_output_count=len(specialist_agent_workspace.get("agent_outputs", []) or []),
+            specialist_agent_review_ready_output_count=len(specialist_agent_workspace.get("review_ready_output_ids", []) or []),
+            candidate_acmg_evidence_count=len(specialist_agent_workspace.get("candidate_criteria", []) or []),
+            specialist_disagreement_group_count=len(specialist_agent_workspace.get("disagreement_groups", []) or []),
+            specialist_agent_workspace_artifact_available=(
+                run_dir / "reproducibility" / "specialist_agent_workspace.json"
             ).is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),

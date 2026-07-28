@@ -23,6 +23,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
+    "reproducibility/specialist_agent_workspace.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -62,6 +63,7 @@ class AgentInterpreter:
         pre_test_assessment: dict[str, Any] | None = None,
         test_strategy_workspace: dict[str, Any] | None = None,
         result_evidence_workspace: dict[str, Any] | None = None,
+        specialist_agent_workspace: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -91,6 +93,7 @@ class AgentInterpreter:
         pre_test_assessment = pre_test_assessment or {}
         test_strategy_workspace = test_strategy_workspace or {}
         result_evidence_workspace = result_evidence_workspace or {}
+        specialist_agent_workspace = specialist_agent_workspace or {}
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -183,6 +186,8 @@ class AgentInterpreter:
             *_test_strategy_workspace_lines(test_strategy_workspace),
             "",
             *_result_evidence_workspace_lines(result_evidence_workspace),
+            "",
+            *_specialist_agent_workspace_lines(specialist_agent_workspace),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -1016,6 +1021,99 @@ def _result_evidence_workspace_lines(workspace: dict[str, Any]) -> list[str]:
             "- final_acmg_classification_made: `false`",
             "- acmg_criteria_generated: `false`",
             "- clinical_sign_out_made: `false`",
+        ]
+    )
+    return lines
+
+
+def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:
+    if not workspace:
+        return []
+    registry = workspace.get("approved_registry", []) or []
+    decisions = workspace.get("spawn_decisions", []) or []
+    outputs = workspace.get("agent_outputs", []) or []
+    candidates = workspace.get("candidate_criteria", []) or []
+    disagreements = workspace.get("disagreement_groups", []) or []
+    lines = [
+        "## Specialist Agents and Candidate ACMG Workspace",
+        "",
+        "Bounded specialist tasks inspect only selected structured inputs and reviewed evidence-ledger records. "
+        "All agent conclusions remain proposed, not approved. Candidate ACMG evidence is an organizational "
+        "category requiring human review; it is not a criterion determination or a variant classification.",
+        f"- registry_version: `{_redact(str(workspace.get('registry_version', 'unknown')))}`",
+        f"- safety_policy_version: `{_redact(str(workspace.get('safety_policy_version', 'unknown')))}`",
+        f"- approved_specialist_count: `{len(registry)}`",
+        f"- spawn_request_count: `{len(workspace.get('spawn_requests', []) or [])}`",
+        f"- task_envelope_count: `{len(workspace.get('task_envelopes', []) or [])}`",
+        f"- proposed_agent_output_count: `{len(outputs)}`",
+        f"- review_ready_output_count: `{len(workspace.get('review_ready_output_ids', []) or [])}`",
+        f"- candidate_acmg_evidence_count: `{len(candidates)}`",
+        f"- disagreement_group_count: `{len(disagreements)}`",
+        "",
+        "### Approved Registry",
+    ]
+    for item in registry:
+        lines.append(
+            f"- `{_redact(str(item.get('agent_id', 'unknown')))}` — "
+            f"{_redact(str(item.get('display_name', 'Specialist agent')))}; "
+            f"may_spawn_agents=`false`"
+        )
+    if not registry:
+        lines.append("- No approved registry loaded.")
+    lines.extend(["", "### Bounded Task Decisions"])
+    for item in decisions:
+        lines.append(
+            f"- `{_redact(str(item.get('spawn_request_id', 'unknown')))}`: "
+            f"`{_redact(str(item.get('status', 'not_started')))}` — "
+            f"{_redact(str(item.get('message', 'Human decision required.')))}"
+        )
+    if not decisions:
+        lines.append("- No bounded task requested.")
+    lines.extend(["", "### Proposed Agent Outputs"])
+    for item in outputs:
+        lines.extend(
+            [
+                f"- `{_redact(str(item.get('agent_output_id', 'unknown')))}` / "
+                f"`{_redact(str(item.get('agent_id', 'unknown')))}`: "
+                f"`{_redact(str(item.get('status', 'not_started')))}` / proposed_not_approved",
+                f"  - {_redact(str(item.get('summary', 'No summary supplied.')))}",
+                f"  - source ledger IDs: `{', '.join(_redact(str(value)) for value in item.get('source_ledger_entry_ids', [])) or 'none'}`",
+                f"  - safety review: `{_redact(str((item.get('safety_review') or {}).get('review_status', 'unknown')))}`",
+            ]
+        )
+    if not outputs:
+        lines.append("- No specialist output generated.")
+    lines.extend(["", "### Candidate ACMG Evidence"])
+    for item in candidates:
+        lines.extend(
+            [
+                f"- `{_redact(str(item.get('candidate_criterion_id', 'unknown')))}` — "
+                f"`{_redact(str(item.get('criterion_code', 'unknown')))}` — "
+                f"`{_redact(str(item.get('candidate_status', 'requires_rule_review')))}`",
+                f"  - source ledger IDs: `{', '.join(_redact(str(value)) for value in item.get('source_ledger_entry_ids', [])) or 'none'}`",
+                "  - Human decision required. Accepted for discussion does not mean criterion satisfied.",
+            ]
+        )
+    if not candidates:
+        lines.append("- No candidate ACMG evidence item generated.")
+    lines.extend(
+        [
+            "",
+            "### External ACMG Assessment",
+            "External ACMG assessment recorded; not assigned by InSilicoPop."
+            if workspace.get("external_acmg_assessments")
+            else "No external ACMG assessment recorded.",
+            "",
+            "- recursive_spawning_used: `false`",
+            "- dynamic_roles_created: `false`",
+            "- majority_vote_used: `false`",
+            "- automatic_criterion_combination_used: `false`",
+            "- pathogenicity_score_calculated: `false`",
+            "- diagnosis_made: `false`",
+            "- treatment_recommendation_made: `false`",
+            "- test_order_placed: `false`",
+            "- clinical_sign_out_made: `false`",
+            "- human_review_required: `true`",
         ]
     )
     return lines

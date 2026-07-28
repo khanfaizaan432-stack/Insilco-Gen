@@ -62,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     agent_run.add_argument("--memory-mode", default="compact", choices=["compact", "ultra_compact"])
     agent_run.add_argument("--max-steps", type=int, default=8)
     agent_run.add_argument("--llm-provider", default="mock", choices=["mock", "openai_compatible"])
+    agent_run.add_argument("--clinical-case-intake")
 
     args = parser.parse_args(argv)
     if args.command == "benchmark-memory":
@@ -89,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
             memory_budget_chars=args.memory_budget_chars,
             memory_mode=args.memory_mode,
             llm_provider=args.llm_provider,
+            clinical_case_intake=_json_object_file(args.clinical_case_intake) if args.clinical_case_intake else None,
         )
         top_failure = result["failure_reasons"][0]["message"] if result["failure_reasons"] else "none"
         memory_size = result["carried_memory"].get("size_chars", 0)
@@ -110,6 +112,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"generated_report={report_path}")
         print("external_llm_called=false")
         print("external_tools_executed=false")
+        specialist = result["final_state"].get("specialist_agent_workspace") or {}
+        print(f"specialist_agent_outputs={len(specialist.get('agent_outputs', []))}")
+        print(f"candidate_acmg_evidence_items={len(specialist.get('candidate_criteria', []))}")
         return 0
     if args.command == "benchmark-agent-memory":
         result = AgentMemoryBenchmarkRunner().run(args.scenario, args.budget_chars, args.memory_mode)
@@ -173,6 +178,13 @@ def _print_history(last: int) -> None:
             f"{row['run_id']} | {row['scenario']} | {row['method']} | "
             f"{critical} | {ratio} | {score}"
         )
+
+
+def _json_object_file(path_value: str) -> dict[str, Any]:
+    value = json.loads(Path(path_value).read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("clinical case intake file must contain a JSON object")
+    return value
 
 
 if __name__ == "__main__":

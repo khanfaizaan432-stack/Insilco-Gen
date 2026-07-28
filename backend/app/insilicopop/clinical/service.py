@@ -30,6 +30,8 @@ from app.insilicopop.clinical.test_strategy import build_test_strategy_workspace
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceResult
 from app.insilicopop.clinical.result_evidence import build_result_evidence_workspace
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceResult
+from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceResult
+from app.insilicopop.clinical.specialist_agents import build_specialist_agent_workspace
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -227,6 +229,59 @@ def build_clinical_case_result_evidence_bundle(
         pretest_assessment,
         strategy_workspace,
         result_evidence_workspace,
+    )
+
+
+def build_clinical_case_specialist_agent_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+    PreTestAssessmentResult | None,
+    TestStrategyWorkspaceResult | None,
+    ResultEvidenceWorkspaceResult | None,
+    SpecialistAgentWorkspaceResult | None,
+]:
+    (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+        result_evidence_workspace,
+    ) = build_clinical_case_result_evidence_bundle(payload, request_text=request_text)
+    try:
+        case = ClinicalCaseIntake.model_validate(payload)
+    except ValidationError:
+        return (
+            intake,
+            curation,
+            inheritance_audit,
+            variant_intelligence,
+            pretest_assessment,
+            strategy_workspace,
+            result_evidence_workspace,
+            None,
+        )
+    safe_case = sanitized_clinical_case(case)
+    specialist_agent_workspace = build_specialist_agent_workspace(
+        safe_case,
+        pretest_assessment=pretest_assessment,
+        test_strategy_workspace=strategy_workspace,
+        result_evidence_workspace=result_evidence_workspace,
+    )
+    return (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+        result_evidence_workspace,
+        specialist_agent_workspace,
     )
 
 
