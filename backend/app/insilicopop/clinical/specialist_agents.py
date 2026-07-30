@@ -6,6 +6,8 @@ import re
 from collections import defaultdict
 from typing import Any
 
+from pydantic import ValidationError
+
 from app.insilicopop.clinical.models import ClinicalCaseIntake
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentResult
 from app.insilicopop.clinical.result_evidence_models import (
@@ -47,6 +49,9 @@ from app.insilicopop.clinical.specialist_agent_models import (
     SpecialistHumanReviewAction,
     SpecialistReproducibility,
     SpecialistReviewActionType,
+    SpecialistReviewActionResult,
+    SpecialistReviewActionResultStatus,
+    SpecialistReviewRejectionReason,
     SpecialistReviewStatus,
     TaskApprovalStatus,
     ToolPolicy,
@@ -70,6 +75,36 @@ _EVIDENCE_TASKS = {
     AgentTaskType.REVIEW_POPULATION_FREQUENCY_EVIDENCE,
     AgentTaskType.PROPOSE_CANDIDATE_ACMG_EVIDENCE,
     AgentTaskType.REVIEW_EVIDENCE_CONFLICT,
+}
+_ACTION_TARGET_ALLOWLIST = {
+    "spawn_request": {
+        SpecialistReviewActionType.APPROVE_AGENT_TASK,
+        SpecialistReviewActionType.REJECT_AGENT_TASK,
+        SpecialistReviewActionType.CANCEL_AGENT_TASK,
+        SpecialistReviewActionType.RERUN_WITH_SAME_INPUTS,
+        SpecialistReviewActionType.RERUN_WITH_EDITED_INPUTS,
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION,
+    },
+    "agent_output": {
+        SpecialistReviewActionType.ACCEPT_AGENT_OUTPUT_FOR_DISCUSSION,
+        SpecialistReviewActionType.EDIT_AGENT_OUTPUT,
+        SpecialistReviewActionType.REJECT_AGENT_OUTPUT,
+        SpecialistReviewActionType.DEFER_AGENT_OUTPUT,
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION,
+    },
+    "candidate_criterion": {
+        SpecialistReviewActionType.ACCEPT_CANDIDATE_FOR_DISCUSSION,
+        SpecialistReviewActionType.EDIT_CANDIDATE,
+        SpecialistReviewActionType.REJECT_CANDIDATE,
+        SpecialistReviewActionType.MARK_CANDIDATE_NOT_APPLICABLE,
+        SpecialistReviewActionType.MARK_CANDIDATE_CONFLICTING,
+        SpecialistReviewActionType.DEFER_CANDIDATE,
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION,
+    },
+    "external_acmg_assessment": {
+        SpecialistReviewActionType.RECORD_EXTERNAL_ACMG_ASSESSMENT,
+        SpecialistReviewActionType.RECORD_EXTERNAL_CLASSIFICATION,
+    },
 }
 _FORBIDDEN_OUTPUT_PATTERNS = {
     "diagnosis": re.compile(r"(?i)\b(?:diagnosis\s+(?:is|confirmed)|diagnosed\s+with)\b"),
@@ -249,14 +284,19 @@ def build_specialist_agent_workspace(
     }
     available_fact_ids = _available_fact_ids(case, pretest_assessment, test_strategy_workspace)
     actions = sorted(request.review_actions, key=lambda item: (item.timestamp, item.action_id))
-    actions_by_target: dict[str, list[SpecialistHumanReviewAction]] = defaultdict(list)
+    actions_by_target: dict[
+        tuple[str, str], list[SpecialistHumanReviewAction]
+    ] = defaultdict(list)
     for action in actions:
-        actions_by_target[action.target_id].append(action)
+        actions_by_target[(action.target_type, action.target_id)].append(action)
 
     decisions: list[SpawnDecision] = []
     envelopes: list[AgentTaskEnvelope] = []
     outputs: list[SpecialistAgentOutput] = []
     candidates: list[CandidateCriterionRecord] = []
+    applied_actions: list[SpecialistHumanReviewAction] = []
+    action_results: list[SpecialistReviewActionResult] = []
+    processed_action_ids: set[str] = set()
     trace: list[SpecialistExecutionTraceEvent] = []
     candidate_requests_by_spawn: dict[str, list[CandidateCriterionRequest]] = defaultdict(list)
     for item in request.candidate_requests:
@@ -278,11 +318,17 @@ def build_specialist_agent_workspace(
                     },
                 )
             )
+        approval, spawn_applied, spawn_results = _apply_spawn_review_actions(
+            spawn,
+            actions_by_target.get(
+                ("spawn_request", spawn.spawn_request_id), []
+            ),
+        )
         decision, envelope = _evaluate_spawn_request(
             case=case,
             spawn=spawn,
             definition=definition,
-            actions=actions_by_target.get(spawn.spawn_request_id, []),
+            approval=approval,
             finding_by_id=finding_by_id,
             ledger_by_id=ledger_by_id,
             reviewed_ledger_ids=reviewed_ledger_ids,
@@ -293,6 +339,9 @@ def build_specialist_agent_workspace(
             result_evidence_workspace=workspace,
             candidate_requests=candidate_requests_by_spawn.get(spawn.spawn_request_id, []),
         )
+        applied_actions.extend(spawn_applied)
+        action_results.extend(spawn_results)
+        processed_action_ids.update(item.action_id for item in spawn_results)
         decisions.append(decision)
         if envelope is None:
             trace.append(
@@ -343,7 +392,16 @@ def build_specialist_agent_workspace(
             envelope=envelope,
             ledger_by_id=ledger_by_id,
         )
-        output = _apply_output_review_actions(output, actions_by_target.get(output.agent_output_id, []))
+        output, output_applied, output_results = _apply_output_review_actions(
+            output,
+            actions_by_target.get(("agent_output", output.agent_output_id), []),
+            definition=definition,
+            envelope=envelope,
+            ledger_by_id=ledger_by_id,
+        )
+        applied_actions.extend(output_applied)
+        action_results.extend(output_results)
+        processed_action_ids.update(item.action_id for item in output_results)
         outputs.append(output)
         trace.extend(_output_trace(spawn, envelope, output))
         if (
@@ -381,13 +439,70 @@ def build_specialist_agent_workspace(
                 )
             )
 
-    candidates = [
-        _apply_candidate_review_actions(
-            item,
-            actions_by_target.get(item.candidate_criterion_id, []),
+    reviewed_candidates: list[CandidateCriterionRecord] = []
+    for item in candidates:
+        candidate, candidate_applied, candidate_results = (
+            _apply_candidate_review_actions(
+                item,
+                actions_by_target.get(
+                    ("candidate_criterion", item.candidate_criterion_id), []
+                ),
+            )
         )
-        for item in candidates
-    ]
+        reviewed_candidates.append(candidate)
+        applied_actions.extend(candidate_applied)
+        action_results.extend(candidate_results)
+        processed_action_ids.update(item.action_id for item in candidate_results)
+    candidates = reviewed_candidates
+    external_by_id = {
+        item.external_assessment_id: item
+        for item in request.external_acmg_assessments
+    }
+    external_ids = set(external_by_id)
+    for external_id in sorted(external_ids):
+        for action in actions_by_target.get(
+            ("external_acmg_assessment", external_id), []
+        ):
+            result = _apply_external_review_action(
+                action, external_by_id[external_id]
+            )
+            action_results.append(result)
+            processed_action_ids.add(action.action_id)
+            if result.result_status == SpecialistReviewActionResultStatus.APPLIED:
+                applied_actions.append(action)
+    target_ids_by_type = {
+        "spawn_request": {item.spawn_request_id for item in request.spawn_requests},
+        "agent_output": {item.agent_output_id for item in outputs},
+        "candidate_criterion": {
+            item.candidate_criterion_id for item in candidates
+        },
+        "external_acmg_assessment": external_ids,
+    }
+    for action in actions:
+        if action.action_id in processed_action_ids:
+            continue
+        exists_elsewhere = any(
+            action.target_id in identifiers
+            for target_type, identifiers in target_ids_by_type.items()
+            if target_type != action.target_type
+        )
+        action_results.append(
+            _rejected_action_result(
+                action,
+                reason=(
+                    SpecialistReviewRejectionReason.TARGET_TYPE_MISMATCH
+                    if exists_elsewhere
+                    else SpecialistReviewRejectionReason.TARGET_NOT_FOUND
+                ),
+                message=(
+                    "The declared target type does not match the authoritative object collection."
+                    if exists_elsewhere
+                    else "The declared target does not exist in the authoritative workspace collection."
+                ),
+            )
+        )
+    action_results.sort(key=lambda item: (item.timestamp, item.action_id))
+    applied_actions.sort(key=lambda item: (item.timestamp, item.action_id))
     disagreements = _build_disagreement_groups(case.pseudonymous_case_id, outputs)
     trace.extend(
         [
@@ -395,8 +510,26 @@ def build_specialist_agent_workspace(
                 event="human_review_actions",
                 status="recorded",
                 details={
-                    "action_ids": [item.action_id for item in actions],
-                    "action_count": len(actions),
+                    "requested_action_ids": [item.action_id for item in actions],
+                    "requested_action_count": len(actions),
+                    "applied_action_ids": [
+                        item.action_id for item in applied_actions
+                    ],
+                    "applied_action_count": len(applied_actions),
+                    "rejected_action_ids": [
+                        item.action_id
+                        for item in action_results
+                        if item.result_status
+                        == SpecialistReviewActionResultStatus.REJECTED
+                    ],
+                    "rejected_action_count": sum(
+                        item.result_status
+                        == SpecialistReviewActionResultStatus.REJECTED
+                        for item in action_results
+                    ),
+                    "action_results": [
+                        item.model_dump(mode="json") for item in action_results
+                    ],
                 },
             ),
             SpecialistExecutionTraceEvent(
@@ -438,6 +571,12 @@ def build_specialist_agent_workspace(
         candidate_rule_versions=sorted({item.candidate_rule_version for item in candidates}),
         candidate_criterion_ids=sorted(item.candidate_criterion_id for item in candidates),
         human_review_actions=[item.model_dump(mode="json") for item in actions],
+        applied_human_review_actions=[
+            item.model_dump(mode="json") for item in applied_actions
+        ],
+        human_review_action_results=[
+            item.model_dump(mode="json") for item in action_results
+        ],
         safety_policy_version=AGENT_SAFETY_POLICY_VERSION,
     )
     return SpecialistAgentWorkspaceResult(
@@ -451,6 +590,9 @@ def build_specialist_agent_workspace(
         candidate_criteria=sorted(candidates, key=lambda item: item.candidate_criterion_id),
         disagreement_groups=sorted(disagreements, key=lambda item: item.disagreement_group_id),
         review_actions=actions,
+        requested_review_actions=actions,
+        applied_review_actions=applied_actions,
+        review_action_results=action_results,
         external_acmg_assessments=sorted(
             request.external_acmg_assessments,
             key=lambda item: item.external_assessment_id,
@@ -487,8 +629,16 @@ def validate_agent_output(
                 and ledger_by_id[ledger_id].finding_id not in envelope.allowed_finding_ids
             )
         }
+    reviewable_text = "\n".join(
+        value
+        for value in (output.summary, output.human_reviewed_summary)
+        if value
+    )
     summary_ledger_ids = set(
-        re.findall(r"(?i)\b(?:ledger-[a-f0-9]{8,64}|LEDGER-[A-Za-z0-9_.:-]+)\b", output.summary)
+        re.findall(
+            r"(?i)\b(?:ledger-[a-f0-9]{8,64}|LEDGER-[A-Za-z0-9_.:-]+)\b",
+            reviewable_text,
+        )
     )
     unsupported.update(summary_ledger_ids - set(envelope.allowed_ledger_entry_ids))
     referenced_facts = set(output.source_fact_ids)
@@ -520,7 +670,7 @@ def validate_agent_output(
         {
             label
             for label, pattern in _FORBIDDEN_OUTPUT_PATTERNS.items()
-            if pattern.search(output.summary)
+            if pattern.search(reviewable_text)
             or any(
                 pattern.search(item.statement)
                 for item in output.structured_observations
@@ -597,7 +747,7 @@ def _evaluate_spawn_request(
     case: ClinicalCaseIntake,
     spawn: AgentSpawnRequest,
     definition: SpecialistAgentDefinition | None,
-    actions: list[SpecialistHumanReviewAction],
+    approval: TaskApprovalStatus,
     finding_by_id: dict[str, Any],
     ledger_by_id: dict[str, EvidenceLedgerEntry],
     reviewed_ledger_ids: set[str],
@@ -616,7 +766,6 @@ def _evaluate_spawn_request(
         return _blocked(spawn, AgentExecutionStatus.BLOCKED_BY_POLICY, "AGENT-007", "Requested task asks for a prohibited clinical conclusion or action.")
     if spawn.requested_task_type not in definition.allowed_task_types:
         return _blocked(spawn, AgentExecutionStatus.BLOCKED_BY_POLICY, "AGENT-TASK-001", "Requested task type is not permitted for this agent.")
-    approval = _effective_task_approval(spawn, actions)
     if approval == TaskApprovalStatus.REJECTED or approval == TaskApprovalStatus.CANCELLED:
         return _blocked(spawn, AgentExecutionStatus.CANCELLED, "AGENT-REVIEW-002", "Human reviewer rejected or cancelled the bounded task.")
     if approval != TaskApprovalStatus.APPROVED:
@@ -994,33 +1143,177 @@ def _candidate_record(
 def _apply_output_review_actions(
     output: SpecialistAgentOutput,
     actions: list[SpecialistHumanReviewAction],
-) -> SpecialistAgentOutput:
-    update: dict[str, Any] = {}
+    *,
+    definition: SpecialistAgentDefinition,
+    envelope: AgentTaskEnvelope,
+    ledger_by_id: dict[str, EvidenceLedgerEntry],
+) -> tuple[
+    SpecialistAgentOutput,
+    list[SpecialistHumanReviewAction],
+    list[SpecialistReviewActionResult],
+]:
+    applied: list[SpecialistHumanReviewAction] = []
+    results: list[SpecialistReviewActionResult] = []
+    transitions = {
+        SpecialistReviewActionType.ACCEPT_AGENT_OUTPUT_FOR_DISCUSSION: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+            },
+            SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+        ),
+        SpecialistReviewActionType.REJECT_AGENT_OUTPUT: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            SpecialistReviewStatus.REJECTED,
+        ),
+        SpecialistReviewActionType.DEFER_AGENT_OUTPUT: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            SpecialistReviewStatus.DEFERRED,
+        ),
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+            },
+            SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+        ),
+    }
     for action in sorted(actions, key=lambda item: (item.timestamp, item.action_id)):
-        if action.target_type != "agent_output":
+        before = _output_review_snapshot(output)
+        if action.action not in _ACTION_TARGET_ALLOWLIST["agent_output"]:
+            results.append(
+                _rejected_action_result(
+                    action,
+                    SpecialistReviewRejectionReason.ACTION_TARGET_MISMATCH,
+                    "The requested action is not allowed for a specialist output.",
+                    before=before,
+                )
+            )
             continue
-        if action.action == SpecialistReviewActionType.ACCEPT_AGENT_OUTPUT_FOR_DISCUSSION:
-            update["human_review_status"] = SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION
-        elif action.action == SpecialistReviewActionType.EDIT_AGENT_OUTPUT:
-            update["human_review_status"] = SpecialistReviewStatus.EDITED
-            if isinstance(action.after_value, dict) and action.after_value.get("summary"):
-                update["human_reviewed_summary"] = str(action.after_value["summary"])[:4000]
-        elif action.action == SpecialistReviewActionType.REJECT_AGENT_OUTPUT:
-            update["human_review_status"] = SpecialistReviewStatus.REJECTED
-        elif action.action == SpecialistReviewActionType.DEFER_AGENT_OUTPUT:
-            update["human_review_status"] = SpecialistReviewStatus.DEFERRED
-        elif action.action == SpecialistReviewActionType.REQUEST_MORE_INFORMATION:
-            update["human_review_status"] = SpecialistReviewStatus.MORE_INFORMATION_REQUESTED
-        if action.notes:
-            update["reviewer_notes"] = action.notes
-    return output.model_copy(update=update) if update else output
+        required_before = (
+            {"summary", "human_review_status"}
+            if action.action == SpecialistReviewActionType.EDIT_AGENT_OUTPUT
+            else {"human_review_status"}
+        )
+        rejection = _validate_before_value(action, before, required_before)
+        if rejection:
+            results.append(rejection)
+            continue
+        if action.action == SpecialistReviewActionType.EDIT_AGENT_OUTPUT:
+            if output.human_review_status not in {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            }:
+                results.append(
+                    _invalid_transition_result(action, before)
+                )
+                continue
+            if not isinstance(action.after_value, dict):
+                results.append(_after_value_required_result(action, before))
+                continue
+            if set(action.after_value) != {"summary"}:
+                results.append(
+                    _rejected_action_result(
+                        action,
+                        SpecialistReviewRejectionReason.INVALID_EDIT_PAYLOAD,
+                        "Output edits support only one bounded human-reviewed summary field.",
+                        before=before,
+                        validation_categories=["unsupported_edit_field"],
+                    )
+                )
+                continue
+            payload = output.model_dump(mode="json")
+            payload.update(
+                {
+                    "human_review_status": SpecialistReviewStatus.EDITED.value,
+                    "human_reviewed_summary": action.after_value["summary"],
+                    "reviewer_notes": action.notes or output.reviewer_notes,
+                }
+            )
+            try:
+                edited = SpecialistAgentOutput.model_validate(payload)
+            except ValidationError as exc:
+                results.append(
+                    _validation_rejection(action, before, exc)
+                )
+                continue
+            edited = validate_agent_output(
+                edited,
+                definition=definition,
+                envelope=envelope,
+                ledger_by_id=ledger_by_id,
+            )
+            if not edited.safety_review.passed:
+                reason = (
+                    SpecialistReviewRejectionReason.FORBIDDEN_EDIT
+                    if edited.safety_review.forbidden_language_matches
+                    else SpecialistReviewRejectionReason.INVALID_EDIT_PAYLOAD
+                )
+                categories = sorted(
+                    set(
+                        edited.safety_review.forbidden_language_matches
+                        + (
+                            ["unsupported_source_reference"]
+                            if edited.safety_review.unsupported_source_references
+                            else []
+                        )
+                    )
+                )
+                results.append(
+                    _rejected_action_result(
+                        action,
+                        reason,
+                        "The edited output failed specialist output safety validation.",
+                        before=before,
+                        validation_categories=categories,
+                    )
+                )
+                continue
+            output = edited
+        else:
+            allowed_states, next_state = transitions[action.action]
+            if output.human_review_status not in allowed_states:
+                results.append(_invalid_transition_result(action, before))
+                continue
+            expected_after = {"human_review_status": next_state.value}
+            rejection = _validate_after_value(action, expected_after, before)
+            if rejection:
+                results.append(rejection)
+                continue
+            payload = output.model_dump(mode="json")
+            payload["human_review_status"] = next_state.value
+            if action.notes:
+                payload["reviewer_notes"] = action.notes
+            output = SpecialistAgentOutput.model_validate(payload)
+        after = _output_review_snapshot(output)
+        applied.append(action)
+        results.append(_applied_action_result(action, before, after))
+    return output, applied, results
 
 
 def _apply_candidate_review_actions(
     candidate: CandidateCriterionRecord,
     actions: list[SpecialistHumanReviewAction],
-) -> CandidateCriterionRecord:
-    update: dict[str, Any] = {}
+) -> tuple[
+    CandidateCriterionRecord,
+    list[SpecialistHumanReviewAction],
+    list[SpecialistReviewActionResult],
+]:
+    applied: list[SpecialistHumanReviewAction] = []
+    results: list[SpecialistReviewActionResult] = []
     editable = {
         "proposed_strength",
         "supporting_observations",
@@ -1032,38 +1325,178 @@ def _apply_candidate_review_actions(
         "phenotype_context",
         "technical_limitations",
     }
+    transitions = {
+        SpecialistReviewActionType.ACCEPT_CANDIDATE_FOR_DISCUSSION: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.CONFLICTING,
+            },
+            CandidateStatus.ACCEPTED_FOR_DISCUSSION,
+            SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+        ),
+        SpecialistReviewActionType.REJECT_CANDIDATE: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.CONFLICTING,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            CandidateStatus.REJECTED_BY_REVIEWER,
+            SpecialistReviewStatus.REJECTED,
+        ),
+        SpecialistReviewActionType.MARK_CANDIDATE_NOT_APPLICABLE: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.CONFLICTING,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            CandidateStatus.NOT_APPLICABLE,
+            SpecialistReviewStatus.NOT_APPLICABLE,
+        ),
+        SpecialistReviewActionType.MARK_CANDIDATE_CONFLICTING: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            CandidateStatus.CONFLICTING_SUPPORT,
+            SpecialistReviewStatus.CONFLICTING,
+        ),
+        SpecialistReviewActionType.DEFER_CANDIDATE: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.CONFLICTING,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            },
+            CandidateStatus.DEFERRED,
+            SpecialistReviewStatus.DEFERRED,
+        ),
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION: (
+            {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.CONFLICTING,
+            },
+            None,
+            SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+        ),
+    }
     for action in sorted(actions, key=lambda item: (item.timestamp, item.action_id)):
-        if action.target_type != "candidate_criterion":
-            continue
-        if action.action == SpecialistReviewActionType.ACCEPT_CANDIDATE_FOR_DISCUSSION:
-            update["candidate_status"] = CandidateStatus.ACCEPTED_FOR_DISCUSSION
-            update["human_review_status"] = SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION
-        elif action.action == SpecialistReviewActionType.EDIT_CANDIDATE:
-            update["human_review_status"] = SpecialistReviewStatus.EDITED
-            if isinstance(action.after_value, dict):
-                update.update(
-                    {
-                        key: value
-                        for key, value in action.after_value.items()
-                        if key in editable
-                    }
+        before = _candidate_review_snapshot(candidate)
+        if action.action not in _ACTION_TARGET_ALLOWLIST["candidate_criterion"]:
+            results.append(
+                _rejected_action_result(
+                    action,
+                    SpecialistReviewRejectionReason.ACTION_TARGET_MISMATCH,
+                    "The requested action is not allowed for a candidate criterion.",
+                    before=before,
                 )
-        elif action.action == SpecialistReviewActionType.REJECT_CANDIDATE:
-            update["candidate_status"] = CandidateStatus.REJECTED_BY_REVIEWER
-            update["human_review_status"] = SpecialistReviewStatus.REJECTED
-        elif action.action == SpecialistReviewActionType.MARK_CANDIDATE_NOT_APPLICABLE:
-            update["candidate_status"] = CandidateStatus.NOT_APPLICABLE
-            update["human_review_status"] = SpecialistReviewStatus.NOT_APPLICABLE
-        elif action.action == SpecialistReviewActionType.MARK_CANDIDATE_CONFLICTING:
-            update["candidate_status"] = CandidateStatus.CONFLICTING_SUPPORT
-            update["human_review_status"] = SpecialistReviewStatus.CONFLICTING
-        elif action.action == SpecialistReviewActionType.DEFER_CANDIDATE:
-            update["candidate_status"] = CandidateStatus.DEFERRED
-            update["human_review_status"] = SpecialistReviewStatus.DEFERRED
-        if action.notes:
-            update["reviewer_notes"] = action.notes
-        update["updated_at"] = action.timestamp
-    return candidate.model_copy(update=update) if update else candidate
+            )
+            continue
+        if action.action == SpecialistReviewActionType.EDIT_CANDIDATE:
+            if candidate.human_review_status not in {
+                SpecialistReviewStatus.PENDING,
+                SpecialistReviewStatus.EDITED,
+                SpecialistReviewStatus.ACCEPTED_FOR_DISCUSSION,
+                SpecialistReviewStatus.CONFLICTING,
+                SpecialistReviewStatus.MORE_INFORMATION_REQUESTED,
+            }:
+                results.append(_invalid_transition_result(action, before))
+                continue
+            if not isinstance(action.after_value, dict) or not action.after_value:
+                results.append(_after_value_required_result(action, before))
+                continue
+            edit_fields = set(action.after_value)
+            if not edit_fields.issubset(editable):
+                results.append(
+                    _rejected_action_result(
+                        action,
+                        SpecialistReviewRejectionReason.INVALID_EDIT_PAYLOAD,
+                        "The candidate edit contains one or more unsupported fields.",
+                        before=before,
+                        validation_categories=["unsupported_edit_field"],
+                    )
+                )
+                continue
+            rejection = _validate_before_value(
+                action, before, edit_fields | {"human_review_status"}
+            )
+            if rejection:
+                results.append(rejection)
+                continue
+            if _contains_forbidden_review_text(action.after_value):
+                results.append(
+                    _rejected_action_result(
+                        action,
+                        SpecialistReviewRejectionReason.FORBIDDEN_EDIT,
+                        "The candidate edit contains prohibited clinical conclusion wording.",
+                        before=before,
+                        validation_categories=["forbidden_clinical_conclusion"],
+                    )
+                )
+                continue
+            payload = candidate.model_dump(mode="json")
+            payload.update(action.after_value)
+            payload.update(
+                {
+                    "human_review_status": SpecialistReviewStatus.EDITED.value,
+                    "reviewer_notes": action.notes or candidate.reviewer_notes,
+                    "updated_at": action.timestamp,
+                }
+            )
+            try:
+                candidate = CandidateCriterionRecord.model_validate(payload)
+            except ValidationError as exc:
+                results.append(_validation_rejection(action, before, exc))
+                continue
+        else:
+            rejection = _validate_before_value(
+                action, before, {"candidate_status"}
+            )
+            if rejection:
+                results.append(rejection)
+                continue
+            allowed_states, candidate_status, review_status = transitions[action.action]
+            if candidate.human_review_status not in allowed_states:
+                results.append(_invalid_transition_result(action, before))
+                continue
+            expected_after = {
+                "candidate_status": (
+                    candidate_status.value
+                    if candidate_status is not None
+                    else candidate.candidate_status.value
+                ),
+                "human_review_status": review_status.value,
+            }
+            rejection = _validate_after_value(
+                action,
+                expected_after,
+                before,
+                required_keys={"candidate_status"},
+            )
+            if rejection:
+                results.append(rejection)
+                continue
+            payload = candidate.model_dump(mode="json")
+            if candidate_status is not None:
+                payload["candidate_status"] = candidate_status.value
+            payload["human_review_status"] = review_status.value
+            payload["updated_at"] = action.timestamp
+            if action.notes:
+                payload["reviewer_notes"] = action.notes
+            candidate = CandidateCriterionRecord.model_validate(payload)
+        after = _candidate_review_snapshot(candidate)
+        applied.append(action)
+        results.append(_applied_action_result(action, before, after))
+    return candidate, applied, results
 
 
 def _output_is_review_ready(output: SpecialistAgentOutput) -> bool:
@@ -1257,25 +1690,317 @@ def _reviewed_ledger_ids(workspace: ResultEvidenceWorkspaceResult | None) -> set
     return reviewed
 
 
-def _effective_task_approval(
+def _apply_spawn_review_actions(
     spawn: AgentSpawnRequest,
     actions: list[SpecialistHumanReviewAction],
-) -> TaskApprovalStatus:
+) -> tuple[
+    TaskApprovalStatus,
+    list[SpecialistHumanReviewAction],
+    list[SpecialistReviewActionResult],
+]:
     status = spawn.human_review_status
+    applied: list[SpecialistHumanReviewAction] = []
+    results: list[SpecialistReviewActionResult] = []
+    transitions = {
+        SpecialistReviewActionType.APPROVE_AGENT_TASK: (
+            {TaskApprovalStatus.PENDING, TaskApprovalStatus.REQUIRES_REVIEW},
+            TaskApprovalStatus.APPROVED,
+        ),
+        SpecialistReviewActionType.REJECT_AGENT_TASK: (
+            {
+                TaskApprovalStatus.PENDING,
+                TaskApprovalStatus.APPROVED,
+                TaskApprovalStatus.REQUIRES_REVIEW,
+            },
+            TaskApprovalStatus.REJECTED,
+        ),
+        SpecialistReviewActionType.CANCEL_AGENT_TASK: (
+            {
+                TaskApprovalStatus.PENDING,
+                TaskApprovalStatus.APPROVED,
+                TaskApprovalStatus.REQUIRES_REVIEW,
+            },
+            TaskApprovalStatus.CANCELLED,
+        ),
+        SpecialistReviewActionType.RERUN_WITH_SAME_INPUTS: (
+            {
+                TaskApprovalStatus.REJECTED,
+                TaskApprovalStatus.CANCELLED,
+                TaskApprovalStatus.REQUIRES_REVIEW,
+            },
+            TaskApprovalStatus.APPROVED,
+        ),
+        SpecialistReviewActionType.RERUN_WITH_EDITED_INPUTS: (
+            {
+                TaskApprovalStatus.REJECTED,
+                TaskApprovalStatus.CANCELLED,
+                TaskApprovalStatus.REQUIRES_REVIEW,
+            },
+            TaskApprovalStatus.APPROVED,
+        ),
+        SpecialistReviewActionType.REQUEST_MORE_INFORMATION: (
+            {TaskApprovalStatus.PENDING, TaskApprovalStatus.APPROVED},
+            TaskApprovalStatus.REQUIRES_REVIEW,
+        ),
+    }
     for action in sorted(actions, key=lambda item: (item.timestamp, item.action_id)):
-        if action.target_type != "spawn_request":
+        before = {"human_review_status": status.value}
+        if action.action not in _ACTION_TARGET_ALLOWLIST["spawn_request"]:
+            results.append(
+                _rejected_action_result(
+                    action,
+                    SpecialistReviewRejectionReason.ACTION_TARGET_MISMATCH,
+                    "The requested action is not allowed for a spawn request.",
+                    before=before,
+                )
+            )
             continue
-        if action.action in {
-            SpecialistReviewActionType.APPROVE_AGENT_TASK,
-            SpecialistReviewActionType.RERUN_WITH_SAME_INPUTS,
-            SpecialistReviewActionType.RERUN_WITH_EDITED_INPUTS,
-        }:
-            status = TaskApprovalStatus.APPROVED
-        elif action.action == SpecialistReviewActionType.REJECT_AGENT_TASK:
-            status = TaskApprovalStatus.REJECTED
-        elif action.action == SpecialistReviewActionType.CANCEL_AGENT_TASK:
-            status = TaskApprovalStatus.CANCELLED
-    return status
+        rejection = _validate_before_value(
+            action, before, {"human_review_status"}
+        )
+        if rejection:
+            results.append(rejection)
+            continue
+        allowed_states, next_state = transitions[action.action]
+        if status not in allowed_states:
+            results.append(_invalid_transition_result(action, before))
+            continue
+        expected_after = {"human_review_status": next_state.value}
+        rejection = _validate_after_value(action, expected_after, before)
+        if rejection:
+            results.append(rejection)
+            continue
+        status = next_state
+        applied.append(action)
+        results.append(
+            _applied_action_result(
+                action,
+                before,
+                {"human_review_status": status.value},
+            )
+        )
+    return status, applied, results
+
+
+def _apply_external_review_action(
+    action: SpecialistHumanReviewAction,
+    assessment: Any,
+) -> SpecialistReviewActionResult:
+    before = {
+        "external_acmg_assessment_recorded": bool(
+            assessment.external_acmg_assessment_recorded
+        ),
+        "verification_status": assessment.verification_status.value,
+    }
+    if action.action not in _ACTION_TARGET_ALLOWLIST["external_acmg_assessment"]:
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.ACTION_TARGET_MISMATCH,
+            "The requested action is not allowed for an external ACMG assessment.",
+            before=before,
+        )
+    if action.after_value is not None:
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.INVALID_EDIT_PAYLOAD,
+            "External assessment record actions do not accept a mutation payload.",
+            before=before,
+            validation_categories=["unsupported_edit_payload"],
+        )
+    if action.before_value is not None:
+        rejection = _validate_before_value(action, before, set())
+        if rejection:
+            return rejection
+    return _applied_action_result(action, before, before)
+
+
+def _output_review_snapshot(output: SpecialistAgentOutput) -> dict[str, Any]:
+    return {
+        "human_review_status": output.human_review_status.value,
+        "summary": output.human_reviewed_summary or output.summary,
+    }
+
+
+def _candidate_review_snapshot(
+    candidate: CandidateCriterionRecord,
+) -> dict[str, Any]:
+    payload = candidate.model_dump(mode="json")
+    return {
+        key: payload[key]
+        for key in (
+            "candidate_status",
+            "human_review_status",
+            "proposed_strength",
+            "supporting_observations",
+            "missing_prerequisites",
+            "applicability_notes",
+            "gene_disease_context",
+            "mechanism_context",
+            "inheritance_context",
+            "phenotype_context",
+            "technical_limitations",
+        )
+    }
+
+
+def _validate_before_value(
+    action: SpecialistHumanReviewAction,
+    authoritative: dict[str, Any],
+    required_keys: set[str],
+) -> SpecialistReviewActionResult | None:
+    if action.before_value is None:
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.BEFORE_VALUE_REQUIRED,
+            "The review action requires an authoritative before value.",
+            before=authoritative,
+        )
+    if not isinstance(action.before_value, dict) or not required_keys.issubset(
+        action.before_value
+    ):
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.BEFORE_VALUE_REQUIRED,
+            "The review action is missing one or more required before fields.",
+            before=authoritative,
+        )
+    if any(
+        key not in authoritative
+        or _canonical_json(value) != _canonical_json(authoritative[key])
+        for key, value in action.before_value.items()
+    ):
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.BEFORE_VALUE_MISMATCH,
+            "The supplied before value is stale or does not match authoritative state.",
+            before=authoritative,
+        )
+    return None
+
+
+def _validate_after_value(
+    action: SpecialistHumanReviewAction,
+    expected: dict[str, Any],
+    before: dict[str, Any],
+    *,
+    required_keys: set[str] | None = None,
+) -> SpecialistReviewActionResult | None:
+    required = required_keys if required_keys is not None else set(expected)
+    if not isinstance(action.after_value, dict) or not required.issubset(
+        action.after_value
+    ):
+        return _after_value_required_result(action, before)
+    if any(
+        key not in expected
+        or _canonical_json(value) != _canonical_json(expected[key])
+        for key, value in action.after_value.items()
+    ):
+        return _rejected_action_result(
+            action,
+            SpecialistReviewRejectionReason.AFTER_VALUE_MISMATCH,
+            "The supplied after value does not match the allowed transition.",
+            before=before,
+        )
+    return None
+
+
+def _after_value_required_result(
+    action: SpecialistHumanReviewAction,
+    before: dict[str, Any],
+) -> SpecialistReviewActionResult:
+    return _rejected_action_result(
+        action,
+        SpecialistReviewRejectionReason.AFTER_VALUE_REQUIRED,
+        "The review action requires a bounded after value.",
+        before=before,
+    )
+
+
+def _invalid_transition_result(
+    action: SpecialistHumanReviewAction,
+    before: dict[str, Any],
+) -> SpecialistReviewActionResult:
+    return _rejected_action_result(
+        action,
+        SpecialistReviewRejectionReason.INVALID_TRANSITION,
+        "The requested action is not allowed from the current authoritative state.",
+        before=before,
+    )
+
+
+def _validation_rejection(
+    action: SpecialistHumanReviewAction,
+    before: dict[str, Any],
+    error: ValidationError,
+) -> SpecialistReviewActionResult:
+    return _rejected_action_result(
+        action,
+        SpecialistReviewRejectionReason.INVALID_EDIT_PAYLOAD,
+        "The edit failed full typed model validation.",
+        before=before,
+        validation_categories=sorted(
+            {str(item.get("type", "validation_error")) for item in error.errors()}
+        ),
+    )
+
+
+def _applied_action_result(
+    action: SpecialistHumanReviewAction,
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> SpecialistReviewActionResult:
+    return SpecialistReviewActionResult(
+        action_id=action.action_id,
+        action=action.action,
+        target_type=action.target_type,
+        target_id=action.target_id,
+        result_status=SpecialistReviewActionResultStatus.APPLIED,
+        message="The review action was validated and applied.",
+        authoritative_before=before,
+        validated_after=after,
+        reviewer_role=action.reviewer_role,
+        reviewer_id=action.reviewer_id,
+        timestamp=action.timestamp,
+    )
+
+
+def _rejected_action_result(
+    action: SpecialistHumanReviewAction,
+    reason: SpecialistReviewRejectionReason,
+    message: str,
+    *,
+    before: dict[str, Any] | None = None,
+    validation_categories: list[str] | None = None,
+) -> SpecialistReviewActionResult:
+    return SpecialistReviewActionResult(
+        action_id=action.action_id,
+        action=action.action,
+        target_type=action.target_type,
+        target_id=action.target_id,
+        result_status=SpecialistReviewActionResultStatus.REJECTED,
+        rejection_reason=reason,
+        message=message,
+        authoritative_before=before,
+        validated_after=None,
+        validation_categories=validation_categories or [],
+        reviewer_role=action.reviewer_role,
+        reviewer_id=action.reviewer_id,
+        timestamp=action.timestamp,
+    )
+
+
+def _contains_forbidden_review_text(value: Any) -> bool:
+    if isinstance(value, str):
+        return any(pattern.search(value) for pattern in _FORBIDDEN_OUTPUT_PATTERNS.values())
+    if isinstance(value, dict):
+        return any(_contains_forbidden_review_text(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_forbidden_review_text(item) for item in value)
+    return False
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _budget_exceeds_definition(

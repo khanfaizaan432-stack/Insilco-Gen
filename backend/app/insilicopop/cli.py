@@ -115,6 +115,14 @@ def main(argv: list[str] | None = None) -> int:
         specialist = result["final_state"].get("specialist_agent_workspace") or {}
         print(f"specialist_agent_outputs={len(specialist.get('agent_outputs', []))}")
         print(f"candidate_acmg_evidence_items={len(specialist.get('candidate_criteria', []))}")
+        print(
+            "specialist_review_actions_applied="
+            f"{len(specialist.get('applied_review_actions', []))}"
+        )
+        print(
+            "specialist_review_actions_rejected="
+            f"{sum(1 for item in specialist.get('review_action_results', []) if item.get('result_status') == 'rejected')}"
+        )
         return 0
     if args.command == "benchmark-agent-memory":
         result = AgentMemoryBenchmarkRunner().run(args.scenario, args.budget_chars, args.memory_mode)

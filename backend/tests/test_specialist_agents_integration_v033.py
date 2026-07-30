@@ -64,6 +64,8 @@ def test_run_integrates_report_trace_reproducibility_lock_state_and_checksums(tm
     assert len(workspace["agent_outputs"]) == 1
     assert workspace["agent_outputs"][0]["proposal_status"] == "proposed_not_approved"
     assert workspace["candidate_criteria"][0]["candidate_status"] == "candidate_only"
+    assert workspace["applied_review_actions"] == []
+    assert workspace["review_action_results"] == []
     assert workspace["recursive_spawning_used"] is False
     assert workspace["majority_vote_used"] is False
     assert "## Specialist Agents and Candidate ACMG Workspace" in report
@@ -81,6 +83,8 @@ def test_run_integrates_report_trace_reproducibility_lock_state_and_checksums(tm
     assert lock["candidate_criterion_vocabulary_version"]
     assert lock["specialist_agent_external_llm_called"] is False
     assert lock["specialist_agent_external_tools_executed"] is False
+    assert lock["specialist_applied_human_review_actions"] == []
+    assert lock["specialist_human_review_action_results"] == []
     assert orchestration["specialist_agent_trace"]
     assert state["specialist_agent_workspace"]["schema_version"] == "0.33"
     trace_events = {item["event"] for item in result["agent_trace"]}
@@ -109,6 +113,18 @@ def test_run_integrates_report_trace_reproducibility_lock_state_and_checksums(tm
 
 def test_api_stored_run_and_allowlisted_artifact_expose_v033():
     payload, _ = _candidate_payload()
+    payload["specialist_agent_workspace"]["review_actions"] = [
+        {
+            "action_id": "API-UNKNOWN-OUTPUT",
+            "action": "accept_agent_output_for_discussion",
+            "target_type": "agent_output",
+            "target_id": "OUTPUT-DOES-NOT-EXIST",
+            "reviewer_role": "clinical_research_reviewer",
+            "timestamp": "2026-03-01T00:00:00Z",
+            "before_value": {"human_review_status": "pending"},
+            "after_value": {"human_review_status": "accepted_for_discussion"},
+        }
+    ]
     response = client.post(
         "/insilicopop/agent/run",
         data={
@@ -127,6 +143,8 @@ def test_api_stored_run_and_allowlisted_artifact_expose_v033():
     assert detail["specialist_agent_output_count"] == 1
     assert detail["specialist_agent_review_ready_output_count"] == 1
     assert detail["candidate_acmg_evidence_count"] == 1
+    assert detail["specialist_applied_review_action_count"] == 0
+    assert detail["specialist_rejected_review_action_count"] == 1
     assert detail["specialist_agent_workspace_artifact_available"] is True
     assert detail["specialist_agent_workspace"]["schema_version"] == "0.33"
     artifact = client.get(
@@ -136,12 +154,27 @@ def test_api_stored_run_and_allowlisted_artifact_expose_v033():
     content = artifact.json()["content"]
     assert content["agent_outputs"][0]["external_llm_called"] is False
     assert content["agent_outputs"][0]["external_tools_executed"] is False
+    assert content["applied_review_actions"] == []
+    assert content["review_action_results"][0]["result_status"] == "rejected"
+    assert content["review_action_results"][0]["rejection_reason"] == "target_not_found"
 
 
 def test_workbench_dom_renders_required_state_and_safety_labels(tmp_path):
     node = shutil.which("node")
     assert node is not None, "Node.js is required for the Workbench DOM contract test"
     payload, _ = _candidate_payload()
+    payload["specialist_agent_workspace"]["review_actions"] = [
+        {
+            "action_id": "DOM-UNKNOWN-OUTPUT",
+            "action": "reject_agent_output",
+            "target_type": "agent_output",
+            "target_id": "OUTPUT-DOES-NOT-EXIST",
+            "reviewer_role": "clinical_research_reviewer",
+            "timestamp": "2026-03-01T00:00:00Z",
+            "before_value": {"human_review_status": "pending"},
+            "after_value": {"human_review_status": "rejected"},
+        }
+    ]
     workspace = build_clinical_case_specialist_agent_bundle(payload)[7].model_dump(
         mode="json"
     )
@@ -188,6 +221,9 @@ process.stdout.write(target.innerHTML);
         "candidate_only",
         "human_reviewed",
         "external_assessment",
+        "Rejected or stale review attempts",
+        "rejected review attempt",
+        "target_not_found",
     ):
         assert term in rendered
     for forbidden in (

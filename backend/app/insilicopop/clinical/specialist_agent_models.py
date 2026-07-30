@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Any, Literal
 
@@ -148,6 +149,24 @@ class SpecialistReviewActionType(str, Enum):
     RECORD_EXTERNAL_CLASSIFICATION = "record_external_classification"
 
 
+class SpecialistReviewActionResultStatus(str, Enum):
+    APPLIED = "applied"
+    REJECTED = "rejected"
+
+
+class SpecialistReviewRejectionReason(str, Enum):
+    TARGET_NOT_FOUND = "target_not_found"
+    TARGET_TYPE_MISMATCH = "target_type_mismatch"
+    ACTION_TARGET_MISMATCH = "action_target_mismatch"
+    INVALID_TRANSITION = "invalid_transition"
+    BEFORE_VALUE_REQUIRED = "before_value_required"
+    BEFORE_VALUE_MISMATCH = "before_value_mismatch"
+    AFTER_VALUE_REQUIRED = "after_value_required"
+    AFTER_VALUE_MISMATCH = "after_value_mismatch"
+    INVALID_EDIT_PAYLOAD = "invalid_edit_payload"
+    FORBIDDEN_EDIT = "forbidden_edit"
+
+
 class BudgetProfile(FrozenSpecialistModel):
     profile_id: str = Field(default="bounded_default", min_length=1, max_length=80, pattern=LOCAL_ID_PATTERN)
     maximum_steps: int = Field(default=4, ge=1, le=100)
@@ -263,6 +282,48 @@ class SpecialistHumanReviewAction(FrozenSpecialistModel):
     after_value: Any = None
     notes: str | None = Field(default=None, max_length=2000)
 
+    @model_validator(mode="after")
+    def bounded_values(self) -> "SpecialistHumanReviewAction":
+        for label, value in (
+            ("before_value", self.before_value),
+            ("after_value", self.after_value),
+        ):
+            if len(
+                json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+            ) > 20_000:
+                raise ValueError(f"{label} must serialize to at most 20000 characters")
+        return self
+
+
+class SpecialistReviewActionResult(FrozenSpecialistModel):
+    action_id: str = Field(min_length=1, max_length=100, pattern=LOCAL_ID_PATTERN)
+    action: SpecialistReviewActionType
+    target_type: Literal[
+        "spawn_request",
+        "agent_output",
+        "candidate_criterion",
+        "external_acmg_assessment",
+    ]
+    target_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
+    result_status: SpecialistReviewActionResultStatus
+    rejection_reason: SpecialistReviewRejectionReason | None = None
+    message: str = Field(min_length=1, max_length=500)
+    authoritative_before: dict[str, Any] | None = None
+    validated_after: dict[str, Any] | None = None
+    validation_categories: list[str] = Field(default_factory=list, max_length=20)
+    reviewer_role: str = Field(min_length=1, max_length=120)
+    reviewer_id: str | None = Field(default=None, max_length=120)
+    timestamp: str = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def consistent_result(self) -> "SpecialistReviewActionResult":
+        if self.result_status == SpecialistReviewActionResultStatus.APPLIED:
+            if self.rejection_reason is not None or self.validated_after is None:
+                raise ValueError("applied review results require validated after state")
+        elif self.rejection_reason is None or self.validated_after is not None:
+            raise ValueError("rejected review results require a reason and no after state")
+        return self
+
 
 class ExternalAcmgAssessment(FrozenSpecialistModel):
     external_assessment_id: str = Field(min_length=1, max_length=100, pattern=LOCAL_ID_PATTERN)
@@ -371,7 +432,7 @@ class SpecialistAgentOutput(FrozenSpecialistModel):
     agent_version: str
     status: AgentExecutionStatus
     proposal_status: Literal["proposed_not_approved"] = "proposed_not_approved"
-    summary: str
+    summary: str = Field(min_length=1, max_length=4000)
     structured_observations: list[AgentStructuredObservation] = Field(default_factory=list)
     source_fact_ids: list[str] = Field(default_factory=list)
     source_finding_ids: list[str] = Field(default_factory=list)
@@ -401,37 +462,39 @@ class SpecialistAgentOutput(FrozenSpecialistModel):
     ] = AGENT_OUTPUT_VALIDATOR_VERSION
     safety_review: AgentSafetyReview
     human_review_status: SpecialistReviewStatus = SpecialistReviewStatus.PENDING
-    human_reviewed_summary: str | None = None
-    reviewer_notes: str | None = None
-    suggested_follow_up_agent_id: str | None = None
-    suggested_reason: str | None = None
+    human_reviewed_summary: str | None = Field(default=None, max_length=4000)
+    reviewer_notes: str | None = Field(default=None, max_length=2000)
+    suggested_follow_up_agent_id: str | None = Field(
+        default=None, max_length=100, pattern=LOCAL_ID_PATTERN
+    )
+    suggested_reason: str | None = Field(default=None, max_length=1000)
 
 
 class CandidateCriterionRecord(FrozenSpecialistModel):
-    candidate_criterion_id: str
-    case_id: str
-    finding_id: str
+    candidate_criterion_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
+    case_id: str = Field(min_length=1, max_length=100, pattern=LOCAL_ID_PATTERN)
+    finding_id: str = Field(min_length=1, max_length=100, pattern=LOCAL_ID_PATTERN)
     criterion_code: CandidateCriterionCode
-    criterion_family: str
+    criterion_family: str = Field(min_length=1, max_length=80)
     candidate_status: CandidateStatus
-    proposed_strength: str | None = None
-    source_ledger_entry_ids: list[str]
-    supporting_observations: list[str]
-    contradicting_ledger_entry_ids: list[str]
-    missing_prerequisites: list[str]
-    applicability_notes: list[str]
-    gene_disease_context: str | None = None
-    mechanism_context: str | None = None
-    inheritance_context: str | None = None
-    phenotype_context: str | None = None
-    technical_limitations: list[str]
-    candidate_rule_id: str
-    candidate_rule_version: str
-    agent_output_id: str
+    proposed_strength: str | None = Field(default=None, max_length=80)
+    source_ledger_entry_ids: list[str] = Field(max_length=500)
+    supporting_observations: list[str] = Field(max_length=100)
+    contradicting_ledger_entry_ids: list[str] = Field(max_length=500)
+    missing_prerequisites: list[str] = Field(max_length=100)
+    applicability_notes: list[str] = Field(max_length=100)
+    gene_disease_context: str | None = Field(default=None, max_length=1000)
+    mechanism_context: str | None = Field(default=None, max_length=1000)
+    inheritance_context: str | None = Field(default=None, max_length=1000)
+    phenotype_context: str | None = Field(default=None, max_length=1000)
+    technical_limitations: list[str] = Field(max_length=100)
+    candidate_rule_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
+    candidate_rule_version: str = Field(min_length=1, max_length=120)
+    agent_output_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
     human_review_status: SpecialistReviewStatus = SpecialistReviewStatus.PENDING
-    reviewer_notes: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
+    reviewer_notes: str | None = Field(default=None, max_length=2000)
+    created_at: str | None = Field(default=None, max_length=40)
+    updated_at: str | None = Field(default=None, max_length=40)
     proposal_status: Literal["proposed_not_approved"] = "proposed_not_approved"
     human_review_required: Literal[True] = True
 
@@ -502,6 +565,8 @@ class SpecialistReproducibility(FrozenSpecialistModel):
     candidate_rule_versions: list[str]
     candidate_criterion_ids: list[str]
     human_review_actions: list[dict[str, Any]]
+    applied_human_review_actions: list[dict[str, Any]]
+    human_review_action_results: list[dict[str, Any]]
     safety_policy_version: str
 
 
@@ -532,6 +597,9 @@ class SpecialistAgentWorkspaceResult(FrozenSpecialistModel):
     candidate_criteria: list[CandidateCriterionRecord]
     disagreement_groups: list[DisagreementGroup]
     review_actions: list[SpecialistHumanReviewAction]
+    requested_review_actions: list[SpecialistHumanReviewAction]
+    applied_review_actions: list[SpecialistHumanReviewAction]
+    review_action_results: list[SpecialistReviewActionResult]
     external_acmg_assessments: list[ExternalAcmgAssessment]
     execution_trace: list[SpecialistExecutionTraceEvent]
     reproducibility: SpecialistReproducibility

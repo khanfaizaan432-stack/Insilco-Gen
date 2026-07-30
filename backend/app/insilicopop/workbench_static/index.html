@@ -1227,7 +1227,9 @@
       const outputs = (workspace.agent_outputs || []).slice(0, 500);
       const candidates = (workspace.candidate_criteria || []).slice(0, 500);
       const disagreements = (workspace.disagreement_groups || []).slice(0, 500);
-      const reviews = (workspace.review_actions || []).slice(0, 1000);
+      const requestedReviews = (workspace.requested_review_actions || workspace.review_actions || []).slice(0, 1000);
+      const appliedReviews = (workspace.applied_review_actions || []).slice(0, 1000);
+      const reviewResults = (workspace.review_action_results || []).slice(0, 1000);
       const externalAssessments = (workspace.external_acmg_assessments || []).slice(0, 500);
       const registryRows = registry.map((agent) =>
         `<details>
@@ -1285,9 +1287,16 @@
       const disagreementRows = disagreements.map((group) =>
         `<li><strong>Requires review:</strong> ${escapeHtml(group.disagreement_group_id || "disagreement")} — outputs ${escapeHtml((group.agent_output_ids || []).join(", "))} — majority vote used: false — winner selected: false</li>`
       ).join("") || "<li>No cross-agent disagreement group recorded.</li>";
-      const reviewRows = reviews.map((action) =>
-        `<li><strong>human_reviewed</strong> — ${escapeHtml(action.action || "review_action")} — ${escapeHtml(action.target_type || "target")} ${escapeHtml(action.target_id || "unknown")} — ${escapeHtml(action.timestamp || "unknown")}</li>`
-      ).join("") || "<li>No specialist human-review action recorded.</li>";
+      const appliedReviewRows = reviewResults
+        .filter((result) => result.result_status === "applied")
+        .map((result) =>
+          `<li><strong>applied human-review decision</strong> — ${escapeHtml(result.action || "review_action")} — ${escapeHtml(result.target_type || "target")} ${escapeHtml(result.target_id || "unknown")} — ${escapeHtml(result.timestamp || "unknown")}</li>`
+        ).join("") || "<li>No specialist human-review action was applied.</li>";
+      const rejectedReviewRows = reviewResults
+        .filter((result) => result.result_status === "rejected")
+        .map((result) =>
+          `<li><strong>rejected review attempt</strong> — ${escapeHtml(result.action || "review_action")} — ${escapeHtml(result.target_type || "target")} ${escapeHtml(result.target_id || "unknown")} — ${escapeHtml(result.rejection_reason || "invalid_review_action")} — ${escapeHtml(result.message || "The authoritative object state was preserved.")}</li>`
+        ).join("") || "<li>No specialist human-review attempt was rejected.</li>";
       const externalRows = externalAssessments.map((assessment) =>
         `<li><strong>External ACMG assessment</strong> — ${escapeHtml(assessment.external_source || "source")} — criteria as reported ${escapeHtml((assessment.external_criteria_as_reported || []).join(", ") || "none")} — classification as reported ${escapeHtml(assessment.external_classification_as_reported || "not supplied")} — external_assessment. External ACMG assessment recorded; not assigned by InSilicoPop.</li>`
       ).join("") || "<li>No external ACMG assessment recorded.</li>";
@@ -1298,6 +1307,8 @@
           <div class="metric"><strong>bounded tasks</strong>${escapeHtml(decisions.length)}</div>
           <div class="metric"><strong>proposed outputs</strong>${escapeHtml(outputs.length)}</div>
           <div class="metric"><strong>candidate evidence</strong>${escapeHtml(candidates.length)}</div>
+          <div class="metric safe"><strong>applied review actions</strong>${escapeHtml(appliedReviews.length)}</div>
+          <div class="metric warn"><strong>rejected review attempts</strong>${escapeHtml(reviewResults.filter((result) => result.result_status === "rejected").length)}</div>
           <div class="metric warn"><strong>requires review disagreements</strong>${escapeHtml(disagreements.length)}</div>
           <div class="metric safe"><strong>human decision required</strong>true</div>
           <div class="metric safe"><strong>recursive spawning</strong>false</div>
@@ -1305,7 +1316,7 @@
         </div>
         <p class="note"><strong>State separation:</strong> source_reported, ledger_verified, agent_generated, candidate_only, human_reviewed, and external_assessment are explicit text labels. Colour is supplementary only.</p>
         <p class="note"><strong>Review states:</strong> Candidate only; Insufficient support; Conflicting support; Requires review; Accepted for discussion. Human decision required.</p>
-        <p class="note"><strong>Human-review controls:</strong> approve, reject, cancel, rerun, accept for discussion, edit, defer, request more information, mark not applicable, mark conflicting, and record external assessment are represented as auditable structured actions in the case JSON.</p>
+        <p class="note"><strong>Human-review actions:</strong> ${escapeHtml(requestedReviews.length)} request(s) were submitted with explicit target types. Rejected or stale attempts preserve the current object state and are never displayed as applied decisions.</p>
         <h3>Approved registry</h3>${registryRows}
         <h3>Spawn requests and execution status</h3><ul>${decisionRows}</ul>
         <h3>Selected structured inputs, evidence, budget, and provider policy</h3>${envelopeRows}
@@ -1313,7 +1324,8 @@
         <h3>Candidate ACMG evidence</h3>${candidateRows}
         <h3>Conflicts and disagreements</h3><ul>${disagreementRows}</ul>
         <h3>External ACMG assessment</h3><ul>${externalRows}</ul>
-        <h3>Human-review controls and provenance history</h3><ul>${reviewRows}</ul>`;
+        <h3>Applied human-review decisions</h3><ul>${appliedReviewRows}</ul>
+        <h3>Rejected or stale review attempts</h3><ul>${rejectedReviewRows}</ul>`;
     }
 
     // VARIANT_BADGE_LABELS_START

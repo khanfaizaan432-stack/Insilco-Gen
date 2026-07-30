@@ -266,18 +266,21 @@ def test_task_review_actions_are_target_typed_and_preserve_terminal_decisions():
         status="pending",
     )
     action_expectations = {
-        "reject_agent_task": AgentExecutionStatus.CANCELLED,
-        "cancel_agent_task": AgentExecutionStatus.CANCELLED,
-        "rerun_with_same_inputs": AgentExecutionStatus.READY,
-        "rerun_with_edited_inputs": AgentExecutionStatus.READY,
+        "reject_agent_task": ("pending", "rejected", AgentExecutionStatus.CANCELLED),
+        "cancel_agent_task": ("pending", "cancelled", AgentExecutionStatus.CANCELLED),
+        "rerun_with_same_inputs": ("rejected", "approved", AgentExecutionStatus.READY),
+        "rerun_with_edited_inputs": ("cancelled", "approved", AgentExecutionStatus.READY),
     }
-    for index, (action_name, expected_status) in enumerate(
+    for index, (action_name, expectation) in enumerate(
         action_expectations.items(), 1
     ):
+        before_status, after_status, expected_status = expectation
         reviewed = copy.deepcopy(payload)
+        reviewed_spawn = copy.deepcopy(base_spawn)
+        reviewed_spawn["human_review_status"] = before_status
         reviewed["specialist_agent_workspace"] = {
             "schema_version": "0.33",
-            "spawn_requests": [base_spawn],
+            "spawn_requests": [reviewed_spawn],
             "review_actions": [
                 {
                     "action_id": f"TASK-ACTION-{index}",
@@ -286,6 +289,8 @@ def test_task_review_actions_are_target_typed_and_preserve_terminal_decisions():
                     "target_id": "SPAWN-REVIEW-TARGET",
                     "reviewer_role": "clinical_research_reviewer",
                     "timestamp": f"2026-01-{index + 12:02d}T00:00:00Z",
+                    "before_value": {"human_review_status": before_status},
+                    "after_value": {"human_review_status": after_status},
                 }
             ],
             "human_review_required": True,
@@ -842,7 +847,10 @@ def test_human_review_actions_are_auditable_and_acceptance_is_discussion_only():
             "reviewer_role": "clinical_research_reviewer",
             "reviewer_id": "reviewer",
             "timestamp": "2026-01-11T00:00:00Z",
-            "before_value": {"summary": first.agent_outputs[0].summary},
+            "before_value": {
+                "summary": first.agent_outputs[0].summary,
+                "human_review_status": "pending",
+            },
             "after_value": {"summary": "Human-edited discussion summary."},
             "notes": "Edited for discussion.",
         },
@@ -893,6 +901,8 @@ def test_output_and_candidate_review_transitions_remain_non_final_and_auditable(
                 "target_id": output_id,
                 "reviewer_role": "clinical_research_reviewer",
                 "timestamp": f"2026-02-{index:02d}T00:00:00Z",
+                "before_value": {"human_review_status": "pending"},
+                "after_value": {"human_review_status": expected_status.value},
             }
         ]
         result = _run(reviewed)
@@ -914,6 +924,8 @@ def test_output_and_candidate_review_transitions_remain_non_final_and_auditable(
             "target_id": output_id,
             "reviewer_role": "clinical_research_reviewer",
             "timestamp": "2026-02-04T00:00:00Z",
+            "before_value": {"human_review_status": "pending"},
+            "after_value": {"human_review_status": "rejected"},
         }
     ]
     rejected_result = _run(rejected)
@@ -938,8 +950,14 @@ def test_output_and_candidate_review_transitions_remain_non_final_and_auditable(
             "target_id": candidate_id,
             "reviewer_role": "clinical_research_reviewer",
             "timestamp": f"2026-02-{index:02d}T00:00:00Z",
+            "before_value": {"candidate_status": "candidate_only"},
+            "after_value": {"candidate_status": expected[0].value},
         }
         if action_name == "edit_candidate":
+            action["before_value"] = {
+                "applicability_notes": first.candidate_criteria[0].applicability_notes,
+                "human_review_status": "pending",
+            }
             action["after_value"] = {
                 "applicability_notes": ["Human-edited discussion note."]
             }

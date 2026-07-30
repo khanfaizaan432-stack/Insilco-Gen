@@ -563,6 +563,13 @@ def _provenance_index(
             "registry_version": state.specialist_agent_workspace.registry_version,
             "safety_policy_version": state.specialist_agent_workspace.safety_policy_version,
             "candidate_ruleset_version": state.specialist_agent_workspace.candidate_ruleset_version,
+            "applied_review_action_count": len(
+                state.specialist_agent_workspace.applied_review_actions
+            ),
+            "rejected_review_action_count": sum(
+                item.result_status.value == "rejected"
+                for item in state.specialist_agent_workspace.review_action_results
+            ),
             "human_review_required": True,
         }
     return payload
@@ -685,6 +692,14 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "specialist_human_review_actions": [
             item.model_dump(mode="json")
             for item in state.specialist_agent_workspace.review_actions
+        ] if state.specialist_agent_workspace else [],
+        "specialist_applied_human_review_actions": [
+            item.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.applied_review_actions
+        ] if state.specialist_agent_workspace else [],
+        "specialist_human_review_action_results": [
+            item.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.review_action_results
         ] if state.specialist_agent_workspace else [],
         "specialist_agent_workspace_artifact_available": state.specialist_agent_workspace is not None,
         "test_recommendation_made": False,

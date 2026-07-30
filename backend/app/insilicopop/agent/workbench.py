@@ -133,6 +133,8 @@ class AgentRunSummary(BaseModel):
     specialist_agent_review_ready_output_count: int = 0
     candidate_acmg_evidence_count: int = 0
     specialist_disagreement_group_count: int = 0
+    specialist_applied_review_action_count: int = 0
+    specialist_rejected_review_action_count: int = 0
     specialist_agent_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
@@ -394,6 +396,16 @@ class WorkbenchRunStore:
             specialist_agent_review_ready_output_count=len(specialist_agent_workspace.get("review_ready_output_ids", []) or []),
             candidate_acmg_evidence_count=len(specialist_agent_workspace.get("candidate_criteria", []) or []),
             specialist_disagreement_group_count=len(specialist_agent_workspace.get("disagreement_groups", []) or []),
+            specialist_applied_review_action_count=len(
+                specialist_agent_workspace.get("applied_review_actions", []) or []
+            ),
+            specialist_rejected_review_action_count=sum(
+                1
+                for item in (
+                    specialist_agent_workspace.get("review_action_results", []) or []
+                )
+                if isinstance(item, dict) and item.get("result_status") == "rejected"
+            ),
             specialist_agent_workspace_artifact_available=(
                 run_dir / "reproducibility" / "specialist_agent_workspace.json"
             ).is_file(),

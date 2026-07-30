@@ -1034,6 +1034,13 @@ def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:
     outputs = workspace.get("agent_outputs", []) or []
     candidates = workspace.get("candidate_criteria", []) or []
     disagreements = workspace.get("disagreement_groups", []) or []
+    action_results = workspace.get("review_action_results", []) or []
+    applied_action_results = [
+        item for item in action_results if item.get("result_status") == "applied"
+    ]
+    rejected_action_results = [
+        item for item in action_results if item.get("result_status") == "rejected"
+    ]
     lines = [
         "## Specialist Agents and Candidate ACMG Workspace",
         "",
@@ -1049,6 +1056,8 @@ def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:
         f"- review_ready_output_count: `{len(workspace.get('review_ready_output_ids', []) or [])}`",
         f"- candidate_acmg_evidence_count: `{len(candidates)}`",
         f"- disagreement_group_count: `{len(disagreements)}`",
+        f"- applied_review_action_count: `{len(applied_action_results)}`",
+        f"- rejected_review_action_count: `{len(rejected_action_results)}`",
         "",
         "### Approved Registry",
     ]
@@ -1096,6 +1105,21 @@ def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:
         )
     if not candidates:
         lines.append("- No candidate ACMG evidence item generated.")
+    lines.extend(["", "### Human-Review Action Results"])
+    for item in applied_action_results:
+        lines.append(
+            f"- applied: `{_redact(str(item.get('action_id', 'unknown')))}` / "
+            f"`{_redact(str(item.get('target_type', 'target')))}` "
+            f"`{_redact(str(item.get('target_id', 'unknown')))}`"
+        )
+    for item in rejected_action_results:
+        lines.append(
+            f"- rejected: `{_redact(str(item.get('action_id', 'unknown')))}` / "
+            f"`{_redact(str(item.get('rejection_reason', 'invalid_review_action')))}` — "
+            f"{_redact(str(item.get('message', 'Authoritative state preserved.')))}"
+        )
+    if not action_results:
+        lines.append("- No specialist human-review action result recorded.")
     lines.extend(
         [
             "",
