@@ -296,45 +296,49 @@ def test_candidate_reject_with_current_complete_state_applies():
     )
 
 
-def test_candidate_transition_missing_human_review_before_state_is_rejected():
-    payload, first, _, candidate_id = _candidate_context()
-    reviewed = copy.deepcopy(payload)
-    reviewed["specialist_agent_workspace"]["review_actions"] = [
-        _action(
-            action_id="CANDIDATE-MISSING-HUMAN-BEFORE",
-            action="reject_candidate",
-            target_type="candidate_criterion",
-            target_id=candidate_id,
-            before={"candidate_status": "candidate_only"},
-            after={
-                "candidate_status": "rejected_by_reviewer",
-                "human_review_status": "rejected",
-            },
-        )
-    ]
-
-    result = _run(reviewed)
-
-    assert result.candidate_criteria == first.candidate_criteria
-    assert result.applied_review_actions == []
-    rejected = result.review_action_results[0]
-    assert rejected.rejection_reason.value == "before_value_required"
-    assert rejected.validated_after is None
-
-
-def test_candidate_transition_mismatched_human_review_before_state_is_rejected():
-    payload, first, _, candidate_id = _candidate_context()
-    reviewed = copy.deepcopy(payload)
-    reviewed["specialist_agent_workspace"]["review_actions"] = [
-        _action(
-            action_id="CANDIDATE-MISMATCHED-HUMAN-BEFORE",
-            action="reject_candidate",
-            target_type="candidate_criterion",
-            target_id=candidate_id,
-            before={
+@pytest.mark.parametrize(
+    ("action_id", "before", "reason"),
+    [
+        (
+            "CANDIDATE-MISSING-HUMAN-BEFORE",
+            {"candidate_status": "candidate_only"},
+            "before_value_required",
+        ),
+        (
+            "CANDIDATE-MISSING-STATUS-BEFORE",
+            {"human_review_status": "pending"},
+            "before_value_required",
+        ),
+        (
+            "CANDIDATE-MISMATCHED-HUMAN-BEFORE",
+            {
                 "candidate_status": "candidate_only",
                 "human_review_status": "edited",
             },
+            "before_value_mismatch",
+        ),
+        (
+            "CANDIDATE-MISMATCHED-STATUS-BEFORE",
+            {
+                "candidate_status": "deferred",
+                "human_review_status": "pending",
+            },
+            "before_value_mismatch",
+        ),
+    ],
+)
+def test_candidate_transition_requires_complete_current_before_state(
+    action_id, before, reason
+):
+    payload, first, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _action(
+            action_id=action_id,
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before=before,
             after={
                 "candidate_status": "rejected_by_reviewer",
                 "human_review_status": "rejected",
@@ -345,11 +349,15 @@ def test_candidate_transition_mismatched_human_review_before_state_is_rejected()
     result = _run(reviewed)
 
     assert result.candidate_criteria == first.candidate_criteria
+    assert result.agent_outputs == first.agent_outputs
+    assert result.review_ready_output_ids == first.review_ready_output_ids
     assert result.applied_review_actions == []
-    assert (
-        result.review_action_results[0].rejection_reason.value
-        == "before_value_mismatch"
-    )
+    assert len(result.review_action_results) == 1
+    rejected = result.review_action_results[0]
+    assert rejected.action_id == action_id
+    assert rejected.result_status.value == "rejected"
+    assert rejected.rejection_reason.value == reason
+    assert rejected.validated_after is None
 
 
 @pytest.mark.parametrize(
