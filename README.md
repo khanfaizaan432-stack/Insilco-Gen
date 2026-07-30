@@ -203,17 +203,20 @@ v0.28 extends only that explicit lane with a small versioned local HPO registry 
 
 v0.29 adds an optional `pedigree_inheritance_audit` declaration inside the existing v0.27 clinical intake. It validates explicit pseudonymous members, biological-parent edges, exact candidate observations, supplied inheritance hypotheses, and phase declarations, then writes `reproducibility/pedigree_inheritance_audit.json`. Its `consistent`, `partially_consistent`, `inconsistent`, `cannot_evaluate`, and `missing_evidence` statuses describe only bounded consistency with supplied structured records. It does not establish inheritance, diagnose, classify pathogenicity, calculate recurrence risk or segregation strength, normalize variants or genes, infer omitted relationships, call retrieval or external services, execute tools, or parse raw genomic files.
 
+v0.34 adds one bounded JARVIS briefing, source-grounded scientific synthesis, fixed six-critic suite, and cited draft Report Studio aggregate. It consumes only controlled structured artifacts from prior milestones, preserves unresolved conflicts and candidate-only evidence, excludes unsupported proposals from factual report conclusions, and records complete claim-to-evidence drill-down. Critics are non-mutating. Every narrative remains `draft_not_clinically_approved`, and report review uses typed complete snapshots with stale-state rejection.
+
 ## Roadmap
 
 - v0.27 Clinical Intake + Case Schema.
 - v0.28 Phenotype + HPO Curation.
-- v0.29 Pedigree + Inheritance Audit (implemented, not packaged).
-- v0.30 ACMG Evidence Suggestion Support.
-- v0.31 Evidence Ledger.
-- v0.32 Raw-Data Inventory + Header-Only Parsers.
-- v0.33 Controlled Local Execution Sandbox.
-- v0.34 LIMS/FHIR Integration Layer.
-- v0.35 Clinical Decision-Support Validation Framework.
+- v0.29 Pedigree + Inheritance Audit.
+- v0.30 Variant Intelligence Foundation.
+- v0.31 Global Intake and BYOK Foundation.
+- v0.31.2 Referral and Pre-Test Assessment.
+- v0.31.3 Staged Test-Strategy Workspace.
+- v0.32 Result Intake, Controlled Retrieval, and Evidence Ledger.
+- v0.33 Specialist Agents and Candidate ACMG Evidence Workspace.
+- v0.34 JARVIS Synthesis, Critics, and Report Studio (implemented locally).
 
 Every roadmap item preserves the core rule: AI automates repeated workflow steps and drafting support, while qualified human experts remain responsible for final scientific or clinical interpretation.
 
@@ -232,4 +235,5 @@ The system does not claim to produce final biological truth. It helps researcher
 - [Prior Art: Agentic Genomics](docs/prior_art_agentic_genomics.md)
 - [Recipe Architecture v0.18 Draft](docs/recipe_architecture_v018.md)
 - [Model Strategy](docs/model_strategy.md)
+- [v0.34 JARVIS Synthesis, Critics, and Report Studio](docs/v034_jarvis_synthesis_critics_report_studio.md)
 - [Demo examples](examples/insilicopop_demo/README.md)

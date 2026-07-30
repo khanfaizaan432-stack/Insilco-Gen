@@ -11,6 +11,9 @@ from app.insilicopop.clinical.service import (
     build_clinical_case_result_evidence_bundle,
     build_clinical_case_specialist_agent_bundle,
     build_clinical_case_strategy_bundle,
+    build_clinical_case_v034_bundle,
+    build_clinical_case_jarvis_synthesis_report_bundle,
+    build_clinical_case_synthesis_report_bundle,
 )
 from app.insilicopop.clinical.hpo_models import PhenotypeCurationRequest, PhenotypeHpoCurationResult
 from app.insilicopop.clinical.hpo_registry import load_hpo_registry
@@ -41,6 +44,13 @@ from app.insilicopop.clinical.specialist_agent_models import (
     SpecialistAgentWorkspaceRequest,
     SpecialistAgentWorkspaceResult,
 )
+from app.insilicopop.clinical.jarvis_report import (
+    build_jarvis_synthesis_report_workspace,
+)
+from app.insilicopop.clinical.jarvis_report_models import (
+    JarvisSynthesisReportWorkspaceRequest,
+    JarvisSynthesisReportWorkspaceResult,
+)
 
 __all__ = [
     "ClinicalCaseIntake",
@@ -54,6 +64,9 @@ __all__ = [
     "build_clinical_case_strategy_bundle",
     "build_clinical_case_result_evidence_bundle",
     "build_clinical_case_specialist_agent_bundle",
+    "build_clinical_case_v034_bundle",
+    "build_clinical_case_jarvis_synthesis_report_bundle",
+    "build_clinical_case_synthesis_report_bundle",
     "build_phenotype_hpo_curation",
     "load_hpo_registry",
     "PhenotypeCurationRequest",
@@ -80,4 +93,7 @@ __all__ = [
     "load_specialist_agent_registry",
     "SpecialistAgentWorkspaceRequest",
     "SpecialistAgentWorkspaceResult",
+    "build_jarvis_synthesis_report_workspace",
+    "JarvisSynthesisReportWorkspaceRequest",
+    "JarvisSynthesisReportWorkspaceResult",
 ]

@@ -16,7 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_specialist_agent_bundle
+from app.insilicopop.clinical.service import build_clinical_case_v034_bundle
 from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
@@ -328,7 +328,8 @@ class AgentLoop:
             state.test_strategy_workspace,
             state.result_evidence_workspace,
             state.specialist_agent_workspace,
-        ) = build_clinical_case_specialist_agent_bundle(payload, request_text=request_text)
+            state.jarvis_synthesis_report_workspace,
+        ) = build_clinical_case_v034_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -540,6 +541,37 @@ class AgentLoop:
             state.decision_trace.extend(
                 item.model_dump(mode="json") for item in workspace.execution_trace
             )
+        if state.jarvis_synthesis_report_workspace:
+            workspace = state.jarvis_synthesis_report_workspace
+            state.decision_trace.append(
+                {
+                    "event": "jarvis_synthesis_report_workspace_completed",
+                    "schema_version": workspace.schema_version,
+                    "briefing_version": workspace.briefing_version,
+                    "synthesis_version": workspace.synthesis_version,
+                    "critic_suite_version": workspace.critic_suite_version,
+                    "report_studio_version": workspace.report_studio_version,
+                    "pseudonymous_case_id": workspace.pseudonymous_case_id,
+                    "briefing_item_count": len(workspace.briefing.items),
+                    "synthesis_claim_count": len(workspace.synthesis_claims),
+                    "excluded_proposed_claim_count": len(
+                        workspace.excluded_proposed_claims
+                    ),
+                    "critic_run_count": len(workspace.critic_runs),
+                    "critic_finding_count": len(workspace.critic_findings),
+                    "report_section_count": len(workspace.report_sections),
+                    "pending_human_decision_count": len(
+                        workspace.pending_human_decision_ids
+                    ),
+                    "report_status": workspace.report_status,
+                    "critics_mutated_sources": False,
+                    "unsupported_claims_included_as_factual_conclusions": False,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                }
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -577,6 +609,7 @@ class AgentLoop:
             "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
             "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
+            "jarvis_synthesis_report_workspace": state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
             "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),

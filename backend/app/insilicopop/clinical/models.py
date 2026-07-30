@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.insilicopop.clinical.hpo_models import PhenotypeCurationRequest
 from app.insilicopop.clinical.pedigree_models import PedigreeInheritanceAuditRequest
@@ -13,6 +13,9 @@ from app.insilicopop.clinical.pretest_models import PreTestAssessmentRequest
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceRequest
 from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceRequest
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceRequest
+from app.insilicopop.clinical.jarvis_report_models import (
+    JarvisSynthesisReportWorkspaceRequest,
+)
 
 
 SCHEMA_VERSION = "0.27"
@@ -162,6 +165,15 @@ class ClinicalCaseIntake(FrozenModel):
     test_strategy_workspace: TestStrategyWorkspaceRequest | None = None
     result_evidence_workspace: ResultEvidenceWorkspaceRequest | None = None
     specialist_agent_workspace: SpecialistAgentWorkspaceRequest | None = None
+    jarvis_synthesis_report_workspace: JarvisSynthesisReportWorkspaceRequest | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "jarvis_synthesis_report_workspace",
+            "jarvis_report_workspace",
+            "synthesis_report_workspace",
+            "v034_workspace",
+        ),
+    )
 
 
 class ClinicalIntakeIssue(FrozenModel):
