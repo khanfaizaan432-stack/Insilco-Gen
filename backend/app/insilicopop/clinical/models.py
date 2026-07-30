@@ -11,6 +11,7 @@ from app.insilicopop.clinical.variant_models import VariantIntelligenceRequest
 from app.insilicopop.clinical.global_intake_models import GlobalIntakeContext
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentRequest
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceRequest
+from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceRequest
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceRequest
 
 
@@ -160,6 +161,7 @@ class ClinicalCaseIntake(FrozenModel):
     pre_test_assessment: PreTestAssessmentRequest | None = None
     test_strategy_workspace: TestStrategyWorkspaceRequest | None = None
     result_evidence_workspace: ResultEvidenceWorkspaceRequest | None = None
+    specialist_agent_workspace: SpecialistAgentWorkspaceRequest | None = None
 
 
 class ClinicalIntakeIssue(FrozenModel):

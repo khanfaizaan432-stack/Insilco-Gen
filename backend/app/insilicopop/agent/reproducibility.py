@@ -47,6 +47,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_pre_test_assessment": "pre_test_assessment.json",
     "repro_test_strategy_workspace": "test_strategy_workspace.json",
     "repro_result_evidence_workspace": "result_evidence_workspace.json",
+    "repro_specialist_agent_workspace": "specialist_agent_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -104,6 +105,12 @@ def write_reproducibility_bundle(
         _write_json(
             paths["repro_result_evidence_workspace"],
             state.result_evidence_workspace.model_dump(),
+        )
+    if state.specialist_agent_workspace:
+        paths["repro_specialist_agent_workspace"] = optional_paths["repro_specialist_agent_workspace"]
+        _write_json(
+            paths["repro_specialist_agent_workspace"],
+            state.specialist_agent_workspace.model_dump(),
         )
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
@@ -440,6 +447,10 @@ def _orchestration_trace_payload(state: AgentState) -> dict[str, Any]:
             "safety_flags": flags,
             "raw_content_recorded": False,
             "final_decisions_recorded": False,
+            "specialist_agent_trace": [
+                item.model_dump(mode="json")
+                for item in state.specialist_agent_workspace.execution_trace
+            ] if state.specialist_agent_workspace else [],
             "trace_scope": payload.get(
                 "trace_scope",
                 "Controlled orchestration preview records node status summaries only.",
@@ -543,6 +554,24 @@ def _provenance_index(
             "ledger_version": state.result_evidence_workspace.ledger_version,
             "human_review_required": True,
         }
+    specialist_path = repro_paths.get("repro_specialist_agent_workspace")
+    if specialist_path and state.specialist_agent_workspace:
+        payload["specialist_agent_workspace"] = {
+            "path": _relative_to_run(run_dir, specialist_path),
+            "json_pointer": "/",
+            "artifact_class": "bounded_proposed_not_approved_specialist_and_candidate_workspace",
+            "registry_version": state.specialist_agent_workspace.registry_version,
+            "safety_policy_version": state.specialist_agent_workspace.safety_policy_version,
+            "candidate_ruleset_version": state.specialist_agent_workspace.candidate_ruleset_version,
+            "applied_review_action_count": len(
+                state.specialist_agent_workspace.applied_review_actions
+            ),
+            "rejected_review_action_count": sum(
+                item.result_status.value == "rejected"
+                for item in state.specialist_agent_workspace.review_action_results
+            ),
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -623,6 +652,56 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "result_evidence_byok_used": state.result_evidence_workspace.byok_used if state.result_evidence_workspace else False,
         "evidence_ledger_version": state.result_evidence_workspace.ledger_version if state.result_evidence_workspace else None,
         "result_evidence_workspace_artifact_available": state.result_evidence_workspace is not None,
+        "agent_registry_version": state.specialist_agent_workspace.registry_version if state.specialist_agent_workspace else None,
+        "enabled_specialist_agents": [
+            item.agent_id
+            for item in state.specialist_agent_workspace.approved_registry
+            if item.enabled
+        ] if state.specialist_agent_workspace else [],
+        "specialist_agent_versions": {
+            item.agent_id: item.agent_version
+            for item in state.specialist_agent_workspace.approved_registry
+        } if state.specialist_agent_workspace else {},
+        "specialist_agent_task_ids": [
+            item.agent_task_id for item in state.specialist_agent_workspace.task_envelopes
+        ] if state.specialist_agent_workspace else [],
+        "specialist_agent_input_hashes": {
+            item.agent_task_id: item.input_hash
+            for item in state.specialist_agent_workspace.task_envelopes
+        } if state.specialist_agent_workspace else {},
+        "specialist_agent_output_hashes": {
+            item.agent_output_id: item.output_hash
+            for item in state.specialist_agent_workspace.agent_outputs
+        } if state.specialist_agent_workspace else {},
+        "specialist_agent_budget_profiles": [
+            item.budget.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.task_envelopes
+        ] if state.specialist_agent_workspace else [],
+        "specialist_agent_provider": state.specialist_agent_workspace.provider if state.specialist_agent_workspace else None,
+        "specialist_agent_model": state.specialist_agent_workspace.model if state.specialist_agent_workspace else None,
+        "specialist_agent_external_llm_called": state.specialist_agent_workspace.external_llm_called if state.specialist_agent_workspace else False,
+        "specialist_agent_external_tools_executed": state.specialist_agent_workspace.external_tools_executed if state.specialist_agent_workspace else False,
+        "specialist_agent_token_usage": state.specialist_agent_workspace.reproducibility.token_usage if state.specialist_agent_workspace else 0,
+        "specialist_agent_cost": state.specialist_agent_workspace.reproducibility.cost if state.specialist_agent_workspace else 0.0,
+        "specialist_agent_step_count": state.specialist_agent_workspace.reproducibility.step_count if state.specialist_agent_workspace else 0,
+        "candidate_rule_versions": state.specialist_agent_workspace.reproducibility.candidate_rule_versions if state.specialist_agent_workspace else [],
+        "candidate_criterion_ids": state.specialist_agent_workspace.reproducibility.candidate_criterion_ids if state.specialist_agent_workspace else [],
+        "candidate_criterion_vocabulary_version": state.specialist_agent_workspace.candidate_vocabulary_version if state.specialist_agent_workspace else None,
+        "candidate_ruleset_version": state.specialist_agent_workspace.candidate_ruleset_version if state.specialist_agent_workspace else None,
+        "specialist_safety_policy_version": state.specialist_agent_workspace.safety_policy_version if state.specialist_agent_workspace else None,
+        "specialist_human_review_actions": [
+            item.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.review_actions
+        ] if state.specialist_agent_workspace else [],
+        "specialist_applied_human_review_actions": [
+            item.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.applied_review_actions
+        ] if state.specialist_agent_workspace else [],
+        "specialist_human_review_action_results": [
+            item.model_dump(mode="json")
+            for item in state.specialist_agent_workspace.review_action_results
+        ] if state.specialist_agent_workspace else [],
+        "specialist_agent_workspace_artifact_available": state.specialist_agent_workspace is not None,
         "test_recommendation_made": False,
         "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,

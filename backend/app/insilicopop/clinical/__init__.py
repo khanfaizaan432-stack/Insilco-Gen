@@ -9,6 +9,7 @@ from app.insilicopop.clinical.service import (
     build_clinical_case_full_bundle,
     build_clinical_case_intake,
     build_clinical_case_result_evidence_bundle,
+    build_clinical_case_specialist_agent_bundle,
     build_clinical_case_strategy_bundle,
 )
 from app.insilicopop.clinical.hpo_models import PhenotypeCurationRequest, PhenotypeHpoCurationResult
@@ -32,6 +33,14 @@ from app.insilicopop.clinical.result_evidence_models import (
     ResultEvidenceWorkspaceRequest,
     ResultEvidenceWorkspaceResult,
 )
+from app.insilicopop.clinical.specialist_agents import (
+    build_specialist_agent_workspace,
+    load_specialist_agent_registry,
+)
+from app.insilicopop.clinical.specialist_agent_models import (
+    SpecialistAgentWorkspaceRequest,
+    SpecialistAgentWorkspaceResult,
+)
 
 __all__ = [
     "ClinicalCaseIntake",
@@ -44,6 +53,7 @@ __all__ = [
     "build_clinical_case_full_bundle",
     "build_clinical_case_strategy_bundle",
     "build_clinical_case_result_evidence_bundle",
+    "build_clinical_case_specialist_agent_bundle",
     "build_phenotype_hpo_curation",
     "load_hpo_registry",
     "PhenotypeCurationRequest",
@@ -66,4 +76,8 @@ __all__ = [
     "build_result_evidence_workspace",
     "ResultEvidenceWorkspaceRequest",
     "ResultEvidenceWorkspaceResult",
+    "build_specialist_agent_workspace",
+    "load_specialist_agent_registry",
+    "SpecialistAgentWorkspaceRequest",
+    "SpecialistAgentWorkspaceResult",
 ]

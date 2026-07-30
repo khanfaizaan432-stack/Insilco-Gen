@@ -16,7 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_result_evidence_bundle
+from app.insilicopop.clinical.service import build_clinical_case_specialist_agent_bundle
 from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
@@ -327,7 +327,8 @@ class AgentLoop:
             state.pre_test_assessment,
             state.test_strategy_workspace,
             state.result_evidence_workspace,
-        ) = build_clinical_case_result_evidence_bundle(payload, request_text=request_text)
+            state.specialist_agent_workspace,
+        ) = build_clinical_case_specialist_agent_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -505,6 +506,40 @@ class AgentLoop:
                     "byok_used": workspace.byok_used,
                 }
             )
+        if state.specialist_agent_workspace:
+            workspace = state.specialist_agent_workspace
+            state.decision_trace.append(
+                {
+                    "event": "specialist_agent_workspace_completed",
+                    "schema_version": workspace.schema_version,
+                    "controller_version": workspace.controller_version,
+                    "registry_version": workspace.registry_version,
+                    "safety_policy_version": workspace.safety_policy_version,
+                    "candidate_ruleset_version": workspace.candidate_ruleset_version,
+                    "pseudonymous_case_id": workspace.pseudonymous_case_id,
+                    "enabled_agent_ids": [
+                        item.agent_id for item in workspace.approved_registry if item.enabled
+                    ],
+                    "spawn_request_count": len(workspace.spawn_requests),
+                    "task_envelope_count": len(workspace.task_envelopes),
+                    "agent_output_count": len(workspace.agent_outputs),
+                    "review_ready_output_count": len(workspace.review_ready_output_ids),
+                    "candidate_criterion_count": len(workspace.candidate_criteria),
+                    "disagreement_group_count": len(workspace.disagreement_groups),
+                    "recursive_spawning_used": False,
+                    "dynamic_roles_created": False,
+                    "majority_vote_used": False,
+                    "automatic_criterion_combination_used": False,
+                    "pathogenicity_score_calculated": False,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "external_llm_called": workspace.external_llm_called,
+                    "external_tools_executed": workspace.external_tools_executed,
+                }
+            )
+            state.decision_trace.extend(
+                item.model_dump(mode="json") for item in workspace.execution_trace
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -541,6 +576,7 @@ class AgentLoop:
             "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
             "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
+            "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
             "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),
