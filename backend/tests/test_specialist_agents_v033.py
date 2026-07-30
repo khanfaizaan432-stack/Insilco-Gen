@@ -862,8 +862,14 @@ def test_human_review_actions_are_auditable_and_acceptance_is_discussion_only():
             "reviewer_role": "clinical_research_reviewer",
             "reviewer_id": "reviewer",
             "timestamp": "2026-01-12T00:00:00Z",
-            "before_value": {"candidate_status": "candidate_only"},
-            "after_value": {"candidate_status": "accepted_for_discussion"},
+            "before_value": {
+                "candidate_status": "candidate_only",
+                "human_review_status": "pending",
+            },
+            "after_value": {
+                "candidate_status": "accepted_for_discussion",
+                "human_review_status": "accepted_for_discussion",
+            },
         },
     ]
     result = _run(reviewed)
@@ -950,8 +956,14 @@ def test_output_and_candidate_review_transitions_remain_non_final_and_auditable(
             "target_id": candidate_id,
             "reviewer_role": "clinical_research_reviewer",
             "timestamp": f"2026-02-{index:02d}T00:00:00Z",
-            "before_value": {"candidate_status": "candidate_only"},
-            "after_value": {"candidate_status": expected[0].value},
+            "before_value": {
+                "candidate_status": "candidate_only",
+                "human_review_status": "pending",
+            },
+            "after_value": {
+                "candidate_status": expected[0].value,
+                "human_review_status": expected[1].value,
+            },
         }
         if action_name == "edit_candidate":
             action["before_value"] = {

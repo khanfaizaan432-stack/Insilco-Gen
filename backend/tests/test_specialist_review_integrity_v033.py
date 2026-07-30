@@ -202,6 +202,202 @@ def test_external_assessment_record_action_rejects_mutation_payload():
     assert result.external_acmg_assessments[0].verification_status.value == "unreviewed"
 
 
+def _request_candidate_information_action(candidate_id: str) -> dict:
+    return _action(
+        action_id="CANDIDATE-REQUEST-INFORMATION",
+        action="request_more_information",
+        target_type="candidate_criterion",
+        target_id=candidate_id,
+        before={
+            "candidate_status": "candidate_only",
+            "human_review_status": "pending",
+        },
+        after={
+            "candidate_status": "candidate_only",
+            "human_review_status": "more_information_requested",
+        },
+        timestamp="2026-03-01T00:00:00Z",
+    )
+
+
+def test_stale_candidate_reject_after_request_information_is_rejected():
+    payload, _, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _request_candidate_information_action(candidate_id),
+        _action(
+            action_id="CANDIDATE-STALE-REJECT",
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before={
+                "candidate_status": "candidate_only",
+                "human_review_status": "pending",
+            },
+            after={
+                "candidate_status": "rejected_by_reviewer",
+                "human_review_status": "rejected",
+            },
+            timestamp="2026-03-02T00:00:00Z",
+        ),
+    ]
+
+    result = _run(reviewed)
+
+    candidate = result.candidate_criteria[0]
+    assert candidate.candidate_status == CandidateStatus.CANDIDATE_ONLY
+    assert (
+        candidate.human_review_status
+        == SpecialistReviewStatus.MORE_INFORMATION_REQUESTED
+    )
+    assert [item.action_id for item in result.applied_review_actions] == [
+        "CANDIDATE-REQUEST-INFORMATION"
+    ]
+    stale = result.review_action_results[1]
+    assert stale.result_status.value == "rejected"
+    assert stale.rejection_reason.value == "before_value_mismatch"
+    assert stale.validated_after is None
+
+
+def test_candidate_reject_with_current_complete_state_applies():
+    payload, _, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _request_candidate_information_action(candidate_id),
+        _action(
+            action_id="CANDIDATE-CURRENT-REJECT",
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before={
+                "candidate_status": "candidate_only",
+                "human_review_status": "more_information_requested",
+            },
+            after={
+                "candidate_status": "rejected_by_reviewer",
+                "human_review_status": "rejected",
+            },
+            timestamp="2026-03-02T00:00:00Z",
+        ),
+    ]
+
+    result = _run(reviewed)
+
+    candidate = result.candidate_criteria[0]
+    assert candidate.candidate_status == CandidateStatus.REJECTED_BY_REVIEWER
+    assert candidate.human_review_status == SpecialistReviewStatus.REJECTED
+    assert [item.action_id for item in result.applied_review_actions] == [
+        "CANDIDATE-REQUEST-INFORMATION",
+        "CANDIDATE-CURRENT-REJECT",
+    ]
+    assert all(
+        item.result_status.value == "applied"
+        for item in result.review_action_results
+    )
+
+
+def test_candidate_transition_missing_human_review_before_state_is_rejected():
+    payload, first, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _action(
+            action_id="CANDIDATE-MISSING-HUMAN-BEFORE",
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before={"candidate_status": "candidate_only"},
+            after={
+                "candidate_status": "rejected_by_reviewer",
+                "human_review_status": "rejected",
+            },
+        )
+    ]
+
+    result = _run(reviewed)
+
+    assert result.candidate_criteria == first.candidate_criteria
+    assert result.applied_review_actions == []
+    rejected = result.review_action_results[0]
+    assert rejected.rejection_reason.value == "before_value_required"
+    assert rejected.validated_after is None
+
+
+def test_candidate_transition_mismatched_human_review_before_state_is_rejected():
+    payload, first, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _action(
+            action_id="CANDIDATE-MISMATCHED-HUMAN-BEFORE",
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before={
+                "candidate_status": "candidate_only",
+                "human_review_status": "edited",
+            },
+            after={
+                "candidate_status": "rejected_by_reviewer",
+                "human_review_status": "rejected",
+            },
+        )
+    ]
+
+    result = _run(reviewed)
+
+    assert result.candidate_criteria == first.candidate_criteria
+    assert result.applied_review_actions == []
+    assert (
+        result.review_action_results[0].rejection_reason.value
+        == "before_value_mismatch"
+    )
+
+
+@pytest.mark.parametrize(
+    ("after", "reason"),
+    [
+        ({"candidate_status": "rejected_by_reviewer"}, "after_value_required"),
+        (
+            {
+                "candidate_status": "rejected_by_reviewer",
+                "human_review_status": "deferred",
+            },
+            "after_value_mismatch",
+        ),
+        (
+            {
+                "candidate_status": "deferred",
+                "human_review_status": "rejected",
+            },
+            "after_value_mismatch",
+        ),
+    ],
+)
+def test_candidate_transition_requires_complete_expected_after_state(after, reason):
+    payload, first, _, candidate_id = _candidate_context()
+    reviewed = copy.deepcopy(payload)
+    reviewed["specialist_agent_workspace"]["review_actions"] = [
+        _action(
+            action_id=f"CANDIDATE-INVALID-AFTER-{reason}-{after['candidate_status']}",
+            action="reject_candidate",
+            target_type="candidate_criterion",
+            target_id=candidate_id,
+            before={
+                "candidate_status": "candidate_only",
+                "human_review_status": "pending",
+            },
+            after=after,
+        )
+    ]
+
+    result = _run(reviewed)
+
+    assert result.candidate_criteria == first.candidate_criteria
+    assert result.applied_review_actions == []
+    rejected = result.review_action_results[0]
+    assert rejected.rejection_reason.value == reason
+    assert rejected.validated_after is None
+
+
 def test_stale_and_invalid_output_transitions_preserve_current_state():
     payload, _, output_id, _ = _candidate_context()
     reviewed = copy.deepcopy(payload)
@@ -305,8 +501,14 @@ def test_deferred_candidate_cannot_be_edited():
             action="defer_candidate",
             target_type="candidate_criterion",
             target_id=candidate_id,
-            before={"candidate_status": "candidate_only"},
-            after={"candidate_status": "deferred"},
+            before={
+                "candidate_status": "candidate_only",
+                "human_review_status": "pending",
+            },
+            after={
+                "candidate_status": "deferred",
+                "human_review_status": "deferred",
+            },
             timestamp="2026-03-01T00:00:00Z",
         ),
         _action(

@@ -1458,8 +1458,11 @@ def _apply_candidate_review_actions(
                 results.append(_validation_rejection(action, before, exc))
                 continue
         else:
+            transition_before = _candidate_transition_snapshot(candidate)
             rejection = _validate_before_value(
-                action, before, {"candidate_status"}
+                action,
+                transition_before,
+                {"candidate_status", "human_review_status"},
             )
             if rejection:
                 results.append(rejection)
@@ -1479,8 +1482,8 @@ def _apply_candidate_review_actions(
             rejection = _validate_after_value(
                 action,
                 expected_after,
-                before,
-                required_keys={"candidate_status"},
+                transition_before,
+                required_keys={"candidate_status", "human_review_status"},
             )
             if rejection:
                 results.append(rejection)
@@ -1840,6 +1843,15 @@ def _candidate_review_snapshot(
             "phenotype_context",
             "technical_limitations",
         )
+    }
+
+
+def _candidate_transition_snapshot(
+    candidate: CandidateCriterionRecord,
+) -> dict[str, Any]:
+    return {
+        "candidate_status": candidate.candidate_status.value,
+        "human_review_status": candidate.human_review_status.value,
     }
 
 
