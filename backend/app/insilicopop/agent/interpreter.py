@@ -1162,6 +1162,7 @@ def _jarvis_synthesis_report_workspace_lines(
     excluded = workspace.get("excluded_proposed_claims", []) or []
     critic_runs = workspace.get("critic_runs", []) or []
     critic_findings = workspace.get("critic_findings", []) or []
+    eligibility_decisions = workspace.get("eligibility_decisions", []) or []
     sections = workspace.get("report_sections", []) or []
     action_results = workspace.get("review_action_results", []) or []
     lines = [
@@ -1174,6 +1175,7 @@ def _jarvis_synthesis_report_workspace_lines(
         f"- briefing_item_count: `{len(briefing.get('items', []) or [])}`",
         f"- source_grounded_synthesis_claim_count: `{len(claims)}`",
         f"- excluded_proposed_claim_count: `{len(excluded)}`",
+        f"- eligibility_decision_count: `{len(eligibility_decisions)}`",
         f"- non_mutating_critic_count: `{len(critic_runs)}`",
         f"- critic_finding_count: `{len(critic_findings)}`",
         f"- draft_report_section_count: `{len(sections)}`",
@@ -1197,6 +1199,10 @@ def _jarvis_synthesis_report_workspace_lines(
                 f"`{_redact(str(item.get('support_status', 'unresolved')))}`",
                 f"  - {_redact(str(item.get('statement', 'No claim statement.')))}",
                 f"  - {_redact(str(item.get('uncertainty_language', 'Human review required.')))}",
+                f"  - supporting evidence: `{', '.join(_redact(str(value)) for value in item.get('supporting_evidence_ids', [])) or 'none'}`",
+                f"  - contradicting evidence: `{', '.join(_redact(str(value)) for value in item.get('contradicting_evidence_ids', [])) or 'none'}`",
+                f"  - unresolved evidence: `{', '.join(_redact(str(value)) for value in item.get('unresolved_evidence_ids', [])) or 'none'}`",
+                f"  - eligibility: `{_redact(str(item.get('report_use', 'excluded')))}`",
             ]
         )
     if not claims:

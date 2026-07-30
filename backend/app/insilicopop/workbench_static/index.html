@@ -1340,6 +1340,7 @@
       const briefing = workspace.briefing || {};
       const claims = workspace.synthesis_claims || [];
       const excluded = workspace.excluded_proposed_claims || [];
+      const eligibilityDecisions = workspace.eligibility_decisions || [];
       const critics = workspace.critic_findings || [];
       const sections = workspace.report_sections || [];
       const reviewResults = workspace.review_action_results || [];
@@ -1353,7 +1354,10 @@
           <p>${escapeHtml(claim.statement || "No claim statement.")}</p>
           <p><strong>Uncertainty:</strong> ${escapeHtml(claim.uncertainty_language || "Human review required.")}</p>
           <p><strong>Fact paths:</strong> ${escapeHtml((claim.source_fact_paths || []).join(", ") || "none")}</p>
-          <p><strong>Evidence IDs:</strong> ${escapeHtml((claim.source_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Supporting evidence IDs:</strong> ${escapeHtml((claim.supporting_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Contradicting evidence IDs:</strong> ${escapeHtml((claim.contradicting_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Unresolved evidence IDs:</strong> ${escapeHtml((claim.unresolved_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Eligibility decisions:</strong> ${escapeHtml((claim.eligibility_decision_ids || []).join(", ") || "none")} — exclusions ${escapeHtml((claim.exclusion_reason_codes || []).join(", ") || "none")}</p>
           <p><strong>Specialist output IDs:</strong> ${escapeHtml((claim.source_specialist_output_ids || []).join(", ") || "none")}</p>
           <p><strong>Candidate ACMG IDs:</strong> ${escapeHtml((claim.source_candidate_criterion_ids || []).join(", ") || "none")}</p>
           <p><strong>State:</strong> proposed_not_approved; human review required</p>
@@ -1362,6 +1366,9 @@
       const excludedRows = excluded.map((claim) =>
         `<li><strong>Excluded from factual conclusions:</strong> ${escapeHtml(claim.claim_id || "claim")} — ${escapeHtml(claim.support_status || "unsupported")} — ${escapeHtml(claim.statement || "No statement.")}</li>`
       ).join("") || "<li>No proposed claim was excluded.</li>";
+      const eligibilityRows = eligibilityDecisions.map((item) =>
+        `<li><strong>${escapeHtml(item.input_artifact_type || "artifact")} ${escapeHtml(item.input_artifact_id || "unknown")}</strong> — ${escapeHtml(item.decision || "excluded")} — ${escapeHtml(item.lifecycle_state || "excluded")} — ${escapeHtml(item.reason_code || "unknown_reference")} — successor ${escapeHtml(item.linked_successor_id || "none")}</li>`
+      ).join("") || "<li>No evidence eligibility decision recorded.</li>";
       const criticRows = critics.map((finding) =>
         `<li><strong>${escapeHtml(finding.critic_type || "critic")}</strong> — ${escapeHtml(finding.severity || "information")} — ${escapeHtml(finding.code || "finding")} — ${escapeHtml(finding.message || "Human review required.")} — mutation applied: false</li>`
       ).join("") || "<li>No critic finding recorded.</li>";
@@ -1375,7 +1382,7 @@
         </details>`
       ).join("") || "<p>No draft report section generated.</p>";
       const drillRows = drillDown.map((item) =>
-        `<li><strong>Claim-to-evidence drill-down ${escapeHtml(item.claim_id || "claim")}</strong> — evidence ${escapeHtml((item.evidence_ledger_entry_ids || []).join(", ") || "none")} — facts ${escapeHtml((item.source_fact_paths || []).join(", ") || "none")} — conflict visible ${escapeHtml(item.conflict_visible === true)}</li>`
+        `<li><strong>Claim-to-evidence drill-down ${escapeHtml(item.claim_id || "claim")}</strong> — supporting ${escapeHtml((item.supporting_evidence_ids || []).join(", ") || "none")} — contradicting ${escapeHtml((item.contradicting_evidence_ids || []).join(", ") || "none")} — unresolved ${escapeHtml((item.unresolved_evidence_ids || []).join(", ") || "none")} — facts ${escapeHtml((item.source_fact_paths || []).join(", ") || "none")} — eligibility ${escapeHtml((item.eligibility_decision_ids || []).join(", ") || "none")} — exclusions ${escapeHtml((item.exclusion_reason_codes || []).join(", ") || "none")} — conflict visible ${escapeHtml(item.conflict_visible === true)}</li>`
       ).join("") || "<li>No drill-down record generated.</li>";
       const appliedRows = reviewResults.filter((item) => item.result_status === "applied").map((item) =>
         `<li><strong>Applied report review</strong> — ${escapeHtml(item.action_id || "action")} — ${escapeHtml(item.target_id || "section")}</li>`
@@ -1389,6 +1396,7 @@
           <div class="metric"><strong>JARVIS briefing items</strong>${escapeHtml((briefing.items || []).length)}</div>
           <div class="metric"><strong>source-grounded claims</strong>${escapeHtml(claims.length)}</div>
           <div class="metric warn"><strong>excluded proposed claims</strong>${escapeHtml(excluded.length)}</div>
+          <div class="metric"><strong>eligibility decisions</strong>${escapeHtml(eligibilityDecisions.length)}</div>
           <div class="metric"><strong>non-mutating critics</strong>${escapeHtml((workspace.critic_runs || []).length)}</div>
           <div class="metric"><strong>draft report sections</strong>${escapeHtml(sections.length)}</div>
           <div class="metric warn"><strong>pending human decisions</strong>${escapeHtml((workspace.pending_human_decision_ids || []).length)}</div>
@@ -1399,6 +1407,7 @@
         <h3>Current case briefing and next workflow checkpoints</h3><ul>${briefingRows}</ul>
         <h3>Source-grounded scientific synthesis</h3>${claimRows}
         <h3>Excluded unsupported or unapproved proposals</h3><ul>${excludedRows}</ul>
+        <h3>Evidence eligibility and lifecycle provenance</h3><ul>${eligibilityRows}</ul>
         <h3>Non-mutating critic findings</h3><ul>${criticRows}</ul>
         <h3>Cited draft report — draft_not_clinically_approved</h3>${sectionRows}
         <h3>Claim-to-evidence drill-down</h3><ul>${drillRows}</ul>

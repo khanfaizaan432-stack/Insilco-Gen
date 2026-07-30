@@ -140,6 +140,9 @@ class AgentRunSummary(BaseModel):
     jarvis_briefing_item_count: int = 0
     synthesis_claim_count: int = 0
     excluded_proposed_claim_count: int = 0
+    evidence_eligibility_decision_count: int = 0
+    context_only_evidence_input_count: int = 0
+    excluded_evidence_input_count: int = 0
     critic_finding_count: int = 0
     draft_report_section_count: int = 0
     pending_report_human_decision_count: int = 0
@@ -431,6 +434,21 @@ class WorkbenchRunStore:
             ),
             excluded_proposed_claim_count=len(
                 jarvis_workspace.get("excluded_proposed_claims", []) or []
+            ),
+            evidence_eligibility_decision_count=len(
+                jarvis_workspace.get("eligibility_decisions", []) or []
+            ),
+            context_only_evidence_input_count=len(
+                (
+                    jarvis_workspace.get("reproducibility", {}) or {}
+                ).get("context_only_input_ids", [])
+                or []
+            ),
+            excluded_evidence_input_count=len(
+                (
+                    jarvis_workspace.get("reproducibility", {}) or {}
+                ).get("excluded_input_ids", [])
+                or []
             ),
             critic_finding_count=len(
                 jarvis_workspace.get("critic_findings", []) or []

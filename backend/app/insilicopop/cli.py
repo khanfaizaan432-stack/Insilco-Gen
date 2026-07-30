@@ -129,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"jarvis_synthesis_claims={len(jarvis.get('synthesis_claims', []))}"
         )
+        print(
+            f"jarvis_eligibility_decisions={len(jarvis.get('eligibility_decisions', []))}"
+        )
         print(f"jarvis_critic_findings={len(jarvis.get('critic_findings', []))}")
         print(f"draft_report_sections={len(jarvis.get('report_sections', []))}")
         print(

@@ -599,6 +599,21 @@ def _provenance_index(
             "workspace_hash": (
                 state.jarvis_synthesis_report_workspace.reproducibility.workspace_hash
             ),
+            "eligibility_rule_version": (
+                state.jarvis_synthesis_report_workspace.reproducibility.eligibility_rule_version
+            ),
+            "eligibility_decision_count": len(
+                state.jarvis_synthesis_report_workspace.eligibility_decisions
+            ),
+            "eligible_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.eligible_input_ids
+            ),
+            "context_only_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.context_only_input_ids
+            ),
+            "excluded_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.excluded_input_ids
+            ),
             "report_status": "draft_not_clinically_approved",
             "human_review_required": True,
         }
@@ -761,6 +776,20 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
             item.claim_id
             for item in state.jarvis_synthesis_report_workspace.synthesis_claims
         ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_eligibility_decision_ids": [
+            item.decision_id
+            for item in state.jarvis_synthesis_report_workspace.eligibility_decisions
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_eligibility_rule_version": (
+            state.jarvis_synthesis_report_workspace.reproducibility.eligibility_rule_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_deterministic_fallback_used": (
+            state.jarvis_synthesis_report_workspace.reproducibility.deterministic_fallback_used
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
         "jarvis_critic_run_ids": [
             item.critic_run_id
             for item in state.jarvis_synthesis_report_workspace.critic_runs

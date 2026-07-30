@@ -49,7 +49,7 @@ def test_bounded_aggregate_is_deterministic_source_linked_and_non_clinical():
         "provenance",
     }
     assert all(item.mutation_applied is False for item in first.critic_runs)
-    assert len(first.report_sections) == 15
+    assert len(first.report_sections) == 19
     assert all(
         item.narrative_status == "draft_not_clinically_approved"
         and item.clinically_approved is False
@@ -70,7 +70,9 @@ def test_bounded_aggregate_is_deterministic_source_linked_and_non_clinical():
     assert first.human_review_required is True
     assert all(
         item.source_fact_paths
-        or item.source_evidence_ids
+        or item.supporting_evidence_ids
+        or item.contradicting_evidence_ids
+        or item.unresolved_evidence_ids
         or item.source_specialist_output_ids
         or item.source_candidate_criterion_ids
         or item.source_human_decision_ids
@@ -231,9 +233,24 @@ def test_grounded_edit_can_select_eligible_claims_without_free_text_invention():
     after["title"] = "Reviewed bounded synthesis"
     after["claim_ids"] = [claim.claim_id]
     after["citation_ids"] = sorted(
-        claim.source_evidence_ids or claim.source_fact_paths
+        claim.supporting_evidence_ids
+        + claim.contradicting_evidence_ids
+        + claim.unresolved_evidence_ids
+        + claim.source_fact_paths
     )
-    after["narrative"] = f"{claim.statement} [claim:{claim.claim_id}]"
+    conflict = claim.support_status.value in {"conflicting", "contradicted"}
+    after["narrative"] = (
+        f"{claim.statement} [claim:{claim.claim_id}; support:{claim.support_status.value}; "
+        f"uncertainty:{claim.uncertainty_language}; origin:{claim.origin_category.value}; "
+        f"supporting:{','.join(claim.supporting_evidence_ids) or 'none'}; "
+        f"contradicting:{','.join(claim.contradicting_evidence_ids) or 'none'}; "
+        f"unresolved:{','.join(claim.unresolved_evidence_ids) or 'none'}; "
+        f"conflict:{str(conflict).lower()}; use:{claim.report_use}; "
+        f"eligibility:{','.join(claim.eligibility_decision_ids) or 'none'}; "
+        f"exclusions:{','.join(item.value for item in claim.exclusion_reason_codes) or 'none'}; "
+        f"human_review:{claim.human_review_status.value}; "
+        "draft:draft_not_clinically_approved]"
+    )
     after["human_review_status"] = "edited"
     after["reviewer_notes"] = "Selected one controlled claim for this draft."
     payload["jarvis_synthesis_report_workspace"]["review_actions"] = [
@@ -267,10 +284,9 @@ def test_unreviewed_specialist_output_does_not_enter_evidence_bearing_report():
     candidate_section = next(
         item for item in result.report_sections if item.section_type == "candidate_acmg"
     )
-    assert candidate_section.claim_ids
-    assert "candidate status" in candidate_section.narrative
-    assert "proposed_not_approved" not in candidate_section.narrative or all(
-        item.proposal_status == "proposed_not_approved"
-        for item in result.synthesis_claims
-        if item.claim_id in candidate_section.claim_ids
+    assert candidate_section.claim_ids == []
+    limitations = next(
+        item for item in result.report_sections if item.section_type == "limitations"
     )
+    assert "candidate status" in limitations.narrative
+    assert "ineligible_review_status" in limitations.narrative

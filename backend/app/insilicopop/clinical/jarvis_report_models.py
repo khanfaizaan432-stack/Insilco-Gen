@@ -13,6 +13,7 @@ JARVIS_BRIEFING_VERSION = "insilicopop-jarvis-briefing-0.34.0"
 SYNTHESIS_VERSION = "insilicopop-source-grounded-synthesis-0.34.0"
 CRITIC_SUITE_VERSION = "insilicopop-bounded-critic-suite-0.34.0"
 REPORT_STUDIO_VERSION = "insilicopop-report-studio-0.34.0"
+EVIDENCE_ELIGIBILITY_RULE_VERSION = "insilicopop-evidence-eligibility-0.34.1"
 LOCAL_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
 _SENSITIVE_TEXT_PATTERN = re.compile(
     r"(?i)(?:"
@@ -46,11 +47,68 @@ class ClaimSupportStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class EvidenceLifecycleState(str, Enum):
+    ACTIVE = "active"
+    STALE = "stale"
+    CORRECTED = "corrected"
+    SUPERSEDED = "superseded"
+    WITHDRAWN = "withdrawn"
+    RETRACTED = "retracted"
+    INVALID = "invalid"
+    CONTEXT_ONLY = "context_only"
+    EXCLUDED = "excluded"
+
+
+class EligibilityDecisionKind(str, Enum):
+    ELIGIBLE = "eligible"
+    CONTEXT_ONLY = "context_only"
+    QUARANTINED = "quarantined"
+    EXCLUDED = "excluded"
+
+
+class EligibilityReasonCode(str, Enum):
+    ELIGIBLE_REVIEWED_RECORD = "eligible_reviewed_record"
+    ELIGIBLE_CONTROLLED_FACT = "eligible_controlled_fact"
+    ELIGIBLE_BOUNDED_CANDIDATE_RECORD = "eligible_bounded_candidate_record"
+    ELIGIBLE_HUMAN_DECISION = "eligible_human_decision"
+    UNKNOWN_REFERENCE = "unknown_reference"
+    DANGLING_REFERENCE = "dangling_reference"
+    REJECTED_RECORD = "rejected_record"
+    INELIGIBLE_REVIEW_STATUS = "ineligible_review_status"
+    WITHDRAWN_RECORD = "withdrawn_record"
+    RETRACTED_RECORD = "retracted_record"
+    SUPERSEDED_RECORD = "superseded_record"
+    CORRECTED_RECORD_CONTEXT_ONLY = "corrected_record_context_only"
+    STALE_RECORD_CONTEXT_ONLY = "stale_record_context_only"
+    INVALID_RECORD = "invalid_record"
+    EXTERNAL_ASSESSMENT_ATTRIBUTION_REQUIRED = (
+        "external_assessment_attribution_required"
+    )
+    UNSUPPORTED_CLAIM = "unsupported_claim"
+    EXCLUDED_RECORD_REUSE_ATTEMPT = "excluded_record_reuse_attempt"
+
+
+class EvidenceEligibilityDecision(FrozenJarvisModel):
+    decision_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
+    input_artifact_type: str = Field(min_length=1, max_length=120)
+    input_artifact_id: str = Field(min_length=1, max_length=240)
+    decision: EligibilityDecisionKind
+    reason_code: EligibilityReasonCode
+    lifecycle_state: EvidenceLifecycleState
+    linked_successor_id: str | None = Field(default=None, max_length=240)
+    deterministic_rule_version: Literal[
+        "insilicopop-evidence-eligibility-0.34.1"
+    ] = EVIDENCE_ELIGIBILITY_RULE_VERSION
+    source_fact_paths: list[str] = Field(default_factory=list, max_length=100)
+    human_review_required: Literal[True] = True
+
+
 class ReportHumanReviewStatus(str, Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     EDITED = "edited"
     REJECTED = "rejected"
+    DEFERRED = "deferred"
     MORE_INFORMATION_REQUESTED = "more_information_requested"
 
 
@@ -73,6 +131,7 @@ class ReportReviewActionType(str, Enum):
     ACCEPT = "accept"
     EDIT = "edit"
     REJECT = "reject"
+    DEFER = "defer"
     REQUEST_MORE_INFORMATION = "request_more_information"
 
 
@@ -99,6 +158,9 @@ class ProposedSynthesisClaim(FrozenJarvisModel):
     statement: str = Field(min_length=1, max_length=4000)
     source_fact_paths: list[str] = Field(default_factory=list, max_length=100)
     source_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    supporting_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    unresolved_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
     source_specialist_output_ids: list[str] = Field(default_factory=list, max_length=100)
     source_candidate_criterion_ids: list[str] = Field(default_factory=list, max_length=100)
     stated_support_status: ClaimSupportStatus = ClaimSupportStatus.UNRESOLVED
@@ -116,6 +178,14 @@ class ProposedSynthesisClaim(FrozenJarvisModel):
             raise ValueError(
                 "proposed claims must not contain direct identifiers or secrets"
             )
+        supporting = set(self.supporting_evidence_ids) | set(self.source_evidence_ids)
+        if (
+            supporting & set(self.contradicting_evidence_ids)
+            or supporting & set(self.unresolved_evidence_ids)
+            or set(self.contradicting_evidence_ids)
+            & set(self.unresolved_evidence_ids)
+        ):
+            raise ValueError("proposed evidence identifiers must have one explicit role")
         return self
 
 
@@ -217,29 +287,72 @@ class JarvisCaseBriefing(FrozenJarvisModel):
 class SynthesisClaim(FrozenJarvisModel):
     claim_id: str = Field(min_length=1, max_length=120, pattern=LOCAL_ID_PATTERN)
     statement: str = Field(min_length=1, max_length=4000)
+    claim_category: str = Field(min_length=1, max_length=120)
     origin_category: ClaimOriginCategory
     support_status: ClaimSupportStatus
     uncertainty_language: str = Field(min_length=1, max_length=1000)
     source_fact_paths: list[str] = Field(default_factory=list, max_length=100)
-    source_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    supporting_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
+    unresolved_evidence_ids: list[str] = Field(default_factory=list, max_length=500)
     source_specialist_output_ids: list[str] = Field(default_factory=list, max_length=100)
     source_candidate_criterion_ids: list[str] = Field(
         default_factory=list, max_length=100
     )
     source_human_decision_ids: list[str] = Field(default_factory=list, max_length=100)
+    eligibility_decision_ids: list[str] = Field(default_factory=list, max_length=500)
+    exclusion_reason_codes: list[EligibilityReasonCode] = Field(
+        default_factory=list, max_length=100
+    )
+    report_use: Literal["factual", "context_only", "excluded"] = "excluded"
+    provenance_status: Literal["complete", "incomplete"] = "complete"
+    citation_support_status: Literal["complete", "incomplete", "excluded"] = (
+        "incomplete"
+    )
+    generation_mode: Literal["deterministic"] = "deterministic"
+    provider_context: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "provider": "deterministic",
+            "model": "bounded-template-synthesis",
+        }
+    )
+    budget_context: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "external_call_budget": 0,
+            "external_token_budget": 0,
+            "external_cost_budget": 0,
+        }
+    )
     human_review_status: ReportHumanReviewStatus = ReportHumanReviewStatus.PENDING
     eligible_for_report: bool = False
     proposal_status: Literal["proposed_not_approved"] = "proposed_not_approved"
     human_review_required: Literal[True] = True
 
+    @model_validator(mode="after")
+    def distinct_evidence_roles(self) -> "SynthesisClaim":
+        supporting = set(self.supporting_evidence_ids)
+        contradicting = set(self.contradicting_evidence_ids)
+        unresolved = set(self.unresolved_evidence_ids)
+        if (
+            supporting & contradicting
+            or supporting & unresolved
+            or contradicting & unresolved
+        ):
+            raise ValueError("synthesis evidence identifiers must have one explicit role")
+        return self
+
 
 class ClaimEvidenceDrillDown(FrozenJarvisModel):
     claim_id: str
     source_fact_paths: list[str] = Field(default_factory=list)
-    evidence_ledger_entry_ids: list[str] = Field(default_factory=list)
+    supporting_evidence_ids: list[str] = Field(default_factory=list)
+    contradicting_evidence_ids: list[str] = Field(default_factory=list)
+    unresolved_evidence_ids: list[str] = Field(default_factory=list)
     specialist_output_ids: list[str] = Field(default_factory=list)
     candidate_criterion_ids: list[str] = Field(default_factory=list)
     human_decision_ids: list[str] = Field(default_factory=list)
+    eligibility_decision_ids: list[str] = Field(default_factory=list)
+    exclusion_reason_codes: list[EligibilityReasonCode] = Field(default_factory=list)
     support_status: ClaimSupportStatus
     conflict_visible: bool = False
     provenance_complete: bool = False
@@ -314,6 +427,12 @@ class ReportReviewActionResult(FrozenJarvisModel):
 class JarvisReportReproducibility(FrozenJarvisModel):
     source_artifact_versions: dict[str, str]
     source_artifact_hashes: dict[str, str]
+    eligible_input_ids: list[str]
+    context_only_input_ids: list[str]
+    excluded_input_ids: list[str]
+    eligibility_decisions: list[EvidenceEligibilityDecision]
+    exclusion_reason_codes: list[EligibilityReasonCode]
+    evidence_role_mappings: dict[str, dict[str, list[str]]]
     synthesis_claim_ids: list[str]
     report_section_ids: list[str]
     critic_run_ids: list[str]
@@ -321,6 +440,13 @@ class JarvisReportReproducibility(FrozenJarvisModel):
     requested_review_actions: list[dict[str, Any]]
     applied_review_actions: list[dict[str, Any]]
     review_action_results: list[dict[str, Any]]
+    deterministic_fallback_used: Literal[True] = True
+    provider_context: dict[str, Any]
+    budget_context: dict[str, Any]
+    generation_mode: Literal["deterministic"] = "deterministic"
+    eligibility_rule_version: Literal[
+        "insilicopop-evidence-eligibility-0.34.1"
+    ] = EVIDENCE_ELIGIBILITY_RULE_VERSION
     workspace_hash: str
 
 
@@ -342,6 +468,7 @@ class JarvisSynthesisReportWorkspaceResult(FrozenJarvisModel):
     briefing: JarvisCaseBriefing
     synthesis_claims: list[SynthesisClaim]
     excluded_proposed_claims: list[SynthesisClaim]
+    eligibility_decisions: list[EvidenceEligibilityDecision]
     claim_evidence_drill_down: list[ClaimEvidenceDrillDown]
     critic_runs: list[CriticRun]
     critic_findings: list[CriticFinding]

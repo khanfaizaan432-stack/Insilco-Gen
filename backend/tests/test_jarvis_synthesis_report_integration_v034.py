@@ -73,7 +73,7 @@ def test_agent_run_writes_report_trace_reproducibility_and_stored_run(tmp_path):
     assert detail.jarvis_briefing_item_count > 0
     assert detail.synthesis_claim_count > 0
     assert detail.critic_finding_count > 0
-    assert detail.draft_report_section_count == 15
+    assert detail.draft_report_section_count == 19
     assert detail.jarvis_synthesis_report_workspace_artifact_available is True
     artifact = WorkbenchRunStore(generated_root=tmp_path).read_artifact(
         result["run_id"],
@@ -96,7 +96,7 @@ def test_api_response_exposes_v034_aggregate():
     assert body["jarvis_synthesis_report_workspace"]["schema_version"] == "0.34"
     detail = client.get(f"/insilicopop/agent/runs/{body['run_id']}").json()
     assert detail["synthesis_claim_count"] > 0
-    assert detail["draft_report_section_count"] == 15
+    assert detail["draft_report_section_count"] == 19
     assert detail["jarvis_synthesis_report_workspace_artifact_available"] is True
 
 
