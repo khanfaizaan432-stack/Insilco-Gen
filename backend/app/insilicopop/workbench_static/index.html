@@ -456,6 +456,8 @@
           <div id="result-evidence-workspace" class="muted">No result and evidence workspace loaded.</div>
           <h3>Specialist Agents and Candidate ACMG Workspace</h3>
           <div id="specialist-agent-workspace" class="muted">No specialist-agent workspace loaded.</div>
+          <h3>JARVIS Synthesis, Critics, and Report Studio</h3>
+          <div id="jarvis-synthesis-report-workspace" class="muted">No JARVIS synthesis/report workspace loaded.</div>
           <h3>Variant Intelligence Workspace</h3>
           <div id="variant-intelligence" class="muted">No variant intelligence data loaded.</div>
           <h3>Results-only audit preview</h3>
@@ -1328,6 +1330,91 @@
         <h3>Rejected or stale review attempts</h3><ul>${rejectedReviewRows}</ul>`;
     }
 
+    function renderJarvisSynthesisReportWorkspace(workspace) {
+      const target = document.getElementById("jarvis-synthesis-report-workspace");
+      if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
+        target.className = "muted";
+        target.textContent = "No JARVIS synthesis/report workspace loaded. This is expected for runs created before v0.34 or without an explicit aggregate-workspace declaration.";
+        return;
+      }
+      const briefing = workspace.briefing || {};
+      const claims = workspace.synthesis_claims || [];
+      const excluded = workspace.excluded_proposed_claims || [];
+      const eligibilityDecisions = workspace.eligibility_decisions || [];
+      const critics = workspace.critic_findings || [];
+      const sections = workspace.report_sections || [];
+      const reviewResults = workspace.review_action_results || [];
+      const drillDown = workspace.claim_evidence_drill_down || [];
+      const briefingRows = (briefing.items || []).map((item) =>
+        `<li><strong>${escapeHtml(item.category || "case state")}</strong> — ${escapeHtml(item.statement || "Human review required.")}</li>`
+      ).join("") || "<li>No bounded briefing item generated.</li>";
+      const claimRows = claims.map((claim) =>
+        `<details>
+          <summary>${escapeHtml(claim.claim_id || "claim")} — ${escapeHtml(claim.origin_category || "unknown")} — ${escapeHtml(claim.support_status || "unresolved")}</summary>
+          <p>${escapeHtml(claim.statement || "No claim statement.")}</p>
+          <p><strong>Uncertainty:</strong> ${escapeHtml(claim.uncertainty_language || "Human review required.")}</p>
+          <p><strong>Fact paths:</strong> ${escapeHtml((claim.source_fact_paths || []).join(", ") || "none")}</p>
+          <p><strong>Supporting evidence IDs:</strong> ${escapeHtml((claim.supporting_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Contradicting evidence IDs:</strong> ${escapeHtml((claim.contradicting_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Unresolved evidence IDs:</strong> ${escapeHtml((claim.unresolved_evidence_ids || []).join(", ") || "none")}</p>
+          <p><strong>Eligibility decisions:</strong> ${escapeHtml((claim.eligibility_decision_ids || []).join(", ") || "none")} — exclusions ${escapeHtml((claim.exclusion_reason_codes || []).join(", ") || "none")}</p>
+          <p><strong>Specialist output IDs:</strong> ${escapeHtml((claim.source_specialist_output_ids || []).join(", ") || "none")}</p>
+          <p><strong>Candidate ACMG IDs:</strong> ${escapeHtml((claim.source_candidate_criterion_ids || []).join(", ") || "none")}</p>
+          <p><strong>State:</strong> proposed_not_approved; human review required</p>
+        </details>`
+      ).join("") || "<p>No source-grounded synthesis claim generated.</p>";
+      const excludedRows = excluded.map((claim) =>
+        `<li><strong>Excluded from factual conclusions:</strong> ${escapeHtml(claim.claim_id || "claim")} — ${escapeHtml(claim.support_status || "unsupported")} — ${escapeHtml(claim.statement || "No statement.")}</li>`
+      ).join("") || "<li>No proposed claim was excluded.</li>";
+      const eligibilityRows = eligibilityDecisions.map((item) =>
+        `<li><strong>${escapeHtml(item.input_artifact_type || "artifact")} ${escapeHtml(item.input_artifact_id || "unknown")}</strong> — ${escapeHtml(item.decision || "excluded")} — ${escapeHtml(item.lifecycle_state || "excluded")} — ${escapeHtml(item.reason_code || "unknown_reference")} — successor ${escapeHtml(item.linked_successor_id || "none")}</li>`
+      ).join("") || "<li>No evidence eligibility decision recorded.</li>";
+      const criticRows = critics.map((finding) =>
+        `<li><strong>${escapeHtml(finding.critic_type || "critic")}</strong> — ${escapeHtml(finding.severity || "information")} — ${escapeHtml(finding.code || "finding")} — ${escapeHtml(finding.message || "Human review required.")} — mutation applied: false</li>`
+      ).join("") || "<li>No critic finding recorded.</li>";
+      const sectionRows = sections.map((section) =>
+        `<details>
+          <summary>${escapeHtml(section.title || "Draft section")} — ${escapeHtml(section.narrative_status || "draft_not_clinically_approved")} — ${escapeHtml(section.human_review_status || "pending")}</summary>
+          <p>${escapeHtml(section.narrative || "No draft narrative.")}</p>
+          <p><strong>Claim IDs:</strong> ${escapeHtml((section.claim_ids || []).join(", ") || "none")}</p>
+          <p><strong>Citation IDs:</strong> ${escapeHtml((section.citation_ids || []).join(", ") || "none")}</p>
+          <p><strong>Clinically approved:</strong> false</p>
+        </details>`
+      ).join("") || "<p>No draft report section generated.</p>";
+      const drillRows = drillDown.map((item) =>
+        `<li><strong>Claim-to-evidence drill-down ${escapeHtml(item.claim_id || "claim")}</strong> — supporting ${escapeHtml((item.supporting_evidence_ids || []).join(", ") || "none")} — contradicting ${escapeHtml((item.contradicting_evidence_ids || []).join(", ") || "none")} — unresolved ${escapeHtml((item.unresolved_evidence_ids || []).join(", ") || "none")} — facts ${escapeHtml((item.source_fact_paths || []).join(", ") || "none")} — eligibility ${escapeHtml((item.eligibility_decision_ids || []).join(", ") || "none")} — exclusions ${escapeHtml((item.exclusion_reason_codes || []).join(", ") || "none")} — conflict visible ${escapeHtml(item.conflict_visible === true)}</li>`
+      ).join("") || "<li>No drill-down record generated.</li>";
+      const appliedRows = reviewResults.filter((item) => item.result_status === "applied").map((item) =>
+        `<li><strong>Applied report review</strong> — ${escapeHtml(item.action_id || "action")} — ${escapeHtml(item.target_id || "section")}</li>`
+      ).join("") || "<li>No report review action was applied.</li>";
+      const rejectedRows = reviewResults.filter((item) => item.result_status === "rejected").map((item) =>
+        `<li><strong>Rejected or stale report review</strong> — ${escapeHtml(item.action_id || "action")} — ${escapeHtml(item.rejection_reason || "invalid_transition")} — ${escapeHtml(item.message || "Authoritative draft preserved.")}</li>`
+      ).join("") || "<li>No report review action was rejected.</li>";
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>JARVIS briefing items</strong>${escapeHtml((briefing.items || []).length)}</div>
+          <div class="metric"><strong>source-grounded claims</strong>${escapeHtml(claims.length)}</div>
+          <div class="metric warn"><strong>excluded proposed claims</strong>${escapeHtml(excluded.length)}</div>
+          <div class="metric"><strong>eligibility decisions</strong>${escapeHtml(eligibilityDecisions.length)}</div>
+          <div class="metric"><strong>non-mutating critics</strong>${escapeHtml((workspace.critic_runs || []).length)}</div>
+          <div class="metric"><strong>draft report sections</strong>${escapeHtml(sections.length)}</div>
+          <div class="metric warn"><strong>pending human decisions</strong>${escapeHtml((workspace.pending_human_decision_ids || []).length)}</div>
+          <div class="metric safe"><strong>report status</strong>draft_not_clinically_approved</div>
+          <div class="metric safe"><strong>critics mutated evidence</strong>false</div>
+        </div>
+        <p class="note"><strong>Bounded JARVIS:</strong> structured explanation only; no free browsing, agent spawning, evidence modification, diagnosis, treatment, test ordering, variant classification, or clinical sign-out.</p>
+        <h3>Current case briefing and next workflow checkpoints</h3><ul>${briefingRows}</ul>
+        <h3>Source-grounded scientific synthesis</h3>${claimRows}
+        <h3>Excluded unsupported or unapproved proposals</h3><ul>${excludedRows}</ul>
+        <h3>Evidence eligibility and lifecycle provenance</h3><ul>${eligibilityRows}</ul>
+        <h3>Non-mutating critic findings</h3><ul>${criticRows}</ul>
+        <h3>Cited draft report — draft_not_clinically_approved</h3>${sectionRows}
+        <h3>Claim-to-evidence drill-down</h3><ul>${drillRows}</ul>
+        <h3>Applied human-review decisions</h3><ul>${appliedRows}</ul>
+        <h3>Rejected or stale review attempts</h3><ul>${rejectedRows}</ul>`;
+    }
+
     // VARIANT_BADGE_LABELS_START
     function variantBadgeLabels(item) {
       const snapshot = item?.supplied_request_snapshot || {};
@@ -1496,6 +1583,7 @@
       renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
       renderResultEvidenceWorkspace(data.result_evidence_workspace || data.final_state?.result_evidence_workspace);
       renderSpecialistAgentWorkspace(data.specialist_agent_workspace || data.final_state?.specialist_agent_workspace);
+      renderJarvisSynthesisReportWorkspace(data.jarvis_synthesis_report_workspace || data.final_state?.jarvis_synthesis_report_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
       renderResultsAudit(data.results_audit || data.final_state?.results_audit);
       renderCommandPreviews(data.command_previews || [], recipe);
@@ -1553,6 +1641,7 @@
         renderTestStrategyWorkspace(detail?.test_strategy_workspace);
         renderResultEvidenceWorkspace(detail?.result_evidence_workspace);
         renderSpecialistAgentWorkspace(detail?.specialist_agent_workspace);
+        renderJarvisSynthesisReportWorkspace(detail?.jarvis_synthesis_report_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);
         renderResultsAudit(detail?.results_audit);
         const workflowTarget = document.getElementById("workflow-selection");

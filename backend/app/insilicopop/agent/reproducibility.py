@@ -48,6 +48,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_test_strategy_workspace": "test_strategy_workspace.json",
     "repro_result_evidence_workspace": "result_evidence_workspace.json",
     "repro_specialist_agent_workspace": "specialist_agent_workspace.json",
+    "repro_jarvis_synthesis_report_workspace": "jarvis_synthesis_report_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -111,6 +112,14 @@ def write_reproducibility_bundle(
         _write_json(
             paths["repro_specialist_agent_workspace"],
             state.specialist_agent_workspace.model_dump(),
+        )
+    if state.jarvis_synthesis_report_workspace:
+        paths["repro_jarvis_synthesis_report_workspace"] = optional_paths[
+            "repro_jarvis_synthesis_report_workspace"
+        ]
+        _write_json(
+            paths["repro_jarvis_synthesis_report_workspace"],
+            state.jarvis_synthesis_report_workspace.model_dump(),
         )
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
@@ -294,6 +303,11 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
         "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
+        "jarvis_synthesis_report_workspace": (
+            state.jarvis_synthesis_report_workspace.model_dump()
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
         "validation_notes": {
             "validated_action_count": len(state.validated_actions),
             "trace_event_count": len(trace),
@@ -572,6 +586,37 @@ def _provenance_index(
             ),
             "human_review_required": True,
         }
+    jarvis_path = repro_paths.get("repro_jarvis_synthesis_report_workspace")
+    if jarvis_path and state.jarvis_synthesis_report_workspace:
+        payload["jarvis_synthesis_report_workspace"] = {
+            "path": _relative_to_run(run_dir, jarvis_path),
+            "json_pointer": "/",
+            "artifact_class": "bounded_source_grounded_draft_report_workspace",
+            "briefing_version": state.jarvis_synthesis_report_workspace.briefing_version,
+            "synthesis_version": state.jarvis_synthesis_report_workspace.synthesis_version,
+            "critic_suite_version": state.jarvis_synthesis_report_workspace.critic_suite_version,
+            "report_studio_version": state.jarvis_synthesis_report_workspace.report_studio_version,
+            "workspace_hash": (
+                state.jarvis_synthesis_report_workspace.reproducibility.workspace_hash
+            ),
+            "eligibility_rule_version": (
+                state.jarvis_synthesis_report_workspace.reproducibility.eligibility_rule_version
+            ),
+            "eligibility_decision_count": len(
+                state.jarvis_synthesis_report_workspace.eligibility_decisions
+            ),
+            "eligible_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.eligible_input_ids
+            ),
+            "context_only_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.context_only_input_ids
+            ),
+            "excluded_input_count": len(
+                state.jarvis_synthesis_report_workspace.reproducibility.excluded_input_ids
+            ),
+            "report_status": "draft_not_clinically_approved",
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -702,6 +747,90 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
             for item in state.specialist_agent_workspace.review_action_results
         ] if state.specialist_agent_workspace else [],
         "specialist_agent_workspace_artifact_available": state.specialist_agent_workspace is not None,
+        "jarvis_report_schema_version": (
+            state.jarvis_synthesis_report_workspace.schema_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_briefing_version": (
+            state.jarvis_synthesis_report_workspace.briefing_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "scientific_synthesis_version": (
+            state.jarvis_synthesis_report_workspace.synthesis_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "critic_suite_version": (
+            state.jarvis_synthesis_report_workspace.critic_suite_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "report_studio_version": (
+            state.jarvis_synthesis_report_workspace.report_studio_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_synthesis_claim_ids": [
+            item.claim_id
+            for item in state.jarvis_synthesis_report_workspace.synthesis_claims
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_eligibility_decision_ids": [
+            item.decision_id
+            for item in state.jarvis_synthesis_report_workspace.eligibility_decisions
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_eligibility_rule_version": (
+            state.jarvis_synthesis_report_workspace.reproducibility.eligibility_rule_version
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_deterministic_fallback_used": (
+            state.jarvis_synthesis_report_workspace.reproducibility.deterministic_fallback_used
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_critic_run_ids": [
+            item.critic_run_id
+            for item in state.jarvis_synthesis_report_workspace.critic_runs
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_critic_finding_ids": [
+            item.critic_finding_id
+            for item in state.jarvis_synthesis_report_workspace.critic_findings
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_report_section_ids": [
+            item.section_id
+            for item in state.jarvis_synthesis_report_workspace.report_sections
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_workspace_hash": (
+            state.jarvis_synthesis_report_workspace.reproducibility.workspace_hash
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_requested_review_actions": [
+            item.model_dump(mode="json")
+            for item in state.jarvis_synthesis_report_workspace.requested_review_actions
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_applied_review_actions": [
+            item.model_dump(mode="json")
+            for item in state.jarvis_synthesis_report_workspace.applied_review_actions
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_review_action_results": [
+            item.model_dump(mode="json")
+            for item in state.jarvis_synthesis_report_workspace.review_action_results
+        ] if state.jarvis_synthesis_report_workspace else [],
+        "jarvis_external_llm_called": False,
+        "jarvis_external_tools_executed": False,
+        "jarvis_critics_mutated_sources": False,
+        "jarvis_unsupported_claims_in_factual_report": False,
+        "jarvis_report_status": (
+            state.jarvis_synthesis_report_workspace.report_status
+            if state.jarvis_synthesis_report_workspace
+            else None
+        ),
+        "jarvis_synthesis_report_workspace_artifact_available": (
+            state.jarvis_synthesis_report_workspace is not None
+        ),
         "test_recommendation_made": False,
         "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,

@@ -32,6 +32,12 @@ from app.insilicopop.clinical.result_evidence import build_result_evidence_works
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceResult
 from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceResult
 from app.insilicopop.clinical.specialist_agents import build_specialist_agent_workspace
+from app.insilicopop.clinical.jarvis_report import (
+    build_jarvis_synthesis_report_workspace,
+)
+from app.insilicopop.clinical.jarvis_report_models import (
+    JarvisSynthesisReportWorkspaceResult,
+)
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -283,6 +289,75 @@ def build_clinical_case_specialist_agent_bundle(
         result_evidence_workspace,
         specialist_agent_workspace,
     )
+
+
+def build_clinical_case_v034_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+    PreTestAssessmentResult | None,
+    TestStrategyWorkspaceResult | None,
+    ResultEvidenceWorkspaceResult | None,
+    SpecialistAgentWorkspaceResult | None,
+    JarvisSynthesisReportWorkspaceResult | None,
+]:
+    (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+        result_evidence_workspace,
+        specialist_agent_workspace,
+    ) = build_clinical_case_specialist_agent_bundle(
+        payload, request_text=request_text
+    )
+    try:
+        case = ClinicalCaseIntake.model_validate(payload)
+    except ValidationError:
+        return (
+            intake,
+            curation,
+            inheritance_audit,
+            variant_intelligence,
+            pretest_assessment,
+            strategy_workspace,
+            result_evidence_workspace,
+            specialist_agent_workspace,
+            None,
+        )
+    safe_case = sanitized_clinical_case(case)
+    jarvis_workspace = build_jarvis_synthesis_report_workspace(
+        safe_case,
+        intake=intake,
+        phenotype_curation=curation,
+        pedigree_audit=inheritance_audit,
+        variant_intelligence=variant_intelligence,
+        pretest_assessment=pretest_assessment,
+        test_strategy_workspace=strategy_workspace,
+        result_evidence_workspace=result_evidence_workspace,
+        specialist_agent_workspace=specialist_agent_workspace,
+    )
+    return (
+        intake,
+        curation,
+        inheritance_audit,
+        variant_intelligence,
+        pretest_assessment,
+        strategy_workspace,
+        result_evidence_workspace,
+        specialist_agent_workspace,
+        jarvis_workspace,
+    )
+
+
+# Descriptive additive aliases keep callers independent of milestone shorthand.
+build_clinical_case_jarvis_synthesis_report_bundle = build_clinical_case_v034_bundle
+build_clinical_case_synthesis_report_bundle = build_clinical_case_v034_bundle
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:

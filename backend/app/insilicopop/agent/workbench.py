@@ -42,6 +42,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
     "reproducibility/specialist_agent_workspace.json",
+    "reproducibility/jarvis_synthesis_report_workspace.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -136,6 +137,18 @@ class AgentRunSummary(BaseModel):
     specialist_applied_review_action_count: int = 0
     specialist_rejected_review_action_count: int = 0
     specialist_agent_workspace_artifact_available: bool = False
+    jarvis_briefing_item_count: int = 0
+    synthesis_claim_count: int = 0
+    excluded_proposed_claim_count: int = 0
+    evidence_eligibility_decision_count: int = 0
+    context_only_evidence_input_count: int = 0
+    excluded_evidence_input_count: int = 0
+    critic_finding_count: int = 0
+    draft_report_section_count: int = 0
+    pending_report_human_decision_count: int = 0
+    report_applied_review_action_count: int = 0
+    report_rejected_review_action_count: int = 0
+    jarvis_synthesis_report_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -163,6 +176,7 @@ class AgentRunDetail(AgentRunSummary):
     test_strategy_workspace: dict[str, Any] | None = None
     result_evidence_workspace: dict[str, Any] | None = None
     specialist_agent_workspace: dict[str, Any] | None = None
+    jarvis_synthesis_report_workspace: dict[str, Any] | None = None
     byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
@@ -223,6 +237,7 @@ class WorkbenchRunStore:
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
             result_evidence_workspace=state.get("result_evidence_workspace") if isinstance(state.get("result_evidence_workspace"), dict) else None,
             specialist_agent_workspace=state.get("specialist_agent_workspace") if isinstance(state.get("specialist_agent_workspace"), dict) else None,
+            jarvis_synthesis_report_workspace=state.get("jarvis_synthesis_report_workspace") if isinstance(state.get("jarvis_synthesis_report_workspace"), dict) else None,
             byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
@@ -303,6 +318,8 @@ class WorkbenchRunStore:
         result_evidence_workspace = result_evidence_workspace if isinstance(result_evidence_workspace, dict) else {}
         specialist_agent_workspace = state.get("specialist_agent_workspace", {}) if isinstance(state, dict) else {}
         specialist_agent_workspace = specialist_agent_workspace if isinstance(specialist_agent_workspace, dict) else {}
+        jarvis_workspace = state.get("jarvis_synthesis_report_workspace", {}) if isinstance(state, dict) else {}
+        jarvis_workspace = jarvis_workspace if isinstance(jarvis_workspace, dict) else {}
         byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
         byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
@@ -408,6 +425,52 @@ class WorkbenchRunStore:
             ),
             specialist_agent_workspace_artifact_available=(
                 run_dir / "reproducibility" / "specialist_agent_workspace.json"
+            ).is_file(),
+            jarvis_briefing_item_count=len(
+                (jarvis_workspace.get("briefing", {}) or {}).get("items", []) or []
+            ),
+            synthesis_claim_count=len(
+                jarvis_workspace.get("synthesis_claims", []) or []
+            ),
+            excluded_proposed_claim_count=len(
+                jarvis_workspace.get("excluded_proposed_claims", []) or []
+            ),
+            evidence_eligibility_decision_count=len(
+                jarvis_workspace.get("eligibility_decisions", []) or []
+            ),
+            context_only_evidence_input_count=len(
+                (
+                    jarvis_workspace.get("reproducibility", {}) or {}
+                ).get("context_only_input_ids", [])
+                or []
+            ),
+            excluded_evidence_input_count=len(
+                (
+                    jarvis_workspace.get("reproducibility", {}) or {}
+                ).get("excluded_input_ids", [])
+                or []
+            ),
+            critic_finding_count=len(
+                jarvis_workspace.get("critic_findings", []) or []
+            ),
+            draft_report_section_count=len(
+                jarvis_workspace.get("report_sections", []) or []
+            ),
+            pending_report_human_decision_count=len(
+                jarvis_workspace.get("pending_human_decision_ids", []) or []
+            ),
+            report_applied_review_action_count=len(
+                jarvis_workspace.get("applied_review_actions", []) or []
+            ),
+            report_rejected_review_action_count=sum(
+                1
+                for item in jarvis_workspace.get("review_action_results", []) or []
+                if isinstance(item, dict) and item.get("result_status") == "rejected"
+            ),
+            jarvis_synthesis_report_workspace_artifact_available=(
+                run_dir
+                / "reproducibility"
+                / "jarvis_synthesis_report_workspace.json"
             ).is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),

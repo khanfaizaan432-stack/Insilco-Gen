@@ -123,6 +123,21 @@ def main(argv: list[str] | None = None) -> int:
             "specialist_review_actions_rejected="
             f"{sum(1 for item in specialist.get('review_action_results', []) if item.get('result_status') == 'rejected')}"
         )
+        jarvis = (
+            result["final_state"].get("jarvis_synthesis_report_workspace") or {}
+        )
+        print(
+            f"jarvis_synthesis_claims={len(jarvis.get('synthesis_claims', []))}"
+        )
+        print(
+            f"jarvis_eligibility_decisions={len(jarvis.get('eligibility_decisions', []))}"
+        )
+        print(f"jarvis_critic_findings={len(jarvis.get('critic_findings', []))}")
+        print(f"draft_report_sections={len(jarvis.get('report_sections', []))}")
+        print(
+            "report_status="
+            f"{jarvis.get('report_status', 'not_generated')}"
+        )
         return 0
     if args.command == "benchmark-agent-memory":
         result = AgentMemoryBenchmarkRunner().run(args.scenario, args.budget_chars, args.memory_mode)

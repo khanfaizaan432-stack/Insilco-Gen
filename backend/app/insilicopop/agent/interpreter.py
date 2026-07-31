@@ -24,6 +24,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
     "reproducibility/specialist_agent_workspace.json",
+    "reproducibility/jarvis_synthesis_report_workspace.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -64,6 +65,7 @@ class AgentInterpreter:
         test_strategy_workspace: dict[str, Any] | None = None,
         result_evidence_workspace: dict[str, Any] | None = None,
         specialist_agent_workspace: dict[str, Any] | None = None,
+        jarvis_synthesis_report_workspace: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -94,6 +96,9 @@ class AgentInterpreter:
         test_strategy_workspace = test_strategy_workspace or {}
         result_evidence_workspace = result_evidence_workspace or {}
         specialist_agent_workspace = specialist_agent_workspace or {}
+        jarvis_synthesis_report_workspace = (
+            jarvis_synthesis_report_workspace or {}
+        )
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -188,6 +193,10 @@ class AgentInterpreter:
             *_result_evidence_workspace_lines(result_evidence_workspace),
             "",
             *_specialist_agent_workspace_lines(specialist_agent_workspace),
+            "",
+            *_jarvis_synthesis_report_workspace_lines(
+                jarvis_synthesis_report_workspace
+            ),
             "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
@@ -1136,6 +1145,117 @@ def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:
             "- diagnosis_made: `false`",
             "- treatment_recommendation_made: `false`",
             "- test_order_placed: `false`",
+            "- clinical_sign_out_made: `false`",
+            "- human_review_required: `true`",
+        ]
+    )
+    return lines
+
+
+def _jarvis_synthesis_report_workspace_lines(
+    workspace: dict[str, Any],
+) -> list[str]:
+    if not workspace:
+        return []
+    briefing = workspace.get("briefing", {}) or {}
+    claims = workspace.get("synthesis_claims", []) or []
+    excluded = workspace.get("excluded_proposed_claims", []) or []
+    critic_runs = workspace.get("critic_runs", []) or []
+    critic_findings = workspace.get("critic_findings", []) or []
+    eligibility_decisions = workspace.get("eligibility_decisions", []) or []
+    sections = workspace.get("report_sections", []) or []
+    action_results = workspace.get("review_action_results", []) or []
+    lines = [
+        "## JARVIS Synthesis, Critics, and Report Studio",
+        "",
+        "Bounded structured case briefing and source-grounded draft report. "
+        "JARVIS is not a general autonomous assistant. All narratives remain "
+        "draft_not_clinically_approved and require human review.",
+        f"- schema_version: `{_redact(str(workspace.get('schema_version', 'unknown')))}`",
+        f"- briefing_item_count: `{len(briefing.get('items', []) or [])}`",
+        f"- source_grounded_synthesis_claim_count: `{len(claims)}`",
+        f"- excluded_proposed_claim_count: `{len(excluded)}`",
+        f"- eligibility_decision_count: `{len(eligibility_decisions)}`",
+        f"- non_mutating_critic_count: `{len(critic_runs)}`",
+        f"- critic_finding_count: `{len(critic_findings)}`",
+        f"- draft_report_section_count: `{len(sections)}`",
+        f"- pending_human_decision_count: `{len(workspace.get('pending_human_decision_ids', []) or [])}`",
+        "",
+        "### JARVIS Case Briefing",
+    ]
+    for item in briefing.get("items", []) or []:
+        lines.append(
+            f"- `{_redact(str(item.get('category', 'case_state')))}`: "
+            f"{_redact(str(item.get('statement', 'No briefing statement.')))}"
+        )
+    if not briefing.get("items"):
+        lines.append("- No bounded briefing item generated.")
+    lines.extend(["", "### Source-Grounded Scientific Synthesis"])
+    for item in claims:
+        lines.extend(
+            [
+                f"- `{_redact(str(item.get('claim_id', 'unknown')))}` / "
+                f"`{_redact(str(item.get('origin_category', 'unknown')))}` / "
+                f"`{_redact(str(item.get('support_status', 'unresolved')))}`",
+                f"  - {_redact(str(item.get('statement', 'No claim statement.')))}",
+                f"  - {_redact(str(item.get('uncertainty_language', 'Human review required.')))}",
+                f"  - supporting evidence: `{', '.join(_redact(str(value)) for value in item.get('supporting_evidence_ids', [])) or 'none'}`",
+                f"  - contradicting evidence: `{', '.join(_redact(str(value)) for value in item.get('contradicting_evidence_ids', [])) or 'none'}`",
+                f"  - unresolved evidence: `{', '.join(_redact(str(value)) for value in item.get('unresolved_evidence_ids', [])) or 'none'}`",
+                f"  - eligibility: `{_redact(str(item.get('report_use', 'excluded')))}`",
+            ]
+        )
+    if not claims:
+        lines.append("- No eligible synthesis claim generated.")
+    lines.extend(["", "### Non-Mutating Critic Findings"])
+    for item in critic_findings:
+        lines.append(
+            f"- `{_redact(str(item.get('critic_type', 'critic')))}` / "
+            f"`{_redact(str(item.get('severity', 'information')))}` / "
+            f"`{_redact(str(item.get('code', 'unknown')))}`: "
+            f"{_redact(str(item.get('message', 'Human review required.')))}"
+        )
+    if not critic_findings:
+        lines.append("- No critic finding recorded.")
+    lines.extend(["", "### Cited Draft Report Sections"])
+    for item in sections:
+        lines.extend(
+            [
+                f"#### {_redact(str(item.get('title', 'Draft section')))}",
+                "",
+                _redact(str(item.get("narrative", "No draft narrative."))),
+                "",
+                f"- narrative_status: `{_redact(str(item.get('narrative_status', 'draft_not_clinically_approved')))}`",
+                f"- human_review_status: `{_redact(str(item.get('human_review_status', 'pending')))}`",
+                f"- claim_ids: `{', '.join(_redact(str(value)) for value in item.get('claim_ids', [])) or 'none'}`",
+            ]
+        )
+    lines.extend(["", "### Report Human-Review Action Results"])
+    for item in action_results:
+        lines.append(
+            f"- `{_redact(str(item.get('action_id', 'unknown')))}` / "
+            f"`{_redact(str(item.get('result_status', 'rejected')))}` / "
+            f"`{_redact(str(item.get('target_id', 'unknown')))}`"
+            + (
+                f" / `{_redact(str(item.get('rejection_reason')))}`"
+                if item.get("rejection_reason")
+                else ""
+            )
+        )
+    if not action_results:
+        lines.append("- No report human-review action result recorded.")
+    lines.extend(
+        [
+            "",
+            "- report_status: `draft_not_clinically_approved`",
+            "- critics_mutated_sources: `false`",
+            "- unsupported_claims_included_as_factual_conclusions: `false`",
+            "- unrestricted_browsing_used: `false`",
+            "- agents_spawned: `false`",
+            "- diagnosis_made: `false`",
+            "- treatment_recommendation_made: `false`",
+            "- test_order_placed: `false`",
+            "- final_acmg_classification_made: `false`",
             "- clinical_sign_out_made: `false`",
             "- human_review_required: `true`",
         ]
