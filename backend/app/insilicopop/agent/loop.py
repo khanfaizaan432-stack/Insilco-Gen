@@ -16,7 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
-from app.insilicopop.clinical.service import build_clinical_case_v034_bundle
+from app.insilicopop.clinical.service import build_clinical_case_v035_bundle
 from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
 from app.insilicopop.llm.base import LLMProviderError
@@ -329,7 +329,8 @@ class AgentLoop:
             state.result_evidence_workspace,
             state.specialist_agent_workspace,
             state.jarvis_synthesis_report_workspace,
-        ) = build_clinical_case_v034_bundle(payload, request_text=request_text)
+            state.handoff_workspace,
+        ) = build_clinical_case_v035_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.parsed_inputs = {
             "structured_clinical_intake": True,
@@ -572,6 +573,41 @@ class AgentLoop:
                     "external_tools_executed": False,
                 }
             )
+        if state.handoff_workspace:
+            handoff = state.handoff_workspace
+            state.decision_trace.append(
+                {
+                    "event": "structured_handoff_workspace_completed",
+                    "schema_version": handoff.schema_version,
+                    "handoff_version": handoff.handoff_version,
+                    "pseudonymous_case_id": handoff.pseudonymous_case_id,
+                    "status": handoff.status.value,
+                    "revision": handoff.revision,
+                    "snapshot_hash": handoff.snapshot_hash,
+                    "stage_count": len(handoff.case_stages),
+                    "blocker_count": sum(
+                        item.resolution_status == "open" for item in handoff.blockers
+                    ),
+                    "unacknowledged_uncertainty_count": handoff.review_readiness.unacknowledged_uncertainty_count,
+                    "pending_human_decision_count": handoff.review_readiness.pending_human_decision_count,
+                    "ready_for_external_handoff": handoff.review_readiness.ready_for_external_handoff,
+                    "external_handoff_event_count": len(handoff.external_handoff_events),
+                    "requested_review_action_count": len(handoff.requested_review_actions),
+                    "applied_review_action_count": len(handoff.applied_review_actions),
+                    "rejected_review_action_count": sum(
+                        1 for item in handoff.review_action_results if item.result_status.value == "rejected"
+                    ),
+                    "report_status": handoff.report_status,
+                    "human_review_required": True,
+                    "diagnosis_made": False,
+                    "treatment_recommendation_made": False,
+                    "final_acmg_classification_made": False,
+                    "clinical_approval_granted": False,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                    "raw_genomic_files_parsed": False,
+                }
+            )
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
@@ -610,6 +646,7 @@ class AgentLoop:
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
             "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
             "jarvis_synthesis_report_workspace": state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
+            "handoff_workspace": state.handoff_workspace.model_dump() if state.handoff_workspace else None,
             "byok_runtime": state.byok_runtime.model_dump() if state.byok_runtime else None,
             "carried_memory": state.carried_memory,
             "agent_trace": build_trace(state),

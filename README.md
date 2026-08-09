@@ -205,6 +205,8 @@ v0.29 adds an optional `pedigree_inheritance_audit` declaration inside the exist
 
 v0.34 adds one bounded JARVIS briefing, source-grounded scientific synthesis, fixed six-critic suite, and cited draft Report Studio aggregate. It consumes only controlled structured artifacts from prior milestones, preserves unresolved conflicts and candidate-only evidence, excludes unsupported proposals from factual report conclusions, and records complete claim-to-evidence drill-down. Critics are non-mutating. Every narrative remains `draft_not_clinically_approved`, and report review uses typed complete snapshots with stale-state rejection.
 
+v0.35 adds a deterministic structured human-review handoff layer over the validated v0.27–v0.34 clinical research-curation artifacts. It preserves additive bundle widths through width ten, freezes an 18-stage navigator, records readiness/blockers/uncertainties/human decisions, protects handoff state with stale and terminal gates, and emits deterministic packet, receipt, manifest, provenance, and audit artifacts. The canonical journey and Workbench dashboard remain research-use-only; `ready_for_external_handoff` never means clinical approval and `draft_not_clinically_approved` remains explicit.
+
 ## Roadmap
 
 - v0.27 Clinical Intake + Case Schema.
@@ -217,6 +219,7 @@ v0.34 adds one bounded JARVIS briefing, source-grounded scientific synthesis, fi
 - v0.32 Result Intake, Controlled Retrieval, and Evidence Ledger.
 - v0.33 Specialist Agents and Candidate ACMG Evidence Workspace.
 - v0.34 JARVIS Synthesis, Critics, and Report Studio (implemented locally).
+- v0.35 Structured Human-Review Handoff and Canonical Demo (implemented locally).
 
 Every roadmap item preserves the core rule: AI automates repeated workflow steps and drafting support, while qualified human experts remain responsible for final scientific or clinical interpretation.
 
@@ -236,4 +239,6 @@ The system does not claim to produce final biological truth. It helps researcher
 - [Recipe Architecture v0.18 Draft](docs/recipe_architecture_v018.md)
 - [Model Strategy](docs/model_strategy.md)
 - [v0.34 JARVIS Synthesis, Critics, and Report Studio](docs/v034_jarvis_synthesis_critics_report_studio.md)
+- [v0.35 Structured Human-Review Handoff](docs/v035_handoff_architecture.md)
+- [v0.35 Release Manifest](RELEASE_MANIFEST_v0.35.md)
 - [Demo examples](examples/insilicopop_demo/README.md)

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
+
+from app.insilicopop.clinical.handoff import apply_handoff_action
+from app.insilicopop.clinical.handoff_models import (
+    HandoffReviewAction,
+    HandoffReviewActionResult,
+    HandoffWorkspaceResult,
+)
 
 
 ALLOWED_ARTIFACTS = {
@@ -43,6 +51,9 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/result_evidence_workspace.json",
     "reproducibility/specialist_agent_workspace.json",
     "reproducibility/jarvis_synthesis_report_workspace.json",
+    "reproducibility/handoff_workspace.json",
+    "reproducibility/handoff_packet.json",
+    "reproducibility/handoff_receipt.json",
     "reproducibility/results_audit.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
@@ -149,6 +160,18 @@ class AgentRunSummary(BaseModel):
     report_applied_review_action_count: int = 0
     report_rejected_review_action_count: int = 0
     jarvis_synthesis_report_workspace_artifact_available: bool = False
+    handoff_state: str | None = None
+    handoff_revision: int = 0
+    handoff_snapshot_hash: str | None = None
+    handoff_ready_for_external_handoff: bool = False
+    handoff_blocker_count: int = 0
+    handoff_unacknowledged_uncertainty_count: int = 0
+    handoff_pending_human_decision_count: int = 0
+    handoff_external_event_count: int = 0
+    handoff_requested_action_count: int = 0
+    handoff_applied_action_count: int = 0
+    handoff_rejected_action_count: int = 0
+    handoff_workspace_artifact_available: bool = False
     human_review_required: bool = True
     selected_recipe_id: str | None = None
     selected_recipe_maturity_tier: str | None = None
@@ -177,6 +200,7 @@ class AgentRunDetail(AgentRunSummary):
     result_evidence_workspace: dict[str, Any] | None = None
     specialist_agent_workspace: dict[str, Any] | None = None
     jarvis_synthesis_report_workspace: dict[str, Any] | None = None
+    handoff_workspace: dict[str, Any] | None = None
     byok_runtime: dict[str, Any] | None = None
     artifact_names: list[str] = Field(default_factory=list)
 
@@ -193,6 +217,12 @@ class AgentArtifactContent(BaseModel):
     file_type: str
     content: Any
     size_bytes: int
+
+
+class HandoffActionResponse(BaseModel):
+    run_id: str
+    action_result: HandoffReviewActionResult
+    handoff_workspace: HandoffWorkspaceResult
 
 
 class ReproducibilityBundleSummary(BaseModel):
@@ -238,6 +268,7 @@ class WorkbenchRunStore:
             result_evidence_workspace=state.get("result_evidence_workspace") if isinstance(state.get("result_evidence_workspace"), dict) else None,
             specialist_agent_workspace=state.get("specialist_agent_workspace") if isinstance(state.get("specialist_agent_workspace"), dict) else None,
             jarvis_synthesis_report_workspace=state.get("jarvis_synthesis_report_workspace") if isinstance(state.get("jarvis_synthesis_report_workspace"), dict) else None,
+            handoff_workspace=state.get("handoff_workspace") if isinstance(state.get("handoff_workspace"), dict) else None,
             byok_runtime=state.get("byok_runtime") if isinstance(state.get("byok_runtime"), dict) else None,
             artifact_names=[artifact.artifact_name for artifact in self.list_artifacts(run_id)],
         )
@@ -277,6 +308,47 @@ class WorkbenchRunStore:
     def workflow_selection(self, run_id: str) -> dict[str, Any]:
         content = self.read_artifact(run_id, "workflow_selection.json").content
         return content if isinstance(content, dict) else {}
+
+    def handoff_workspace(self, run_id: str) -> HandoffWorkspaceResult:
+        run_dir = self._run_dir(run_id)
+        path = run_dir / "reproducibility" / "handoff_workspace.json"
+        payload = self._read_json_if_available(path)
+        if not payload:
+            state = self._read_json_if_available(run_dir / "agent_state.json")
+            payload = state.get("handoff_workspace", {}) if isinstance(state, dict) else {}
+        if not payload:
+            raise FileNotFoundError("reproducibility/handoff_workspace.json")
+        return HandoffWorkspaceResult.model_validate(payload)
+
+    def apply_handoff_action(self, run_id: str, action: HandoffReviewAction) -> HandoffActionResponse:
+        run_dir = self._run_dir(run_id)
+        workspace = self.handoff_workspace(run_id)
+        updated_workspace, action_result = apply_handoff_action(workspace, action)
+        workspace_payload = updated_workspace.model_dump(mode="json")
+        self._write_json_atomic(
+            run_dir / "reproducibility" / "handoff_workspace.json",
+            workspace_payload,
+        )
+        self._write_json_atomic(
+            run_dir / "reproducibility" / "handoff_packet.json",
+            updated_workspace.handoff_packet.model_dump(mode="json"),
+        )
+        self._write_json_atomic(
+            run_dir / "reproducibility" / "handoff_receipt.json",
+            updated_workspace.handoff_receipt.model_dump(mode="json"),
+        )
+
+        state_path = run_dir / "agent_state.json"
+        state = self._read_json_if_available(state_path)
+        state["handoff_workspace"] = workspace_payload
+        self._write_json_atomic(state_path, state)
+        self._refresh_handoff_provenance(run_dir, updated_workspace)
+        self._refresh_checksums(run_dir)
+        return HandoffActionResponse(
+            run_id=run_id,
+            action_result=action_result,
+            handoff_workspace=updated_workspace,
+        )
 
     def reproducibility(self, run_id: str) -> ReproducibilityBundleSummary:
         run_dir = self._run_dir(run_id)
@@ -320,6 +392,10 @@ class WorkbenchRunStore:
         specialist_agent_workspace = specialist_agent_workspace if isinstance(specialist_agent_workspace, dict) else {}
         jarvis_workspace = state.get("jarvis_synthesis_report_workspace", {}) if isinstance(state, dict) else {}
         jarvis_workspace = jarvis_workspace if isinstance(jarvis_workspace, dict) else {}
+        handoff_workspace = state.get("handoff_workspace", {}) if isinstance(state, dict) else {}
+        handoff_workspace = handoff_workspace if isinstance(handoff_workspace, dict) else {}
+        handoff_readiness = handoff_workspace.get("review_readiness", {}) or {}
+        handoff_action_results = handoff_workspace.get("review_action_results", []) or []
         byok_runtime = state.get("byok_runtime", {}) if isinstance(state, dict) else {}
         byok_runtime = byok_runtime if isinstance(byok_runtime, dict) else {}
         inheritance_audits = pedigree_inheritance_audit.get("inheritance_audits", []) or []
@@ -472,6 +548,40 @@ class WorkbenchRunStore:
                 / "reproducibility"
                 / "jarvis_synthesis_report_workspace.json"
             ).is_file(),
+            handoff_state=handoff_workspace.get("status"),
+            handoff_revision=int(handoff_workspace.get("revision", 0) or 0),
+            handoff_snapshot_hash=handoff_workspace.get("snapshot_hash"),
+            handoff_ready_for_external_handoff=bool(
+                handoff_readiness.get("ready_for_external_handoff", False)
+            ),
+            handoff_blocker_count=sum(
+                1
+                for item in handoff_workspace.get("blockers", []) or []
+                if isinstance(item, dict) and item.get("resolution_status", "open") == "open"
+            ),
+            handoff_unacknowledged_uncertainty_count=int(
+                handoff_readiness.get("unacknowledged_uncertainty_count", 0) or 0
+            ),
+            handoff_pending_human_decision_count=int(
+                handoff_readiness.get("pending_human_decision_count", 0) or 0
+            ),
+            handoff_external_event_count=len(
+                handoff_workspace.get("external_handoff_events", []) or []
+            ),
+            handoff_requested_action_count=len(
+                handoff_workspace.get("requested_review_actions", []) or []
+            ),
+            handoff_applied_action_count=len(
+                handoff_workspace.get("applied_review_actions", []) or []
+            ),
+            handoff_rejected_action_count=sum(
+                1
+                for item in handoff_action_results
+                if isinstance(item, dict) and item.get("result_status") == "rejected"
+            ),
+            handoff_workspace_artifact_available=(
+                run_dir / "reproducibility" / "handoff_workspace.json"
+            ).is_file(),
             human_review_required=True,
             selected_recipe_id=selected_recipe.get("recipe_id"),
             selected_recipe_maturity_tier=selected_recipe.get("maturity_tier"),
@@ -479,6 +589,115 @@ class WorkbenchRunStore:
             artifact_count=len(artifacts),
             has_final_report=(run_dir / "final_report.md").is_file(),
             has_reproducibility_bundle=(run_dir / "reproducibility").is_dir(),
+        )
+
+    def _write_json_atomic(self, path: Path, payload: Any) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = path.with_name(f".{path.name}.tmp")
+        temporary_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True),
+            encoding="utf-8",
+        )
+        temporary_path.replace(path)
+
+    def _refresh_handoff_provenance(
+        self,
+        run_dir: Path,
+        workspace: HandoffWorkspaceResult,
+    ) -> None:
+        provenance_path = run_dir / "reproducibility" / "provenance_index.json"
+        provenance = self._read_json_if_available(provenance_path)
+        provenance["handoff_workspace"] = {
+            "path": "reproducibility/handoff_workspace.json",
+            "json_pointer": "/",
+            "artifact_class": "structured_human_review_handoff_workspace",
+            "schema_version": workspace.schema_version,
+            "handoff_state": workspace.status.value,
+            "revision": workspace.revision,
+            "snapshot_hash": workspace.snapshot_hash,
+            "packet_sha256": workspace.handoff_packet.packet_sha256,
+            "receipt_sha256": workspace.handoff_receipt.receipt_sha256,
+            "report_status": workspace.report_status,
+            "human_review_required": True,
+            "clinical_approval_granted": False,
+        }
+        provenance["handoff_packet"] = {
+            "path": "reproducibility/handoff_packet.json",
+            "json_pointer": "/handoff_packet",
+            "artifact_class": "deterministic_handoff_packet",
+            "packet_version": workspace.handoff_packet.packet_version,
+            "packet_sha256": workspace.handoff_packet.packet_sha256,
+            "current_handoff_state": workspace.status.value,
+            "artifact_count": len(workspace.handoff_packet.artifact_manifest),
+            "report_status": workspace.handoff_packet.report_status,
+            "human_review_required": True,
+        }
+        provenance["handoff_receipt"] = {
+            "path": "reproducibility/handoff_receipt.json",
+            "json_pointer": "/handoff_receipt",
+            "artifact_class": "deterministic_handoff_receipt",
+            "receipt_version": workspace.handoff_receipt.receipt_version,
+            "receipt_status": workspace.handoff_receipt.receipt_status.value,
+            "receipt_sha256": workspace.handoff_receipt.receipt_sha256,
+            "handoff_state": workspace.handoff_receipt.handoff_state.value,
+            "report_status": workspace.handoff_receipt.report_status,
+            "human_review_required": True,
+        }
+        self._write_json_atomic(provenance_path, provenance)
+
+        runtime_lock_path = run_dir / "reproducibility" / "runtime_lock.json"
+        runtime_lock = self._read_json_if_available(runtime_lock_path)
+        runtime_lock.update(
+            {
+                "handoff_state": workspace.status.value,
+                "handoff_revision": workspace.revision,
+                "handoff_snapshot_hash": workspace.snapshot_hash,
+                "handoff_blocker_ids": [item.blocker_id for item in workspace.blockers],
+                "handoff_pending_human_decision_ids": [
+                    item.decision_id for item in workspace.pending_human_decisions
+                ],
+                "handoff_uncertainty_ids": [
+                    item.uncertainty_id
+                    for item in workspace.acknowledgement_required_uncertainties
+                ],
+                "handoff_external_event_ids": [
+                    item.event_id for item in workspace.external_handoff_events
+                ],
+                "handoff_requested_review_action_ids": [
+                    item.action_id for item in workspace.requested_review_actions
+                ],
+                "handoff_applied_review_action_ids": [
+                    item.action_id for item in workspace.applied_review_actions
+                ],
+                "handoff_rejected_review_action_ids": [
+                    item.action_id
+                    for item in workspace.review_action_results
+                    if item.result_status.value == "rejected"
+                ],
+                "handoff_ready_for_external_handoff": workspace.review_readiness.ready_for_external_handoff,
+                "handoff_report_status": workspace.report_status,
+                "handoff_clinical_approval_granted": False,
+            }
+        )
+        self._write_json_atomic(runtime_lock_path, runtime_lock)
+
+    def _refresh_checksums(self, run_dir: Path) -> None:
+        checksum_path = run_dir / "reproducibility" / "checksums.sha256"
+        if not checksum_path.is_file():
+            return
+        rows: list[str] = []
+        for line in checksum_path.read_text(encoding="utf-8").splitlines():
+            if "  " not in line:
+                continue
+            _, relative_path = line.split("  ", 1)
+            path = (run_dir / relative_path).resolve()
+            if not _is_relative_to(path, run_dir.resolve()) or not path.is_file():
+                continue
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            rows.append(f"{digest}  {relative_path.replace(chr(92), '/')}")
+        checksum_path.write_text(
+            "\n".join(sorted(rows)) + ("\n" if rows else ""),
+            encoding="utf-8",
         )
 
     def _run_dir(self, run_id: str) -> Path:

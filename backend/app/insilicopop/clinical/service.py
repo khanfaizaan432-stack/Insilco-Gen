@@ -38,6 +38,8 @@ from app.insilicopop.clinical.jarvis_report import (
 from app.insilicopop.clinical.jarvis_report_models import (
     JarvisSynthesisReportWorkspaceResult,
 )
+from app.insilicopop.clinical.handoff import build_handoff_workspace
+from app.insilicopop.clinical.handoff_models import HandoffWorkspaceResult
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -358,6 +360,47 @@ def build_clinical_case_v034_bundle(
 # Descriptive additive aliases keep callers independent of milestone shorthand.
 build_clinical_case_jarvis_synthesis_report_bundle = build_clinical_case_v034_bundle
 build_clinical_case_synthesis_report_bundle = build_clinical_case_v034_bundle
+
+
+def build_clinical_case_v035_bundle(
+    payload: dict[str, Any], *, request_text: str | None = None
+) -> tuple[
+    ClinicalCaseIntakeResult,
+    PhenotypeHpoCurationResult | None,
+    PedigreeInheritanceAuditResult | None,
+    VariantIntelligenceResult | None,
+    PreTestAssessmentResult | None,
+    TestStrategyWorkspaceResult | None,
+    ResultEvidenceWorkspaceResult | None,
+    SpecialistAgentWorkspaceResult | None,
+    JarvisSynthesisReportWorkspaceResult | None,
+    HandoffWorkspaceResult | None,
+]:
+    """Add the v0.35 handoff as item ten without changing earlier tuple widths."""
+
+    base_bundle = build_clinical_case_v034_bundle(payload, request_text=request_text)
+    try:
+        case = ClinicalCaseIntake.model_validate(payload)
+    except ValidationError:
+        return (*base_bundle, None)
+    safe_case = sanitized_clinical_case(case)
+    handoff_workspace = build_handoff_workspace(
+        safe_case,
+        intake=base_bundle[0],
+        phenotype_curation=base_bundle[1],
+        pedigree_audit=base_bundle[2],
+        variant_intelligence=base_bundle[3],
+        pretest_assessment=base_bundle[4],
+        test_strategy_workspace=base_bundle[5],
+        result_evidence_workspace=base_bundle[6],
+        specialist_agent_workspace=base_bundle[7],
+        jarvis_workspace=base_bundle[8],
+        handoff_request=safe_case.handoff_workspace,
+    )
+    return (*base_bundle, handoff_workspace)
+
+
+build_clinical_case_handoff_bundle = build_clinical_case_v035_bundle
 
 
 def _invalid_result(payload: dict[str, Any], issues: list[ClinicalIntakeIssue]) -> ClinicalCaseIntakeResult:

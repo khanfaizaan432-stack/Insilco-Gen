@@ -25,6 +25,9 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/result_evidence_workspace.json",
     "reproducibility/specialist_agent_workspace.json",
     "reproducibility/jarvis_synthesis_report_workspace.json",
+    "reproducibility/handoff_workspace.json",
+    "reproducibility/handoff_packet.json",
+    "reproducibility/handoff_receipt.json",
     "reproducibility/guardrail_decisions.json",
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
@@ -66,6 +69,7 @@ class AgentInterpreter:
         result_evidence_workspace: dict[str, Any] | None = None,
         specialist_agent_workspace: dict[str, Any] | None = None,
         jarvis_synthesis_report_workspace: dict[str, Any] | None = None,
+        handoff_workspace: dict[str, Any] | None = None,
         byok_runtime: dict[str, Any] | None = None,
         carried_memory: dict[str, Any] | None = None,
         llm_provider: str = "mock",
@@ -99,6 +103,7 @@ class AgentInterpreter:
         jarvis_synthesis_report_workspace = (
             jarvis_synthesis_report_workspace or {}
         )
+        handoff_workspace = handoff_workspace or {}
         byok_runtime = byok_runtime or {}
         carried_memory = carried_memory or {}
         validated_actions = validated_actions or []
@@ -198,6 +203,8 @@ class AgentInterpreter:
                 jarvis_synthesis_report_workspace
             ),
             "",
+            *_handoff_workspace_lines(handoff_workspace),
+            "",
             *_variant_intelligence_lines(variant_intelligence),
             "",
             *_results_audit_section_lines(results_audit),
@@ -249,6 +256,33 @@ class AgentInterpreter:
             f"- generated_artifact_count: `{generated_artifact_count if generated_artifact_count is not None else 'unknown'}`",
         ]
         return "\n".join(lines) + "\n"
+
+
+def _handoff_workspace_lines(workspace: dict[str, Any]) -> list[str]:
+    if not workspace:
+        return [
+            "## v0.35 Structured Human-Review Handoff",
+            "",
+            "- No v0.35 handoff workspace was generated.",
+        ]
+    readiness = workspace.get("review_readiness", {}) or {}
+    return [
+        "## v0.35 Structured Human-Review Handoff",
+        "",
+        f"- schema_version: `{_redact(str(workspace.get('schema_version', 'unknown')))}`",
+        f"- status: `{_redact(str(workspace.get('status', 'unknown')))}`",
+        f"- revision: `{_redact(str(workspace.get('revision', 'unknown')))}`",
+        f"- snapshot_hash: `{_redact(str(workspace.get('snapshot_hash', 'unknown')))}`",
+        f"- stage_count: `{len(workspace.get('case_stages', []) or [])}`",
+        f"- blocker_count: `{sum(1 for item in workspace.get('blockers', []) or [] if isinstance(item, dict) and item.get('resolution_status', 'open') == 'open')}`",
+        f"- ready_for_external_handoff: `{str(bool(readiness.get('ready_for_external_handoff', False))).lower()}`",
+        f"- pending_human_decision_count: `{int(readiness.get('pending_human_decision_count', 0) or 0)}`",
+        f"- unacknowledged_uncertainty_count: `{int(readiness.get('unacknowledged_uncertainty_count', 0) or 0)}`",
+        "- report_status: `draft_not_clinically_approved`",
+        "- human_review_required: `true`",
+        "- clinical_approval_granted: `false`",
+        "- external handoff records workflow state only; it is not clinical approval or sign-out.",
+    ]
 
 
 def _input_inventory_lines(uploaded_files: dict[str, str]) -> list[str]:

@@ -1,0 +1,361 @@
+{
+  "schema_version": "0.27",
+  "pseudonymous_case_id": "CASE-IN-SILICO-RARE-035",
+  "genome_build": "GRCh38",
+  "intended_use": "clinical_genetics_research_curation",
+  "redaction_declared": true,
+  "human_review_required": true,
+  "provenance": [
+    {
+      "source_id": "SRC-REF",
+      "source_type": "redacted_referral"
+    }
+  ],
+  "phenotypes": [
+    {
+      "observation_id": "PH-RARE-1",
+      "supplied_term": "early-onset progressive ataxia",
+      "hpo_id": "HP:0001251",
+      "state": "present",
+      "review_state": "confirmed",
+      "source_reference": "SRC-REF"
+    },
+    {
+      "observation_id": "PH-RARE-2",
+      "supplied_term": "dysarthria",
+      "hpo_id": "HP:0001260",
+      "state": "present",
+      "review_state": "pending",
+      "source_reference": "SRC-REF"
+    }
+  ],
+  "pedigree": [
+    {
+      "family_member_id": "PROBAND",
+      "relationship_to_proband": "proband",
+      "affected_status": "affected",
+      "sex_for_inheritance": "female",
+      "testing_availability": "available"
+    },
+    {
+      "family_member_id": "FAM-RARE-1",
+      "relationship_to_proband": "maternal uncle",
+      "affected_status": "affected",
+      "sex_for_inheritance": "male",
+      "testing_availability": "available"
+    }
+  ],
+  "pre_test_assessment": {
+    "schema_version": "0.31.2",
+    "referral_packet": {
+      "referral_id": "REF-1",
+      "source": "specialist",
+      "referring_specialty_exact": "paediatrics",
+      "reason_exact": "Review supplied early-onset ataxia, dysarthria, and affected maternal relative.",
+      "urgency_context": "routine",
+      "provenance_source_ids": ["SRC-REF"]
+    },
+    "clinical_history": {
+      "history_id": "HIST-1",
+      "summary_exact": "Redacted structured history summary.",
+      "phenotype_observation_ids": ["PH-RARE-1", "PH-RARE-2"],
+      "pedigree_member_ids": ["PROBAND", "FAM-RARE-1"],
+      "onset_exact": "early childhood",
+      "disease_course": "static",
+      "birth_history_status": "none_reported",
+      "development_history_status": "supplied",
+      "development_history_exact": "Supplied developmental history reviewed.",
+      "review_status": "confirmed",
+      "provenance_source_ids": ["SRC-REF"]
+    },
+    "previous_investigations_review_status": "supplied",
+    "previous_investigations": [
+      {
+        "investigation_id": "INV-2",
+        "category": "imaging",
+        "test_or_assessment_exact": "MRI report",
+        "occurred_on_or_period_exact": "2024",
+        "result_summary_exact": "Supplied report summary retained for review.",
+        "report_availability": "available",
+        "provenance_source_ids": ["SRC-REF"]
+      }
+    ],
+    "known_family_reports_review_status": "supplied",
+    "pedigree_review_status": "supplied",
+    "known_family_reports": [
+      {
+        "family_report_id": "FREP-1",
+        "family_member_id": "FAM-RARE-1",
+        "report_type_exact": "supplied affected-relative report",
+        "report_availability": "available",
+        "provenance_source_ids": ["SRC-REF"]
+      }
+    ],
+    "context_review": {
+      "sample_availability": "potentially_available",
+      "sample_context_exact": "Proband sample potentially available; affected maternal relative may be reviewable.",
+      "access_review_status": "reviewed_no_constraints_reported"
+    },
+    "testing_status": "ready_for_test_strategy_review",
+    "clinician_checkpoints": [
+      {
+        "checkpoint_id": "CHK-1",
+        "checkpoint_type": "pre_test_assessment_review",
+        "status": "confirmed",
+        "reviewer_role_exact": "clinical genetics reviewer",
+        "provenance_source_ids": ["SRC-REF"]
+      }
+    ],
+    "human_review_required": true
+  },
+  "test_strategy_workspace": {
+    "schema_version": "0.31.3",
+    "rule_inputs": [
+      {
+        "rule_input_id": "RULEINPUT-RARE-1",
+        "mechanism": "existing_report_review",
+        "rationale_exact": "Review the supplied structured result before considering any additional option.",
+        "review_state": "confirmed",
+        "trigger_facts": [
+          {
+            "fact_id": "FACT-RARE-RESULT",
+            "fact_summary_exact": "A supplied structured result is available for bounded review.",
+            "source_path": "result_evidence_workspace.results.RES-RARE-1",
+            "source_record_ids": ["RES-RARE-1"],
+            "provenance_source_ids": ["SRC-REF"]
+          }
+        ]
+      }
+    ],
+    "comparison_note_exact": "Options remain proposals and require clinician selection.",
+    "human_review_required": true
+  },
+  "case_label": "Synthetic Indian early-onset ataxia referral",
+  "candidate_variants": [
+    {
+      "candidate_id": "CAND-RARE-1",
+      "submitted_representation": "GENE1 NM_000001.2:c.10A>G",
+      "gene": "GENE1",
+      "transcript": "NM_000001.2",
+      "genome_build": "GRCh38",
+      "chromosome": "1",
+      "position": 100,
+      "ref": "A",
+      "alt": "G",
+      "zygosity": "heterozygous",
+      "review_state": "unreviewed",
+      "provenance": [
+        {
+          "source_id": "SRC-REF",
+          "source_type": "redacted_referral"
+        }
+      ]
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothesis_id": "HYP-RARE-1",
+      "hypothesis_type": "gene",
+      "value": "GENE1",
+      "inheritance_candidate": "autosomal_dominant",
+      "source": "user_supplied",
+      "review_state": "pending"
+    }
+  ],
+  "global_intake_context": {
+    "schema_version": "0.31",
+    "country_code": "IN",
+    "care_setting": "university_or_medical_college",
+    "care_stage": "pediatric",
+    "language_context": {
+      "source_language": "Kannada",
+      "translation_status": "original"
+    },
+    "locale_profile": {
+      "profile_type": "india",
+      "country_code": "IN",
+      "state_or_union_territory_code": "KA",
+      "care_setting": "medical_college",
+      "consanguinity_status": "reported",
+      "supplied_relationship": "related_degree_unknown",
+      "relationship_description_original": "related, degree unknown"
+    },
+    "testing_access_context": {
+      "constraints": ["follow_up_uncertain"]
+    }
+  },
+  "handoff_workspace": {
+    "schema_version": "0.35",
+    "external_checkpoint": {
+      "checkpoint_id": "CHK-EXT-1",
+      "status": "recorded",
+      "reviewer_id": "EXT-REVIEWER",
+      "reviewer_role": "external_checkpoint_reviewer",
+      "reference": "EXT-CHECKPOINT-1",
+      "timestamp": "deterministic",
+      "notes": "Synthetic external checkpoint recorded for review."
+    },
+    "human_review_required": true
+  },
+  "result_evidence_workspace": {
+    "schema_version": "0.32",
+    "results": [
+      {
+        "result_id": "RES-RARE-1",
+        "case_id": "CASE-IN-SILICO-RARE-035",
+        "category": "sequence_variant_result",
+        "provenance": {
+          "source_type": "supplied_structured_result",
+          "source_document_id": "DOC-RESULT-1",
+          "source_document_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_document_name": "Synthetic supplied molecular report",
+          "source_document_date": "2025-01-15",
+          "source_page_or_section": "page 1",
+          "reporting_laboratory": "Synthetic laboratory",
+          "test_name_as_reported": "Targeted sequence result",
+          "test_method_as_reported": "Supplied report text",
+          "specimen_type": "blood",
+          "report_issue_date": "2025-01-15",
+          "report_version": "fixture-1",
+          "entered_by": "FIXTURE-REVIEWER",
+          "entered_at": "deterministic",
+          "reviewed_by": "FIXTURE-REVIEWER",
+          "reviewed_at": "deterministic",
+          "translation_status": "known",
+          "transcription_status": "known",
+          "provenance_notes": "Synthetic supplied result retained as source context."
+        },
+        "findings": [
+          {
+            "finding_id": "FIND-RARE-1",
+            "category": "sequence_variant_result",
+            "original_text": "GENE1 NM_000001.2:c.10A>G heterozygous",
+            "original_variant_string": "GENE1 NM_000001.2:c.10A>G",
+            "transcription_confidence": "known",
+            "human_transcription_verified": true,
+            "sequence_variant": {
+              "gene_symbol_reported": "GENE1",
+              "transcript_reported": "NM_000001.2",
+              "reference_assembly_reported": "GRCh38",
+              "chromosome": "1",
+              "genomic_position": 100,
+              "reference_allele": "A",
+              "alternate_allele": "G",
+              "hgvs_c_reported": "NM_000001.2:c.10A>G",
+              "zygosity_reported": "heterozygous",
+              "variant_type": "SNV"
+            }
+          }
+        ]
+      }
+    ],
+    "retrieval_queries": [
+      {
+        "query_id": "QUERY-RARE-1",
+        "finding_id": "FIND-RARE-1",
+        "normalized_gene": "GENE1",
+        "normalized_variant": "NM_000001.2:c.10A>G",
+        "transcript": "NM_000001.2",
+        "reference_assembly": "GRCh38",
+        "variant_type": "SNV",
+        "evidence_source_selection": ["synthetic_evidence_store"],
+        "review_status": "human_reviewed",
+        "reviewed_by": "FIXTURE-REVIEWER",
+        "reviewed_at": "deterministic"
+      }
+    ],
+    "source_adapters": [
+      {
+        "source_name": "synthetic_evidence_store",
+        "source_type": "gene_disease_validity_record",
+        "source_version": "fixture-1",
+        "source_url_or_identifier": "fixture://synthetic-evidence-store",
+        "adapter_state": "available",
+        "retrieval_method": "deterministic_fixture",
+        "records": [
+          {
+            "fixture_record_id": "FIXTURE-EVIDENCE-1",
+            "query_id": "QUERY-RARE-1",
+            "source_identifier": "fixture://synthetic-evidence-1",
+            "source_title": "Synthetic bounded gene-disease context",
+            "source_version": "fixture-1",
+            "publication_date": "2025-01-15",
+            "jurisdiction": "synthetic",
+            "evidence_domain": "gene_disease_validity",
+            "source_statement": "Synthetic source statement retained as context for human review.",
+            "source_excerpt": "Synthetic context excerpt.",
+            "source_location": "fixture record 1",
+            "structured_observation": {"scope": "bounded_context"},
+            "applicability_status": "reviewed_context_only",
+            "interpretation_tag": "context_only"
+          }
+        ]
+      }
+    ],
+    "summary_requests": [
+      {
+        "summary_request_id": "SUMMARY-RARE-1",
+        "finding_id": "FIND-RARE-1",
+        "requested_by": "FIXTURE-REVIEWER",
+        "requested_at": "deterministic",
+        "summary_limitations": ["Synthetic context is not a clinical conclusion."]
+      }
+    ],
+    "review_actions": [
+      {
+        "action_id": "REVIEW-LEDGER-1",
+        "action": "accept_ledger_entry",
+        "target_type": "ledger_entry",
+        "target_id": "ledger-0e04264e140076096355",
+        "reviewer_role": "synthetic_evidence_reviewer",
+        "reviewer_id": "FIXTURE-REVIEWER",
+        "timestamp": "deterministic"
+      }
+    ],
+    "external_interpretations": [],
+    "human_review_required": true
+  },
+  "specialist_agent_workspace": {
+    "schema_version": "0.33",
+    "spawn_requests": [
+      {
+        "spawn_request_id": "SPAWN-RARE-1",
+        "case_id": "CASE-IN-SILICO-RARE-035",
+        "requested_agent_id": "candidate_acmg_evidence_agent",
+        "requested_task_type": "propose_candidate_acmg_evidence",
+        "requested_by": "human_reviewer",
+        "request_reason": "Organize candidate-only evidence for human discussion.",
+        "ledger_entry_ids": ["ledger-0e04264e140076096355"],
+        "finding_ids": ["FIND-RARE-1"],
+        "human_review_status": "approved",
+        "created_at": "deterministic"
+      }
+    ],
+    "candidate_requests": [
+      {
+        "candidate_request_id": "CAND-CRIT-RARE-1",
+        "spawn_request_id": "SPAWN-RARE-1",
+        "finding_id": "FIND-RARE-1",
+        "criterion_code": "PM2",
+        "criterion_family": "population_frequency",
+        "proposed_strength": "candidate_only",
+        "candidate_rule_id": "RULE-CANDIDATE-1",
+        "candidate_rule_version": "fixture-1",
+        "source_ledger_entry_ids": ["ledger-0e04264e140076096355"],
+        "supporting_observations": ["Synthetic observation retained for review."],
+        "applicability_notes": ["Candidate criterion is not a final classification."],
+        "gene_disease_context": "Synthetic bounded context only.",
+        "phenotype_context": "Supplied phenotype context only."
+      }
+    ],
+    "review_actions": [],
+    "external_acmg_assessments": [],
+    "human_review_required": true
+  },
+  "jarvis_synthesis_report_workspace": {
+    "schema_version": "0.34",
+    "proposed_claims": [],
+    "review_actions": [],
+    "human_review_required": true
+  }
+}

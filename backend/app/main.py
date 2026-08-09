@@ -15,6 +15,7 @@ from app.insilicopop.agent.workbench import (
     AgentArtifactSummary,
     AgentRunDetail,
     AgentRunSummary,
+    HandoffActionResponse,
     ReproducibilityBundleSummary,
     WorkbenchRunStore,
 )
@@ -23,6 +24,7 @@ from app.insilicopop.benchmarks.agent_trace import AgentMemoryBenchmarkRunner
 from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
 from app.insilicopop.memory.compressor import DomainMemoryCompressor
 from app.insilicopop.llm.byok_runtime import BYOKSessionConfiguration, byok_runtime
+from app.insilicopop.clinical.handoff_models import HandoffReviewAction, HandoffWorkspaceResult
 from app.schemas.memory import MemoryCompressRequest, MemoryCompressResponse
 from app.workflows.dry_biotics import DryBioticsWorkflow
 
@@ -336,6 +338,32 @@ def insilicopop_agent_run_detail(run_id: str) -> AgentRunDetail:
         return WorkbenchRunStore().run_detail(run_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="agent run not found") from exc
+
+
+@app.get("/insilicopop/agent/runs/{run_id}/handoff", response_model=HandoffWorkspaceResult)
+def insilicopop_agent_run_handoff(run_id: str) -> HandoffWorkspaceResult:
+    try:
+        return WorkbenchRunStore().handoff_workspace(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="agent run handoff workspace not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail="agent run handoff workspace is invalid") from exc
+
+
+@app.post(
+    "/insilicopop/agent/runs/{run_id}/handoff/actions",
+    response_model=HandoffActionResponse,
+)
+def insilicopop_agent_run_handoff_action(
+    run_id: str,
+    action: HandoffReviewAction,
+) -> HandoffActionResponse:
+    try:
+        return WorkbenchRunStore().apply_handoff_action(run_id, action)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="agent run handoff workspace not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail="agent run handoff workspace cannot accept this action") from exc
 
 
 @app.get("/insilicopop/agent/runs/{run_id}/artifacts", response_model=list[AgentArtifactSummary])

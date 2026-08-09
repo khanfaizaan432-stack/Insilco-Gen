@@ -49,6 +49,9 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_result_evidence_workspace": "result_evidence_workspace.json",
     "repro_specialist_agent_workspace": "specialist_agent_workspace.json",
     "repro_jarvis_synthesis_report_workspace": "jarvis_synthesis_report_workspace.json",
+    "repro_handoff_workspace": "handoff_workspace.json",
+    "repro_handoff_packet": "handoff_packet.json",
+    "repro_handoff_receipt": "handoff_receipt.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -121,6 +124,13 @@ def write_reproducibility_bundle(
             paths["repro_jarvis_synthesis_report_workspace"],
             state.jarvis_synthesis_report_workspace.model_dump(),
         )
+    if state.handoff_workspace:
+        paths["repro_handoff_workspace"] = optional_paths["repro_handoff_workspace"]
+        paths["repro_handoff_packet"] = optional_paths["repro_handoff_packet"]
+        paths["repro_handoff_receipt"] = optional_paths["repro_handoff_receipt"]
+        _write_json(paths["repro_handoff_workspace"], state.handoff_workspace.model_dump())
+        _write_json(paths["repro_handoff_packet"], state.handoff_workspace.handoff_packet.model_dump())
+        _write_json(paths["repro_handoff_receipt"], state.handoff_workspace.handoff_receipt.model_dump())
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -138,7 +148,13 @@ def write_reproducibility_bundle(
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    path.write_text(json.dumps(jsonable_encoder(payload), indent=2, sort_keys=True), encoding="utf-8")
+    path.write_bytes(_json_file_bytes(jsonable_encoder(payload)))
+
+
+def _json_file_bytes(payload: Any) -> bytes:
+    """Canonical persisted JSON bytes used by handoff manifest file-byte hashes."""
+
+    return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True).encode("utf-8")
 
 
 def _input_inventory(state: AgentState) -> dict[str, Any]:
@@ -617,6 +633,48 @@ def _provenance_index(
             "report_status": "draft_not_clinically_approved",
             "human_review_required": True,
         }
+    handoff_path = repro_paths.get("repro_handoff_workspace")
+    if handoff_path and state.handoff_workspace:
+        payload["handoff_workspace"] = {
+            "path": _relative_to_run(run_dir, handoff_path),
+            "json_pointer": "/",
+            "artifact_class": "structured_human_review_handoff_workspace",
+            "schema_version": state.handoff_workspace.schema_version,
+            "handoff_state": state.handoff_workspace.status.value,
+            "revision": state.handoff_workspace.revision,
+            "snapshot_hash": state.handoff_workspace.snapshot_hash,
+            "packet_sha256": state.handoff_workspace.handoff_packet.packet_sha256,
+            "receipt_sha256": state.handoff_workspace.handoff_receipt.receipt_sha256,
+            "report_status": state.handoff_workspace.report_status,
+            "human_review_required": True,
+            "clinical_approval_granted": False,
+        }
+    packet_path = repro_paths.get("repro_handoff_packet")
+    if packet_path and state.handoff_workspace:
+        payload["handoff_packet"] = {
+            "path": _relative_to_run(run_dir, packet_path),
+            "json_pointer": "/handoff_packet",
+            "artifact_class": "deterministic_handoff_packet",
+            "packet_version": state.handoff_workspace.handoff_packet.packet_version,
+            "packet_sha256": state.handoff_workspace.handoff_packet.packet_sha256,
+            "current_handoff_state": state.handoff_workspace.status.value,
+            "artifact_count": len(state.handoff_workspace.handoff_packet.artifact_manifest),
+            "report_status": state.handoff_workspace.handoff_packet.report_status,
+            "human_review_required": True,
+        }
+    receipt_path = repro_paths.get("repro_handoff_receipt")
+    if receipt_path and state.handoff_workspace:
+        payload["handoff_receipt"] = {
+            "path": _relative_to_run(run_dir, receipt_path),
+            "json_pointer": "/handoff_receipt",
+            "artifact_class": "deterministic_handoff_receipt",
+            "receipt_version": state.handoff_workspace.handoff_receipt.receipt_version,
+            "receipt_status": state.handoff_workspace.handoff_receipt.receipt_status.value,
+            "receipt_sha256": state.handoff_workspace.handoff_receipt.receipt_sha256,
+            "handoff_state": state.handoff_workspace.handoff_receipt.handoff_state.value,
+            "report_status": state.handoff_workspace.handoff_receipt.report_status,
+            "human_review_required": True,
+        }
     return payload
 
 
@@ -831,6 +889,26 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "jarvis_synthesis_report_workspace_artifact_available": (
             state.jarvis_synthesis_report_workspace is not None
         ),
+        "handoff_schema_version": state.handoff_workspace.schema_version if state.handoff_workspace else None,
+        "handoff_version": state.handoff_workspace.handoff_version if state.handoff_workspace else None,
+        "handoff_state": state.handoff_workspace.status.value if state.handoff_workspace else None,
+        "handoff_revision": state.handoff_workspace.revision if state.handoff_workspace else None,
+        "handoff_snapshot_hash": state.handoff_workspace.snapshot_hash if state.handoff_workspace else None,
+        "handoff_stage_ids": [item.stage_id for item in state.handoff_workspace.case_stages] if state.handoff_workspace else [],
+        "handoff_blocker_ids": [item.blocker_id for item in state.handoff_workspace.blockers] if state.handoff_workspace else [],
+        "handoff_pending_human_decision_ids": [item.decision_id for item in state.handoff_workspace.pending_human_decisions] if state.handoff_workspace else [],
+        "handoff_uncertainty_ids": [item.uncertainty_id for item in state.handoff_workspace.acknowledgement_required_uncertainties] if state.handoff_workspace else [],
+        "handoff_external_event_ids": [item.event_id for item in state.handoff_workspace.external_handoff_events] if state.handoff_workspace else [],
+        "handoff_requested_review_action_ids": [item.action_id for item in state.handoff_workspace.requested_review_actions] if state.handoff_workspace else [],
+        "handoff_applied_review_action_ids": [item.action_id for item in state.handoff_workspace.applied_review_actions] if state.handoff_workspace else [],
+        "handoff_rejected_review_action_ids": [
+            item.action_id
+            for item in state.handoff_workspace.review_action_results
+            if item.result_status.value == "rejected"
+        ] if state.handoff_workspace else [],
+        "handoff_ready_for_external_handoff": state.handoff_workspace.review_readiness.ready_for_external_handoff if state.handoff_workspace else False,
+        "handoff_report_status": state.handoff_workspace.report_status if state.handoff_workspace else None,
+        "handoff_clinical_approval_granted": False,
         "test_recommendation_made": False,
         "test_order_placed": False,
         "variant_pathogenicity_interpretation_performed": False,

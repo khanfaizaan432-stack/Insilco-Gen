@@ -145,6 +145,10 @@
       background: var(--soft);
       border-color: #a9d8cd;
     }
+    .metric.warn {
+      background: var(--warn);
+      border-color: #f0c89a;
+    }
     .human-review {
       border-left: 4px solid var(--danger);
       background: var(--warn);
@@ -196,9 +200,105 @@
       vertical-align: top;
     }
     th { color: var(--muted); font-weight: 700; }
+    .handoff-panel {
+      border-left: 4px solid var(--accent);
+    }
+    .handoff-stage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+    button.handoff-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      min-height: 72px;
+      text-align: left;
+      color: var(--text);
+      background: #fbfcfe;
+      border-color: var(--line);
+      padding: 8px;
+    }
+    button.handoff-stage:hover,
+    button.handoff-stage:focus-visible,
+    button.handoff-stage.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(18, 108, 90, 0.12);
+    }
+    button.handoff-stage.status-blocked,
+    button.handoff-stage.status-incomplete {
+      background: var(--warn);
+      border-color: #f0c89a;
+    }
+    button.handoff-stage.status-awaiting_human_input {
+      background: #fffaf0;
+      border-color: #e8b949;
+    }
+    button.handoff-stage.status-completed_for_draft_use {
+      background: var(--soft);
+      border-color: #a9d8cd;
+    }
+    .handoff-stage-number {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .handoff-stage-status {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .handoff-stage-detail {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #fbfcfe;
+      padding: 10px;
+      min-height: 58px;
+    }
+    .handoff-action-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+      margin-top: 10px;
+    }
+    .handoff-action-group {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 10px;
+      background: #fbfcfe;
+    }
+    .handoff-action-group.full-width {
+      grid-column: 1 / -1;
+    }
+    .handoff-action-group label {
+      margin-top: 0;
+    }
+    .handoff-action-group button {
+      margin-top: 8px;
+    }
+    button.handoff-danger {
+      border-color: var(--danger);
+      background: var(--danger);
+    }
+    .handoff-hash {
+      overflow-wrap: anywhere;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+    }
+    .handoff-table-wrap {
+      overflow-x: auto;
+    }
+    .handoff-table-wrap table {
+      min-width: 620px;
+    }
     @media (max-width: 860px) {
-      .grid, .two-col, .form-grid { grid-template-columns: 1fr; }
+      .grid, .two-col, .form-grid, .handoff-action-controls { grid-template-columns: 1fr; }
+      .handoff-stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       main { padding: 12px; }
+    }
+    @media (max-width: 520px) {
+      .handoff-stage-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -400,6 +500,12 @@
           <div id="run-summary" class="muted">Submit a run or select a run from history.</div>
         </section>
 
+        <section id="handoff-section" class="handoff-panel" aria-labelledby="handoff-heading">
+          <h2 id="handoff-heading">Structured Human Review Handoff (v0.35)</h2>
+          <p class="note">This bounded workspace keeps the 18 case stages, review readiness, blockers, uncertainties, human decisions, packet/receipt hashes, and handoff audit in one view. It never grants clinical approval or signs out a case.</p>
+          <div id="handoff-workspace" class="muted">No v0.35 handoff workspace loaded.</div>
+        </section>
+
         <section aria-labelledby="workflow-heading">
           <h2 id="workflow-heading">4. Workflow Selection Panel</h2>
           <pre id="workflow-selection">No workflow selection loaded.</pre>
@@ -486,6 +592,29 @@
     const refreshRunsButton = document.getElementById("refresh-runs");
     const statusBox = document.getElementById("status");
     let activeByokSessionId = null;
+    const HANDOFF_STAGE_ORDER = Object.freeze([
+      "referral",
+      "clinical_history",
+      "phenotype_hpo",
+      "pedigree_family",
+      "previous_investigations",
+      "readiness",
+      "test_strategy",
+      "external_checkpoint",
+      "result_intake",
+      "qc_assay_scope",
+      "candidate_analysis",
+      "evidence",
+      "candidate_acmg",
+      "synthesis_critics",
+      "draft_report",
+      "human_review",
+      "external_handoff",
+      "reanalysis",
+    ]);
+    let activeHandoffRunId = null;
+    let activeHandoffWorkspace = null;
+    let handoffActionSequence = 0;
 
     const apiFields = Array.from(document.querySelectorAll("[data-api-field]"));
 
@@ -711,6 +840,280 @@
         const reason = action.blocked_reason ? `<div class="muted">Reason: ${escapeHtml(action.blocked_reason)}</div>` : "";
         return `<div class="list-item"><strong>${escapeHtml(action.action_id || "")}: ${escapeHtml(action.title || action.action_type || "action")}</strong><div>${escapeHtml(action.status || "planned")}</div>${reason}</div>`;
       }).join("");
+    }
+
+    function handoffStatusClass(value) {
+      return String(value || "not_available").toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    }
+
+    function handoffDisplay(value, fallback = "not available") {
+      return escapeHtml(value === undefined || value === null || value === "" ? fallback : String(value));
+    }
+
+    function handoffListValue(value, fallback = "none") {
+      return escapeHtml(Array.isArray(value) && value.length ? value.join(", ") : fallback);
+    }
+
+    function renderHandoffStageDetail(workspace, stageId) {
+      const target = document.getElementById("handoff-stage-detail");
+      if (!target) return;
+      const stages = Array.isArray(workspace?.case_stages) ? workspace.case_stages : [];
+      const stage = stages.find((item) => item && item.stage_id === stageId);
+      if (!stage) {
+        target.className = "handoff-stage-detail muted";
+        target.textContent = `Stage ${stageId} is not present in the v0.35 response.`;
+        return;
+      }
+      target.className = "handoff-stage-detail";
+      target.innerHTML = `
+        <strong>${handoffDisplay(stage.stage_number)}. ${handoffDisplay(stage.label || stage.stage_id)}</strong>
+        <span class="handoff-stage-status">${handoffDisplay(stage.status)}</span>
+        <div class="note"><strong>Artifacts:</strong> ${handoffListValue(stage.artifact_ids)}; <strong>blockers:</strong> ${handoffListValue(stage.blocker_ids)}; <strong>pending decisions:</strong> ${handoffListValue(stage.pending_decision_ids)}; <strong>source classifications:</strong> ${handoffListValue(stage.source_classifications)}</div>
+      `;
+      document.querySelectorAll("[data-handoff-stage]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.handoffStage === stageId);
+      });
+    }
+
+    function handoffControl(action, label, options = {}) {
+      const classes = options.danger ? "handoff-danger" : "secondary";
+      const targetSelect = options.targetSelect ? ` data-handoff-target-select="${escapeHtml(options.targetSelect)}"` : "";
+      const disabled = options.disabled ? " disabled" : "";
+      return `<button type="button" class="${classes}" data-handoff-action="${escapeHtml(action)}"${targetSelect}${disabled}>${escapeHtml(label)}</button>`;
+    }
+
+    function renderHandoffWorkspace(workspace, runId = activeHandoffRunId) {
+      const target = document.getElementById("handoff-workspace");
+      if (!target) return;
+      if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
+        activeHandoffRunId = runId || null;
+        activeHandoffWorkspace = null;
+        target.className = "muted";
+        target.textContent = "No v0.35 handoff workspace is available for this run.";
+        return;
+      }
+
+      activeHandoffRunId = runId || activeHandoffRunId;
+      activeHandoffWorkspace = workspace;
+      const stages = Array.isArray(workspace.case_stages) ? workspace.case_stages : [];
+      const stageById = new Map(stages.filter((item) => item && item.stage_id).map((item) => [item.stage_id, item]));
+      const orderMatches = stages.length === HANDOFF_STAGE_ORDER.length && stages.every((stage, index) => stage?.stage_id === HANDOFF_STAGE_ORDER[index]);
+      const readiness = workspace.review_readiness || {};
+      const blockers = Array.isArray(workspace.blockers) ? workspace.blockers : [];
+      const uncertainties = Array.isArray(workspace.acknowledgement_required_uncertainties) ? workspace.acknowledgement_required_uncertainties : [];
+      const decisions = Array.isArray(workspace.pending_human_decisions) ? workspace.pending_human_decisions : [];
+      const externalEvents = Array.isArray(workspace.external_handoff_events) ? workspace.external_handoff_events : [];
+      const requestedActions = Array.isArray(workspace.requested_review_actions) ? workspace.requested_review_actions : [];
+      const appliedActions = Array.isArray(workspace.applied_review_actions) ? workspace.applied_review_actions : [];
+      const actionResults = Array.isArray(workspace.review_action_results) ? workspace.review_action_results : [];
+      const auditHistory = Array.isArray(workspace.audit_history) ? workspace.audit_history : [];
+      const manifest = Array.isArray(workspace.artifact_manifest) ? workspace.artifact_manifest : [];
+      const packet = workspace.handoff_packet || {};
+      const receipt = workspace.handoff_receipt || {};
+      const status = String(workspace.status || "not_available");
+      const terminal = ["externally_handed_off", "deferred", "withdrawn"].includes(status);
+      const openBlockers = blockers.filter((item) => item && item.resolution_status === "open");
+      const openUncertainties = uncertainties.filter((item) => item && item.acknowledged !== true);
+      const pendingDecisions = decisions.filter((item) => item && item.status === "pending");
+      const hasPacketHash = Boolean(packet.packet_sha256);
+      const reviewerCount = Array.isArray(workspace.reviewer_references) ? workspace.reviewer_references.length : 0;
+      const stageButtons = HANDOFF_STAGE_ORDER.map((stageId, index) => {
+        const stage = stageById.get(stageId) || {};
+        const stageStatus = stage.status || "not_available";
+        return `<button type="button" class="handoff-stage status-${handoffStatusClass(stageStatus)}" data-handoff-stage="${escapeHtml(stageId)}" aria-controls="handoff-stage-detail">
+          <span class="handoff-stage-number">Stage ${index + 1} / 18</span>
+          <strong>${handoffDisplay(stage.label || stageId)}</strong>
+          <span class="handoff-stage-status">${handoffDisplay(stageStatus)}</span>
+        </button>`;
+      }).join("");
+      const stageNotice = orderMatches ? "" : `<p class="panel-error">The response did not match the frozen v0.35 shape: expected exactly 18 stages in the declared order.</p>`;
+      const blockerRows = blockers.map((item) => `<li><strong>${handoffDisplay(item.blocker_id || item.code)}</strong> — ${handoffDisplay(item.message)} <span class="muted">(${handoffDisplay(item.resolution_status || "open")})</span>${item.resolution_note ? ` — ${handoffDisplay(item.resolution_note)}` : ""}</li>`).join("") || "<li>No blockers recorded.</li>";
+      const uncertaintyRows = uncertainties.map((item) => `<li><strong>${handoffDisplay(item.uncertainty_id)}</strong> — ${handoffDisplay(item.statement)} <span class="muted">(${item.acknowledged === true ? "acknowledged" : "acknowledgement required"})</span></li>`).join("") || "<li>No acknowledgement-required uncertainty recorded.</li>";
+      const decisionRows = decisions.map((item) => `<li><strong>${handoffDisplay(item.decision_id)}</strong> — ${handoffDisplay(item.question)} <span class="muted">(${handoffDisplay(item.status || "pending")})</span>${item.resolution_note ? ` — ${handoffDisplay(item.resolution_note)}` : ""}</li>`).join("") || "<li>No pending human decision recorded.</li>";
+      const eventRows = externalEvents.map((item) => `<li><strong>${handoffDisplay(item.event_id)}</strong> — ${handoffDisplay(item.event_type)} — ${handoffDisplay(item.external_reference)} — packet <span class="handoff-hash">${handoffDisplay(item.packet_sha256)}</span></li>`).join("") || "<li>No external handoff event recorded.</li>";
+      const requestedRows = requestedActions.slice(-20).map((item) => `<li><strong>${handoffDisplay(item.action_id)}</strong> — ${handoffDisplay(item.action)} — reviewer ${handoffDisplay(item.reviewer_id)}</li>`).join("") || "<li>No requested review action recorded.</li>";
+      const appliedRows = appliedActions.slice(-20).map((item) => `<li><strong>${handoffDisplay(item.action_id)}</strong> — ${handoffDisplay(item.action)} — reviewer ${handoffDisplay(item.reviewer_id)}</li>`).join("") || "<li>No applied review action recorded.</li>";
+      const rejectedRows = actionResults.filter((item) => item && item.result_status === "rejected").slice(-20).map((item) => `<li><strong>${handoffDisplay(item.action_id)}</strong> — ${handoffDisplay(item.action)} — ${handoffDisplay(item.rejection_reason || "rejected")} — ${handoffDisplay(item.message)}</li>`).join("") || "<li>No rejected action recorded.</li>";
+      const auditRows = auditHistory.slice(-30).map((item) => `<li><strong>${handoffDisplay(item.audit_id)}</strong> — ${handoffDisplay(item.event_type)} — ${handoffDisplay(item.from_status)} → ${handoffDisplay(item.to_status)} — revision ${handoffDisplay(item.revision)}${item.message ? ` — ${handoffDisplay(item.message)}` : ""}</li>`).join("") || "<li>No audit history recorded.</li>";
+      const manifestRows = manifest.map((item) => `<tr><td>${handoffDisplay(item.artifact_id)}</td><td>${handoffDisplay(item.artifact_name)}</td><td>${handoffDisplay(item.source_classification)}</td><td>${handoffDisplay(item.schema_version)}</td><td>${handoffDisplay(item.digest_scope)}</td><td class="handoff-hash">${handoffDisplay(item.sha256)}</td><td class="handoff-hash">${handoffDisplay(item.canonical_payload_sha256)}</td></tr>`).join("") || '<tr><td colspan="7">No artifact manifest available.</td></tr>';
+      const blockerOptions = openBlockers.map((item) => `<option value="${escapeHtml(item.blocker_id)}">${handoffDisplay(item.blocker_id)} — ${handoffDisplay(item.code)}</option>`).join("") || '<option value="">No open blocker available</option>';
+      const uncertaintyOptions = openUncertainties.map((item) => `<option value="${escapeHtml(item.uncertainty_id)}">${handoffDisplay(item.uncertainty_id)} — ${handoffDisplay(item.statement)}</option>`).join("") || '<option value="">No unresolved uncertainty available</option>';
+      const decisionOptions = pendingDecisions.map((item) => `<option value="${escapeHtml(item.decision_id)}">${handoffDisplay(item.decision_id)} — ${handoffDisplay(item.question)}</option>`).join("") || '<option value="">No pending decision available</option>';
+      const reviewerReferences = Array.isArray(workspace.reviewer_references) ? workspace.reviewer_references.map((item) => `<li>${handoffDisplay(item.reviewer_id)} — ${handoffDisplay(item.reviewer_role)}</li>`).join("") : "";
+
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>handoff status</strong>${handoffDisplay(status)}</div>
+          <div class="metric"><strong>revision</strong>${handoffDisplay(workspace.revision)}</div>
+          <div class="metric"><strong>snapshot_hash</strong><span class="handoff-hash">${handoffDisplay(workspace.snapshot_hash)}</span></div>
+          <div class="metric"><strong>pseudonymous case</strong>${handoffDisplay(workspace.pseudonymous_case_id)}</div>
+          <div class="metric safe"><strong>ready_for_external_handoff</strong>${handoffDisplay(Boolean(readiness.ready_for_external_handoff))}</div>
+          <div class="metric warn"><strong>open blockers</strong>${handoffDisplay(readiness.open_blocker_count ?? blockers.length)}</div>
+          <div class="metric warn"><strong>unacknowledged uncertainties</strong>${handoffDisplay(readiness.unacknowledged_uncertainty_count ?? openUncertainties.length)}</div>
+          <div class="metric warn"><strong>pending human decisions</strong>${handoffDisplay(readiness.pending_human_decision_count ?? pendingDecisions.length)}</div>
+          <div class="metric"><strong>blocking critics</strong>${handoffDisplay(readiness.blocking_critic_count ?? "not available")}</div>
+          <div class="metric"><strong>reviewers recorded</strong>${handoffDisplay(reviewerCount)}</div>
+          <div class="metric safe"><strong>report_status</strong>${handoffDisplay(workspace.report_status || "draft_not_clinically_approved")}</div>
+          <div class="metric safe"><strong>human_review_required</strong>${handoffDisplay(Boolean(workspace.human_review_required))}</div>
+          <div class="metric safe"><strong>research_use_only</strong>${handoffDisplay(Boolean(workspace.research_use_only))}</div>
+          <div class="metric warn"><strong>clinical_approval_granted</strong>${handoffDisplay(Boolean(workspace.clinical_approval_granted))}</div>
+        </div>
+        <p class="note"><strong>Safety boundary:</strong> report status is <strong>draft_not_clinically_approved</strong>; human review is required, research use only is true, and clinical approval remains false. This page records typed human actions through the handoff API and never changes those safety flags locally.</p>
+        ${stageNotice}
+        <h3>18-stage case navigator</h3>
+        <div class="handoff-stage-grid">${stageButtons}</div>
+        <div id="handoff-stage-detail" class="handoff-stage-detail">Select a stage to inspect its bounded links.</div>
+        <h3>Review readiness and safety gates</h3>
+        <p class="note">${handoffListValue(readiness.blocking_requirements, "No open readiness requirement recorded.")}</p>
+        <div class="two-col">
+          <div><h3>Blockers</h3><ul>${blockerRows}</ul></div>
+          <div><h3>Acknowledgement-required uncertainties</h3><ul>${uncertaintyRows}</ul></div>
+        </div>
+        <h3>Pending human decisions</h3><ul>${decisionRows}</ul>
+        <h3>Bounded review action controls</h3>
+        <p class="note">Actions include the current revision and snapshot hash so stale UI state is rejected by the API. Pseudonymous reviewer references only; do not enter names, contact details, identifiers, secrets, or raw clinical text.</p>
+        <div class="handoff-action-controls">
+          <div class="handoff-action-group full-width">
+            <div class="form-grid">
+              <div><label for="handoff-reviewer-id">Reviewer reference</label><input id="handoff-reviewer-id" value="UI-REVIEWER" maxlength="120"></div>
+              <div><label for="handoff-reviewer-role">Reviewer role</label><input id="handoff-reviewer-role" value="workbench_reviewer" maxlength="120"></div>
+            </div>
+            <label for="handoff-action-notes">Action notes (bounded, optional)</label>
+            <input id="handoff-action-notes" maxlength="2000" placeholder="Short review note; no direct identifiers or secrets">
+          </div>
+          <div class="handoff-action-group">
+            <strong>Review lifecycle</strong>
+            <div>${handoffControl("start_human_review", "Start human review", {disabled: status !== "assembled"})}</div>
+            <div>${handoffControl("defer", "Defer handoff", {disabled: terminal})}</div>
+            <div>${handoffControl("withdraw", "Withdraw handoff", {disabled: terminal, danger: true})}</div>
+          </div>
+          <div class="handoff-action-group">
+            <strong>Uncertainty and decision review</strong>
+            <label for="handoff-uncertainty-target">Uncertainty</label>
+            <select id="handoff-uncertainty-target">${uncertaintyOptions}</select>
+            <div>${handoffControl("acknowledge_uncertainty", "Acknowledge selected uncertainty", {targetSelect: "handoff-uncertainty-target", disabled: terminal || status !== "under_human_review" || openUncertainties.length === 0})}</div>
+            <label for="handoff-blocker-target">Open blocker</label>
+            <select id="handoff-blocker-target">${blockerOptions}</select>
+            <div>${handoffControl("resolve_blocker", "Resolve selected blocker", {targetSelect: "handoff-blocker-target", disabled: terminal || status !== "under_human_review" || openBlockers.length === 0})}</div>
+            <label for="handoff-decision-target">Pending decision</label>
+            <select id="handoff-decision-target">${decisionOptions}</select>
+            <label for="handoff-resolution-note">Resolution note (decision or blocker)</label>
+            <textarea id="handoff-resolution-note" maxlength="2000" placeholder="Required to resolve a pending decision or blocker"></textarea>
+            <div>${handoffControl("resolve_pending_decision", "Resolve selected decision", {targetSelect: "handoff-decision-target", disabled: terminal || pendingDecisions.length === 0})}</div>
+          </div>
+          <div class="handoff-action-group full-width">
+            <strong>External handoff gate</strong>
+            <p class="note">First use the API-backed readiness action. Recording external handoff requires an event whose packet hash exactly matches the current handoff packet.</p>
+            <div class="badge-row">
+              ${handoffControl("mark_ready_for_external_handoff", "Mark ready for external handoff", {disabled: terminal || status !== "under_human_review" || readiness.ready_for_external_handoff !== true})}
+              ${handoffControl("record_external_handoff", "Record external handoff event", {disabled: status !== "ready_for_external_handoff" || !hasPacketHash})}
+            </div>
+            <label for="handoff-external-reference">External reference</label>
+            <input id="handoff-external-reference" maxlength="160" placeholder="Required for an API-recorded external handoff event">
+          </div>
+        </div>
+        <h3>Packet and receipt integrity</h3>
+        <div class="two-col">
+          <div class="handoff-action-group">
+            <strong>Handoff packet</strong>
+            <p><strong>packet_id:</strong> ${handoffDisplay(packet.packet_id)}</p>
+            <p><strong>packet_version:</strong> ${handoffDisplay(packet.packet_version)}</p>
+            <p><strong>packet_sha256:</strong> <span class="handoff-hash">${handoffDisplay(packet.packet_sha256)}</span></p>
+            <p><strong>manifest entries:</strong> ${handoffDisplay(manifest.length)} / 9</p>
+          </div>
+          <div class="handoff-action-group">
+            <strong>Handoff receipt</strong>
+            <p><strong>receipt_status:</strong> ${handoffDisplay(receipt.receipt_status)}</p>
+            <p><strong>receipt_sha256:</strong> <span class="handoff-hash">${handoffDisplay(receipt.receipt_sha256)}</span></p>
+            <p><strong>packet_sha256:</strong> <span class="handoff-hash">${handoffDisplay(receipt.packet_sha256)}</span></p>
+            <p><strong>external event:</strong> ${handoffDisplay(receipt.external_event_id)}</p>
+          </div>
+        </div>
+        <h3>Artifact manifest</h3>
+        <div class="handoff-table-wrap"><table><thead><tr><th>Artifact ID</th><th>Name</th><th>Classification</th><th>Schema</th><th>Digest scope</th><th>File-byte SHA-256</th><th>Canonical payload SHA-256</th></tr></thead><tbody>${manifestRows}</tbody></table></div>
+        <h3>External handoff events</h3><ul>${eventRows}</ul>
+        <div class="two-col">
+          <div><h3>Requested actions</h3><ul>${requestedRows}</ul><h3>Applied actions</h3><ul>${appliedRows}</ul></div>
+          <div><h3>Rejected actions</h3><ul>${rejectedRows}</ul><h3>Audit history</h3><ul>${auditRows}</ul></div>
+        </div>
+        ${reviewerReferences ? `<h3>Reviewer references</h3><ul>${reviewerReferences}</ul>` : ""}
+      `;
+      renderHandoffStageDetail(workspace, HANDOFF_STAGE_ORDER[0]);
+    }
+
+    function nextHandoffActionId(prefix = "ACTION") {
+      handoffActionSequence += 1;
+      return `UI-HANDOFF-${prefix}-${Date.now()}-${handoffActionSequence}`;
+    }
+
+    async function submitHandoffAction(actionType, targetId = null) {
+      if (!activeHandoffRunId || !activeHandoffWorkspace) {
+        setStatus("Load a v0.35 handoff workspace before submitting a review action.", true);
+        return;
+      }
+      const reviewerId = valueOf("handoff-reviewer-id") || "UI-REVIEWER";
+      const reviewerRole = valueOf("handoff-reviewer-role") || "workbench_reviewer";
+      const notes = valueOf("handoff-action-notes") || null;
+      const action = {
+        action_id: nextHandoffActionId(actionType.toUpperCase()),
+        action: actionType,
+        target_id: targetId || null,
+        reviewer_id: reviewerId,
+        reviewer_role: reviewerRole,
+        timestamp: new Date().toISOString(),
+        expected_revision: activeHandoffWorkspace.revision,
+        expected_snapshot_hash: activeHandoffWorkspace.snapshot_hash,
+        notes,
+      };
+      if (actionType === "acknowledge_uncertainty") action.before_value = false;
+      if (actionType === "resolve_blocker") action.before_value = "open";
+      if (["resolve_pending_decision", "resolve_blocker"].includes(actionType)) {
+        const resolutionNote = valueOf("handoff-resolution-note");
+        if (!resolutionNote) {
+          setStatus("A resolution note is required for a pending decision or blocker.", true);
+          return;
+        }
+        action.resolution_note = resolutionNote;
+        action.after_value = resolutionNote;
+      }
+      if (actionType === "record_external_handoff") {
+        const externalReference = valueOf("handoff-external-reference");
+        const packetSha256 = activeHandoffWorkspace.handoff_packet?.packet_sha256;
+        if (!externalReference) {
+          setStatus("An external reference is required before recording external handoff.", true);
+          return;
+        }
+        if (!packetSha256) {
+          setStatus("The current handoff packet hash is unavailable; external handoff was not submitted.", true);
+          return;
+        }
+        action.external_event = {
+          event_id: nextHandoffActionId("EVENT"),
+          event_type: "handoff_sent",
+          timestamp: new Date().toISOString(),
+          reviewer_id: reviewerId,
+          reviewer_role: reviewerRole,
+          external_reference: externalReference,
+          packet_sha256: packetSha256,
+          notes,
+        };
+      }
+      if (["withdraw"].includes(actionType) && !window.confirm("Withdraw this handoff? The terminal state will preserve history and reject later mutations.")) return;
+      setStatus(`Submitting ${actionType} through the v0.35 handoff API...`);
+      try {
+        const response = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(activeHandoffRunId)}/handoff/actions`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(action),
+        }, "Handoff review action");
+        if (response && response.handoff_workspace) renderHandoffWorkspace(response.handoff_workspace, activeHandoffRunId);
+        const result = response?.action_result || {};
+        const resultStatus = result.result_status || "recorded";
+        setStatus(`Handoff action ${resultStatus}: ${result.message || "The current workspace was refreshed."}`, resultStatus === "rejected");
+      } catch (error) {
+        setStatus(friendlyError(error, "Handoff review action could not be submitted."), true);
+      }
     }
 
     function renderRunSummary(data, detail) {
@@ -1565,7 +1968,9 @@
     }
 
     function renderRun(data) {
+      activeHandoffRunId = data.run_id || activeHandoffRunId;
       renderRunSummary(data, null);
+      renderHandoffWorkspace(data.handoff_workspace || data.final_state?.handoff_workspace || data.handoff, activeHandoffRunId);
       document.getElementById("workflow-selection").textContent = asJson(data.workflow_selection);
       const recipe = data.selected_recipe || data.final_state?.selected_recipe;
       renderRecipePreview(recipe);
@@ -1623,6 +2028,19 @@
         detail = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}`, undefined, "Run detail");
       } catch (error) {
         panelError("run-summary", friendlyError(error, "Run detail could not be loaded."));
+      }
+
+      activeHandoffRunId = runId;
+      try {
+        const handoff = await requestJson(`/insilicopop/agent/runs/${encodeURIComponent(runId)}/handoff`, undefined, "Handoff workspace");
+        renderHandoffWorkspace(handoff, runId);
+      } catch (error) {
+        const fallbackHandoff = detail?.handoff_workspace || detail?.final_state?.handoff_workspace;
+        if (fallbackHandoff) {
+          renderHandoffWorkspace(fallbackHandoff, runId);
+        } else {
+          panelError("handoff-workspace", friendlyError(error, "The v0.35 handoff workspace could not be loaded."));
+        }
       }
 
       try {
@@ -1772,6 +2190,19 @@
         } catch (error) {
           setStatus(friendlyError(error, "Run could not be loaded."), true);
         }
+      }
+
+      const handoffStageButton = event.target.closest("[data-handoff-stage]");
+      if (handoffStageButton && activeHandoffWorkspace) {
+        renderHandoffStageDetail(activeHandoffWorkspace, handoffStageButton.dataset.handoffStage);
+      }
+
+      const handoffActionButton = event.target.closest("[data-handoff-action]");
+      if (handoffActionButton) {
+        const actionType = handoffActionButton.dataset.handoffAction;
+        const targetSelectId = handoffActionButton.dataset.handoffTargetSelect;
+        const targetId = targetSelectId ? document.getElementById(targetSelectId)?.value || null : null;
+        await submitHandoffAction(actionType, targetId);
       }
 
       const artifactButton = event.target.closest("[data-artifact]");

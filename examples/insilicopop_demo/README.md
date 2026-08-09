@@ -1,6 +1,6 @@
 # InSilicoPop Demo Examples
 
-This folder contains v0.15 local demo notes for the existing backend.
+This folder contains local demo notes for the existing backend, including the v0.35 structured human-review handoff.
 
 These examples are intentionally documentation-only. They do not add a script that executes genomics tools, calls external LLMs, or requires real genomic data.
 
@@ -17,6 +17,8 @@ Files:
 - `sample_goals.md`: researcher goals and expected workflow-family behavior.
 - `sample_cli_commands.md`: safe mock-provider CLI demos.
 - `sample_api_requests.md`: local workbench API and agent-run request examples.
+- `canonical_v035_case.json`: deterministic synthetic Indian rare-disease case fixture.
+- `expected_v035_demo_output.json`: expected output for the v0.35 CLI demonstration.
 
 Demo principles:
 
@@ -26,6 +28,12 @@ Demo principles:
 - raw VCF/BAM/CRAM/PLINK-like files are inventory-only.
 - generated command previews are dry-run only.
 - human review is required.
+- v0.35 handoff packets remain research-use-only and never imply clinical approval.
+- the canonical v0.35 demo records a complete bounded journey through review,
+  uncertainty acknowledgement, decision and blocker resolution, readiness,
+  and an external handoff event; `draft_not_clinically_approved` remains true.
+- artifact manifests distinguish exact persisted-file-byte SHA-256 digests from
+  canonical in-memory payload digests.
 
 For full context, see:
 

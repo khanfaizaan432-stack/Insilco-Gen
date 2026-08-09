@@ -1,0 +1,60 @@
+{
+  "artifact_canonical_payload_sha256": {
+    "clinical_case_intake": "9ea775e9d2de513d683bd0b154b3bfc14bf6e958c0d0a8cde10e58a2926c4ea3",
+    "jarvis_synthesis_report_workspace": "cbddf14eb751702a307cc3f9b7b5d965ede4f3e08ba56ba5b4b19e036519fac2",
+    "pedigree_inheritance_audit": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "phenotype_hpo_curation": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "pre_test_assessment": "8a6684518704b1f5ce2ddf113a92b6fd11f40675fdb2d8a5f68a4c06eda8a900",
+    "result_evidence_workspace": "51807775414ee9e2fbe23b3522733cd72031a946291c3382d3b99e122ef53fc7",
+    "specialist_agent_workspace": "d71909fd1d07edc13a5e434c5d6e7f52207499cbbade338ccf34155a0ca5a8df",
+    "test_strategy_workspace": "642517f5f1485b6be3d7f299f2b0e57985442171e997dbd5b306c4228a3e531c",
+    "variant_intelligence": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+  },
+  "artifact_count": 9,
+  "artifact_file_byte_sha256": {
+    "clinical_case_intake": "3ccaf9992444d922a13ea410efcbd1ad49bfb0b251d484249bfbfa67014917cd",
+    "jarvis_synthesis_report_workspace": "20d4335e98137314f1a3dca8c3ad80262e28157b81003d875f61b11586e9336d",
+    "pre_test_assessment": "8b2d4d608487ff6c63501bdfac682f3ecc2c83ec0493cb2752c2f41d41e814ff",
+    "result_evidence_workspace": "1ec48c5f7ef64f45c127d73e662d27c7a0e91288b4f39bc295a00fb79e6278fe",
+    "specialist_agent_workspace": "6089f0e785500d2d104cfff74e87dd67e904a80f01ef4f85230cc1a809689029",
+    "test_strategy_workspace": "795be536e47353ffabc141dc05ae218fc3a5b668c95f438c8520b10b54f61839"
+  },
+  "available_artifact_count": 6,
+  "blocker_count": 0,
+  "bundle_width": 10,
+  "canonical_action_count": 31,
+  "case_id": "CASE-IN-SILICO-RARE-035",
+  "clinical_approval_granted": false,
+  "external_handoff_event_id": "CANONICAL-HANDOFF-EVENT",
+  "external_llm_called": false,
+  "external_tools_executed": false,
+  "handoff_state": "externally_handed_off",
+  "human_review_required": true,
+  "journey_states": [
+    "assembled",
+    "under_human_review",
+    "ready_for_external_handoff",
+    "externally_handed_off"
+  ],
+  "legacy_bundle_widths": [
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "packet_sha256": "719263d600e28ba4389351d717c01203b0c5539bb1ff5921960ab8d4d41c1dd5",
+  "pending_human_decision_count": 0,
+  "ready_for_external_handoff": true,
+  "ready_for_external_handoff_before_external_event": true,
+  "receipt_id": "RECEIPT-CASE-IN-SILICO-RARE-035",
+  "receipt_sha256": "2b5fc576b1662d632757778f4cc51aa5d3d79eddc553013fc5b074e4f612f898",
+  "receipt_status": "issued",
+  "report_status": "draft_not_clinically_approved",
+  "research_use_only": true,
+  "schema_version": "0.35",
+  "snapshot_hash": "94cff1b82cc4c1cbaebe1b3efe4b4c04a3d8015314061043b6f975bf0e6e6b9e",
+  "stage_count": 18,
+  "state": "externally_handed_off",
+  "unacknowledged_uncertainty_count": 0
+}

@@ -12,6 +12,8 @@ from app.insilicopop.clinical.service import (
     build_clinical_case_specialist_agent_bundle,
     build_clinical_case_strategy_bundle,
     build_clinical_case_v034_bundle,
+    build_clinical_case_v035_bundle,
+    build_clinical_case_handoff_bundle,
     build_clinical_case_jarvis_synthesis_report_bundle,
     build_clinical_case_synthesis_report_bundle,
 )
@@ -51,6 +53,27 @@ from app.insilicopop.clinical.jarvis_report_models import (
     JarvisSynthesisReportWorkspaceRequest,
     JarvisSynthesisReportWorkspaceResult,
 )
+from app.insilicopop.clinical.handoff import (
+    apply_handoff_action,
+    build_handoff_workspace,
+    run_canonical_handoff_journey,
+)
+from app.insilicopop.clinical.handoff_models import (
+    CaseStage,
+    HandoffActionResultStatus,
+    HandoffActionType,
+    HandoffPacket,
+    HandoffReceipt,
+    HandoffRejectionReason,
+    HandoffReviewAction,
+    HandoffReviewActionResult,
+    HandoffStatus,
+    HandoffState,
+    HandoffWorkspaceRequest,
+    HandoffWorkspaceResult,
+    ReviewReadiness,
+    SourceClassification,
+)
 
 __all__ = [
     "ClinicalCaseIntake",
@@ -65,6 +88,8 @@ __all__ = [
     "build_clinical_case_result_evidence_bundle",
     "build_clinical_case_specialist_agent_bundle",
     "build_clinical_case_v034_bundle",
+    "build_clinical_case_v035_bundle",
+    "build_clinical_case_handoff_bundle",
     "build_clinical_case_jarvis_synthesis_report_bundle",
     "build_clinical_case_synthesis_report_bundle",
     "build_phenotype_hpo_curation",
@@ -96,4 +121,21 @@ __all__ = [
     "build_jarvis_synthesis_report_workspace",
     "JarvisSynthesisReportWorkspaceRequest",
     "JarvisSynthesisReportWorkspaceResult",
+    "apply_handoff_action",
+    "build_handoff_workspace",
+    "run_canonical_handoff_journey",
+    "CaseStage",
+    "HandoffActionResultStatus",
+    "HandoffActionType",
+    "HandoffPacket",
+    "HandoffReceipt",
+    "HandoffRejectionReason",
+    "HandoffReviewAction",
+    "HandoffReviewActionResult",
+    "HandoffStatus",
+    "HandoffState",
+    "HandoffWorkspaceRequest",
+    "HandoffWorkspaceResult",
+    "ReviewReadiness",
+    "SourceClassification",
 ]

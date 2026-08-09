@@ -16,6 +16,7 @@ from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceR
 from app.insilicopop.clinical.jarvis_report_models import (
     JarvisSynthesisReportWorkspaceRequest,
 )
+from app.insilicopop.clinical.handoff_models import HandoffWorkspaceRequest
 
 
 SCHEMA_VERSION = "0.27"
@@ -172,6 +173,13 @@ class ClinicalCaseIntake(FrozenModel):
             "jarvis_report_workspace",
             "synthesis_report_workspace",
             "v034_workspace",
+        ),
+    )
+    handoff_workspace: HandoffWorkspaceRequest | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "handoff_workspace",
+            "v035_handoff_workspace",
         ),
     )
 

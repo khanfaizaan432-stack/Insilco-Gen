@@ -71,7 +71,35 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/insilicopop/agent/runs
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/insilicopop/agent/runs/{run_id}/report"
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/insilicopop/agent/runs/{run_id}/workflow-selection"
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/insilicopop/agent/runs/{run_id}/reproducibility"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/insilicopop/agent/runs/{run_id}/handoff"
 ```
+
+## Record a typed handoff action
+
+Actions are revision-checked. A stale or terminal action is retained in the handoff audit history and rejected without changing the business state.
+
+```powershell
+$action = @{
+  action_id = "REVIEW-START-1"
+  action = "start_human_review"
+  reviewer_id = "reviewer-1"
+  reviewer_role = "clinical_research_reviewer"
+  expected_revision = 0
+  notes = "Begin bounded human review of the draft packet."
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/insilicopop/agent/runs/{run_id}/handoff/actions" `
+  -ContentType "application/json" `
+  -Body $action
+```
+
+Uncertainty acknowledgement and blocker resolution are accepted only while
+the workspace status is `under_human_review`. The API records the revision,
+snapshot hash, reviewer reference, action result, audit event, and synchronized
+active receipt after each accepted action. A receipt is issued only when a
+typed `record_external_handoff` action carries an event whose packet hash
+matches the current packet.
 
 ## Read an allowlisted artifact
 

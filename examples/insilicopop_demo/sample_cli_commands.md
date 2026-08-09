@@ -17,6 +17,15 @@ python -m pytest backend
 python scripts/pre_tar_check.py
 ```
 
+## v0.35 structured handoff demonstration
+
+This command uses the canonical synthetic Indian rare-disease fixture. It performs no external calls and prints a deterministic JSON summary after the bounded journey `assembled -> under_human_review -> ready_for_external_handoff -> externally_handed_off`. The output proves that readiness was reached before the external event, includes event/receipt IDs and both manifest hash semantics, and keeps `draft_not_clinically_approved=true`. The expected record is in `examples/insilicopop_demo/expected_v035_demo_output.json`.
+
+```powershell
+cd "C:\dev\Insillico OS\backend"
+python -m app.insilicopop.cli v035-demo
+```
+
 ## Insufficient inputs
 
 ```powershell

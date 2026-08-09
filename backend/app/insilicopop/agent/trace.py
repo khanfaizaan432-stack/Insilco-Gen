@@ -66,6 +66,7 @@ def write_agent_outputs(root: Path, state: AgentState) -> dict[str, Any]:
         result_evidence_workspace=state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
         specialist_agent_workspace=state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
         jarvis_synthesis_report_workspace=state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
+        handoff_workspace=state.handoff_workspace.model_dump(mode="json") if state.handoff_workspace else None,
         byok_runtime=state.byok_runtime.model_dump() if state.byok_runtime else None,
         carried_memory=state.carried_memory,
         llm_provider=state.llm_provider,

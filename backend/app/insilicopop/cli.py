@@ -9,6 +9,10 @@ from app.insilicopop.agent.loop import AgentLoop
 from app.insilicopop.audit_service import InSilicoPopAuditService
 from app.insilicopop.benchmarks.agent_trace import AgentMemoryBenchmarkRunner
 from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
+from app.insilicopop.clinical import (
+    build_clinical_case_v035_bundle,
+    run_canonical_handoff_journey,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +30,20 @@ def main(argv: list[str] | None = None) -> int:
     agent_memory.add_argument("--scenario", default="all")
     agent_memory.add_argument("--budget-chars", type=int, default=1500)
     agent_memory.add_argument("--memory-mode", default="compact")
+
+    v035_demo = subparsers.add_parser(
+        "v035-demo",
+        help="Run the deterministic v0.35 structured handoff demonstration.",
+    )
+    v035_demo.add_argument(
+        "--fixture",
+        default=str(
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "insilicopop_demo"
+            / "canonical_v035_case.json"
+        ),
+    )
 
     audit = subparsers.add_parser("audit")
     audit.add_argument("--metadata")
@@ -151,6 +169,80 @@ def main(argv: list[str] | None = None) -> int:
                 f"{aggregate['downstream_dependency_recall']} | {aggregate['blocked_interpretation_recall']} | "
                 f"{aggregate['next_step_dependency_recall']} | {aggregate['budget_violation_count']} | {aggregate['final_score']}"
             )
+        return 0
+    if args.command == "v035-demo":
+        payload = _json_object_file(args.fixture)
+        bundle = build_clinical_case_v035_bundle(payload)
+        handoff = bundle[9]
+        if handoff is None:
+            raise ValueError("v0.35 fixture did not produce a valid handoff workspace")
+        handoff = run_canonical_handoff_journey(handoff)
+        ready_audit_index = next(
+            index
+            for index, item in enumerate(handoff.audit_history)
+            if item.event_type.value == "ready_for_external_handoff"
+        )
+        external_audit_index = next(
+            index
+            for index, item in enumerate(handoff.audit_history)
+            if item.event_type.value == "handoff_sent"
+        )
+        external_event = handoff.external_handoff_events[-1]
+        summary = {
+            "bundle_width": len(bundle),
+            "legacy_bundle_widths": [5, 6, 7, 8, 9],
+            "case_id": handoff.pseudonymous_case_id,
+            "schema_version": handoff.schema_version,
+            "handoff_state": handoff.status.value,
+            "state": handoff.status.value,
+            "journey_states": [
+                "assembled",
+                "under_human_review",
+                "ready_for_external_handoff",
+                "externally_handed_off",
+            ],
+            "ready_for_external_handoff_before_external_event": ready_audit_index < external_audit_index,
+            "stage_count": len(handoff.case_stages),
+            "artifact_count": len(handoff.artifact_manifest),
+            "available_artifact_count": sum(
+                item.available for item in handoff.artifact_manifest
+            ),
+            "blocker_count": sum(
+                item.resolution_status == "open" for item in handoff.blockers
+            ),
+            "unacknowledged_uncertainty_count": (
+                handoff.review_readiness.unacknowledged_uncertainty_count
+            ),
+            "pending_human_decision_count": (
+                handoff.review_readiness.pending_human_decision_count
+            ),
+            "ready_for_external_handoff": (
+                handoff.review_readiness.ready_for_external_handoff
+            ),
+            "report_status": handoff.report_status,
+            "human_review_required": handoff.human_review_required,
+            "research_use_only": handoff.research_use_only,
+            "clinical_approval_granted": handoff.clinical_approval_granted,
+            "external_llm_called": handoff.external_llm_called,
+            "external_tools_executed": handoff.external_tools_executed,
+            "external_handoff_event_id": external_event.event_id,
+            "receipt_id": handoff.handoff_receipt.receipt_id,
+            "receipt_status": handoff.handoff_receipt.receipt_status.value,
+            "packet_sha256": handoff.handoff_packet.packet_sha256,
+            "receipt_sha256": handoff.handoff_receipt.receipt_sha256,
+            "artifact_file_byte_sha256": {
+                item.artifact_id: item.sha256
+                for item in handoff.artifact_manifest
+                if item.sha256 is not None
+            },
+            "artifact_canonical_payload_sha256": {
+                item.artifact_id: item.canonical_payload_sha256
+                for item in handoff.artifact_manifest
+            },
+            "canonical_action_count": len(handoff.applied_review_actions),
+            "snapshot_hash": handoff.snapshot_hash,
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
         return 0
     return 2
 
