@@ -47,6 +47,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_pre_test_assessment": "pre_test_assessment.json",
     "repro_test_strategy_workspace": "test_strategy_workspace.json",
     "repro_result_evidence_workspace": "result_evidence_workspace.json",
+    "repro_result_gateway": "result_gateway.json",
     "repro_specialist_agent_workspace": "specialist_agent_workspace.json",
     "repro_jarvis_synthesis_report_workspace": "jarvis_synthesis_report_workspace.json",
     "repro_handoff_workspace": "handoff_workspace.json",
@@ -110,6 +111,9 @@ def write_reproducibility_bundle(
             paths["repro_result_evidence_workspace"],
             state.result_evidence_workspace.model_dump(),
         )
+    if state.result_gateway:
+        paths["repro_result_gateway"] = optional_paths["repro_result_gateway"]
+        _write_json(paths["repro_result_gateway"], state.result_gateway.model_dump(mode="json"))
     if state.specialist_agent_workspace:
         paths["repro_specialist_agent_workspace"] = optional_paths["repro_specialist_agent_workspace"]
         _write_json(
@@ -319,6 +323,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
         "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
+        "result_gateway": state.result_gateway.model_dump(mode="json") if state.result_gateway else None,
         "jarvis_synthesis_report_workspace": (
             state.jarvis_synthesis_report_workspace.model_dump()
             if state.jarvis_synthesis_report_workspace
@@ -755,6 +760,16 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "result_evidence_byok_used": state.result_evidence_workspace.byok_used if state.result_evidence_workspace else False,
         "evidence_ledger_version": state.result_evidence_workspace.ledger_version if state.result_evidence_workspace else None,
         "result_evidence_workspace_artifact_available": state.result_evidence_workspace is not None,
+        "result_gateway_schema_version": state.result_gateway.schema_version if state.result_gateway else None,
+        "result_gateway_version": state.result_gateway.gateway_version if state.result_gateway else None,
+        "result_gateway_package_id": state.result_gateway.package_id if state.result_gateway else None,
+        "result_gateway_package_status": state.result_gateway.package_status.value if state.result_gateway else None,
+        "result_gateway_input_manifest_sha256": state.result_gateway.input_manifest_sha256 if state.result_gateway else None,
+        "result_gateway_manifest_verified": state.result_gateway.manifest_verified if state.result_gateway else False,
+        "result_gateway_tool_provenance": [item.model_dump(mode="json") for item in state.result_gateway.tool_provenance] if state.result_gateway else [],
+        "result_gateway_artifact_available": state.result_gateway is not None,
+        "result_gateway_raw_reads_ingested": False,
+        "result_gateway_external_tools_executed": False,
         "agent_registry_version": state.specialist_agent_workspace.registry_version if state.specialist_agent_workspace else None,
         "enabled_specialist_agents": [
             item.agent_id

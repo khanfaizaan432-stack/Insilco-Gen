@@ -30,6 +30,8 @@ from app.insilicopop.clinical.test_strategy import build_test_strategy_workspace
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceResult
 from app.insilicopop.clinical.result_evidence import build_result_evidence_workspace
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceResult
+from app.insilicopop.clinical.result_gateway import build_result_gateway
+from app.insilicopop.clinical.result_gateway_models import ResultGatewayResult
 from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceResult
 from app.insilicopop.clinical.specialist_agents import build_specialist_agent_workspace
 from app.insilicopop.clinical.jarvis_report import (
@@ -117,6 +119,27 @@ def build_clinical_case_extended_bundle(
         reviewer_status=safe_case.reviewer_status.value,
         global_intake_context=sanitized_global_intake_context(safe_case),
     )
+    if safe_case.result_gateway is not None:
+        try:
+            gateway = build_result_gateway(
+                safe_case.result_gateway,
+                pseudonymous_case_id=safe_case.pseudonymous_case_id,
+            )
+            result = result.model_copy(update={"result_gateway": gateway})
+        except (ValidationError, ValueError) as exc:
+            # A malformed gateway request is represented as a bounded intake
+            # issue rather than escaping into an arbitrary execution path.
+            gateway_issue = ClinicalIntakeIssue(
+                code="result_gateway_validation_error",
+                field="result_gateway",
+                message="The controlled result gateway request could not be validated: " + str(exc),
+            )
+            result = result.model_copy(
+                update={
+                    "validation_errors": [*result.validation_errors, gateway_issue],
+                    "intake_completeness": "blocked",
+                }
+            )
     curation = build_phenotype_hpo_curation(
         safe_case,
         validation_errors=errors,
@@ -396,6 +419,7 @@ def build_clinical_case_v035_bundle(
         specialist_agent_workspace=base_bundle[7],
         jarvis_workspace=base_bundle[8],
         handoff_request=safe_case.handoff_workspace,
+        result_gateway=base_bundle[0].result_gateway,
     )
     return (*base_bundle, handoff_workspace)
 

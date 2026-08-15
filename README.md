@@ -58,6 +58,7 @@ Completed baseline:
 - v0.27 typed, deterministic clinical case intake for research curation, activated only by an explicit structured declaration.
 - v0.28 bounded local phenotype/HPO curation proposals with explicit reviewer decisions and deterministic promotion.
 - v0.29 bounded deterministic pedigree and supplied-inheritance consistency auditing with mandatory human review.
+- v0.36 controlled clinical result and bioinformatics gateway (implemented locally and frozen as a release).
 
 Supported workflow families today:
 
@@ -207,6 +208,8 @@ v0.34 adds one bounded JARVIS briefing, source-grounded scientific synthesis, fi
 
 v0.35 adds a deterministic structured human-review handoff layer over the validated v0.27–v0.34 clinical research-curation artifacts. It preserves additive bundle widths through width ten, freezes an 18-stage navigator, records readiness/blockers/uncertainties/human decisions, protects handoff state with stale and terminal gates, and emits deterministic packet, receipt, manifest, provenance, and audit artifacts. The canonical journey and Workbench dashboard remain research-use-only; `ready_for_external_handoff` never means clinical approval and `draft_not_clinically_approved` remains explicit.
 
+v0.36 adds a fail-closed supplied-result gateway. It requires exactly one file for each exact canonical role (`vcf`, `structured_laboratory_report`, `qc`, `coverage`, and `assay_metadata`); rejects role aliases; verifies NFC/case-folded path uniqueness, role/media/content consistency, byte sizes, and SHA-256 values before parsing; preserves typed VCF FORMAT order, sample order, source genotypes, ploidy, phase, PS, missing calls, and unknown source fields; and uses a complete package-identity hash for replay. Adapter parameters and record selectors are strict per-adapter models; invocation identities bind package, manifest, requested and selected records; adapter summaries use selected eligible records only; persisted public JSON reloads into deeply immutable models; and package accreditation wording always remains a supplied/unverified claim unless a separate trusted evidence action exists (none is authorized in v0.36). Workbench stages 9 and 10 provide package preview, build review, QC/assay scope, allowlisted intent, record selection, approval gating, and execution provenance. The gateway never ingests raw reads, calls variants, browses, downloads tools/databases, runs arbitrary commands, diagnoses, recommends treatment, assigns final ACMG classifications, signs out, or grants clinical approval. Run the compact fixture with `python -m app.insilicopop.cli v036-demo`.
+
 ## Roadmap
 
 - v0.27 Clinical Intake + Case Schema.
@@ -220,6 +223,7 @@ v0.35 adds a deterministic structured human-review handoff layer over the valida
 - v0.33 Specialist Agents and Candidate ACMG Evidence Workspace.
 - v0.34 JARVIS Synthesis, Critics, and Report Studio (implemented locally).
 - v0.35 Structured Human-Review Handoff and Canonical Demo (implemented locally).
+- v0.36 Controlled Clinical Result and Bioinformatics Gateway (implemented locally; frozen release).
 
 Every roadmap item preserves the core rule: AI automates repeated workflow steps and drafting support, while qualified human experts remain responsible for final scientific or clinical interpretation.
 
@@ -241,4 +245,6 @@ The system does not claim to produce final biological truth. It helps researcher
 - [v0.34 JARVIS Synthesis, Critics, and Report Studio](docs/v034_jarvis_synthesis_critics_report_studio.md)
 - [v0.35 Structured Human-Review Handoff](docs/v035_handoff_architecture.md)
 - [v0.35 Release Manifest](RELEASE_MANIFEST_v0.35.md)
+- [v0.36 Controlled Result Gateway](docs/v036_result_gateway.md)
+- [v0.36 Release Manifest](RELEASE_MANIFEST_v0.36.md)
 - [Demo examples](examples/insilicopop_demo/README.md)

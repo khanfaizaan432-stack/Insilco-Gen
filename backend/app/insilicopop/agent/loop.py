@@ -332,9 +332,12 @@ class AgentLoop:
             state.handoff_workspace,
         ) = build_clinical_case_v035_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
+        state.result_gateway = result.result_gateway if result else None
         state.parsed_inputs = {
             "structured_clinical_intake": True,
+            "supplied_result_package_parsed": state.result_gateway is not None,
             "raw_genomic_files_parsed": False,
+            "raw_reads_ingested": False,
             "uploaded_file_parsing_used": False,
         }
         state.decision_trace.append(
@@ -354,6 +357,40 @@ class AgentLoop:
                 "human_review_required": True,
             }
         )
+        if state.result_gateway:
+            gateway = state.result_gateway
+            state.decision_trace.append(
+                {
+                    "event": "controlled_result_gateway_completed",
+                    "schema_version": gateway.schema_version,
+                    "gateway_version": gateway.gateway_version,
+                    "pseudonymous_case_id": gateway.pseudonymous_case_id,
+                    "package_id": gateway.package_id,
+                    "package_status": gateway.package_status.value,
+                    "replay_status": gateway.replay_status.value,
+                    "manifest_verified": gateway.manifest_verified,
+                    "input_manifest_sha256": gateway.input_manifest_sha256,
+                    "file_count": len(gateway.manifest_entries),
+                    "vcf_record_count": gateway.vcf.record_count if gateway.vcf else 0,
+                    "accepted_record_count": len(gateway.accepted_record_ids),
+                    "out_of_scope_record_count": len(gateway.retained_out_of_scope_record_ids),
+                    "multiallelic_source_record_count": gateway.vcf.multiallelic_source_record_count if gateway.vcf else 0,
+                    "adapter_result_count": len(gateway.adapter_results),
+                    "adapter_statuses": [item.status.value for item in gateway.adapter_results],
+                    "reference_build_mismatch_blocked": gateway.reference_build_mismatch_blocked,
+                    "sample_identity_inference_performed": False,
+                    "draft_not_clinically_approved": True,
+                    "diagnosis_made": False,
+                    "treatment_recommendation_made": False,
+                    "final_acmg_classification_made": False,
+                    "external_api_call_made": False,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
+                    "raw_reads_ingested": False,
+                    "raw_reads_called": False,
+                    "human_review_required": True,
+                }
+            )
         if state.phenotype_hpo_curation:
             curation = state.phenotype_hpo_curation
             state.decision_trace.append(
@@ -611,7 +648,11 @@ class AgentLoop:
         state.external_llm_called = False
         state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
-        state.current_step = "blocked" if result.policy_blocks or result.validation_errors else "clinical_intake_validated"
+        gateway_blocked = bool(
+            state.result_gateway
+            and state.result_gateway.package_status.value in {"blocked", "rejected", "failed", "stale"}
+        )
+        state.current_step = "blocked" if result.policy_blocks or result.validation_errors or gateway_blocked else "clinical_intake_validated"
         generated = write_agent_outputs(self.generated_root / state.run_id, state)
         return self._response(state, generated)
 
@@ -644,6 +685,7 @@ class AgentLoop:
             "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
             "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
+            "result_gateway": state.result_gateway.model_dump() if state.result_gateway else None,
             "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
             "jarvis_synthesis_report_workspace": state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
             "handoff_workspace": state.handoff_workspace.model_dump() if state.handoff_workspace else None,

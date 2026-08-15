@@ -53,6 +53,22 @@ from app.insilicopop.clinical.jarvis_report_models import (
     JarvisSynthesisReportWorkspaceRequest,
     JarvisSynthesisReportWorkspaceResult,
 )
+from app.insilicopop.clinical.result_gateway import build_result_gateway
+from app.insilicopop.clinical.result_gateway_execution import (
+    adapter_invocation_identity_payload,
+    get_registered_adapter,
+    registered_adapters,
+)
+from app.insilicopop.clinical.result_gateway_models import (
+    AdapterDefinition,
+    AdapterExecutionResult,
+    AdapterInvocationRequest,
+    ResultGatewayRequest,
+    ResultGatewayResult,
+    ResultLogicalRole,
+    ResultManifestEntry,
+    SuppliedResultFile,
+)
 from app.insilicopop.clinical.handoff import (
     apply_handoff_action,
     build_handoff_workspace,
@@ -114,6 +130,18 @@ __all__ = [
     "build_result_evidence_workspace",
     "ResultEvidenceWorkspaceRequest",
     "ResultEvidenceWorkspaceResult",
+    "build_result_gateway",
+    "adapter_invocation_identity_payload",
+    "get_registered_adapter",
+    "registered_adapters",
+    "AdapterDefinition",
+    "AdapterExecutionResult",
+    "AdapterInvocationRequest",
+    "ResultGatewayRequest",
+    "ResultGatewayResult",
+    "ResultLogicalRole",
+    "ResultManifestEntry",
+    "SuppliedResultFile",
     "build_specialist_agent_workspace",
     "load_specialist_agent_registry",
     "SpecialistAgentWorkspaceRequest",

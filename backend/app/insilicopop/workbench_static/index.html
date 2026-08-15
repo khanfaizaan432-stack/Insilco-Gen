@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
   <title>InSilicoPop Local Workbench</title>
   <style>
     :root {
@@ -18,6 +19,7 @@
       --warn: #fff7ed;
     }
     * { box-sizing: border-box; }
+    html, body { max-width: 100%; }
     body {
       margin: 0;
       background: var(--bg);
@@ -32,6 +34,8 @@
     }
     main {
       max-width: 1200px;
+      width: 100%;
+      min-width: 0;
       margin: 0 auto;
       padding: 18px 20px 40px;
     }
@@ -59,7 +63,9 @@
       grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
       gap: 16px;
       align-items: start;
+      min-width: 0;
     }
+    .grid > *, section, form, details, .form-grid > *, .two-col > *, .metrics > * { min-width: 0; }
     section {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -75,12 +81,15 @@
     }
     input, textarea, select {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       border: 1px solid var(--line);
       border-radius: 4px;
       padding: 9px 10px;
       font: inherit;
       background: #fff;
     }
+    input[type="checkbox"], input[type="radio"] { width: auto; max-width: none; }
     textarea { min-height: 84px; resize: vertical; }
     button {
       border: 1px solid #0e5d4d;
@@ -96,6 +105,14 @@
       color: var(--accent);
     }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
+    :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+      outline: 3px solid #0b5bd3;
+      outline-offset: 2px;
+    }
+    input[type="date"]:focus-within {
+      outline: 3px solid #0b5bd3;
+      outline-offset: 2px;
+    }
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -203,6 +220,7 @@
     .handoff-panel {
       border-left: 4px solid var(--accent);
     }
+    code, .handoff-hash { overflow-wrap: anywhere; word-break: break-word; }
     .handoff-stage-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -288,14 +306,49 @@
     }
     .handoff-table-wrap {
       overflow-x: auto;
+      max-width: 100%;
     }
     .handoff-table-wrap table {
       min-width: 620px;
     }
+    .gateway-workflow {
+      border: 1px solid #a9d8cd;
+      border-radius: 5px;
+      background: #fbfffe;
+      padding: 12px;
+      margin: 14px 0;
+      min-width: 0;
+    }
+    .gateway-workflow fieldset {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin: 12px 0 0;
+      padding: 10px;
+      min-width: 0;
+    }
+    .gateway-workflow legend { font-weight: 700; padding: 0 5px; }
+    .gateway-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+    .technical-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .technical-table-wrap table { min-width: 680px; }
+    .gateway-safety {
+      border-left: 4px solid var(--danger);
+      background: var(--warn);
+      padding: 9px 10px;
+      margin-top: 10px;
+    }
+    .gateway-record-selector { min-height: 96px; }
+    .status[tabindex="-1"]:focus { outline: 3px solid #0b5bd3; outline-offset: 2px; }
     @media (max-width: 860px) {
-      .grid, .two-col, .form-grid, .handoff-action-controls { grid-template-columns: 1fr; }
+      .grid, .two-col, .form-grid, .handoff-action-controls { grid-template-columns: minmax(0, 1fr); }
       .handoff-stage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       main { padding: 12px; }
+      section { padding: 12px; }
     }
     @media (max-width: 520px) {
       .handoff-stage-grid { grid-template-columns: 1fr; }
@@ -337,6 +390,58 @@
             <label for="clinical_case_intake">Structured clinical case intake JSON</label>
             <textarea id="clinical_case_intake" name="clinical_case_intake" placeholder='{"schema_version":"0.27","pseudonymous_case_id":"CASE-001","intended_use":"clinical_genetics_research_curation","redaction_declared":true,"reviewer_status":"pending","human_review_required":true,"pedigree_inheritance_audit":{"schema_version":"0.29","proband_member_id":"MEM-P","relationships":[],"variant_observations":[],"audit_targets":[],"phase_declarations":[],"human_review_required":true}}'></textarea>
             <p class="note">Optional structured, redacted research-curation intake. Supplying this declaration explicitly selects the clinical intake lane. No diagnosis, classification, treatment recommendation, or external data transmission is performed.</p>
+
+            <div id="gateway-workflow" class="gateway-workflow" role="region" aria-labelledby="gateway-intake-heading">
+              <h3 id="gateway-intake-heading">Clinical stage 9 — Controlled result intake (v0.36)</h3>
+              <p class="note">Select one JSON package or load the local synthetic fixture. The same controlled gateway used by the run API verifies all five required roles, exact bytes, hashes, media types, sample binding, and reference build before any result parser runs.</p>
+              <label for="gateway-package-file">Result package JSON</label>
+              <input id="gateway-package-file" type="file" accept=".json,application/json" aria-describedby="gateway-package-help">
+              <p id="gateway-package-help" class="note">Accepts either a complete redacted clinical intake containing <code>result_gateway</code>, or one v0.36 result-gateway object. Raw read inputs are not accepted.</p>
+              <div class="gateway-actions">
+                <button type="button" id="gateway-load-fixture" class="secondary">Load synthetic v0.36 fixture</button>
+                <button type="button" id="gateway-reject-package" class="secondary" disabled aria-describedby="gateway-rejection-reason">Reject selected package</button>
+              </div>
+              <p id="gateway-rejection-reason" class="note">No package is selected.</p>
+              <div id="gateway-intake-status" class="status" role="status" aria-live="polite" tabindex="-1">No v0.36 package selected.</div>
+              <div id="gateway-manifest-preview" class="muted">Manifest and role preview will appear after package loading.</div>
+              <div id="gateway-sample-review" class="muted">Redacted sample and reference-build review will appear after validation.</div>
+              <label>
+                <input id="gateway-build-confirmation" type="checkbox" disabled aria-describedby="gateway-build-reason">
+                I reviewed the redacted sample binding and confirm the declared reference build for this draft review.
+              </label>
+              <p id="gateway-build-reason" class="note">Load a structurally valid package before confirming the build.</p>
+
+              <fieldset aria-labelledby="gateway-qc-heading">
+                <legend id="gateway-qc-heading">Clinical stage 10 — QC and assay scope</legend>
+                <div id="gateway-qc-review" class="muted">Laboratory claims, accreditation trust, QC, coverage, reportable scope, blind spots, and CNV/mitochondrial/repeat/mosaic inclusion states will appear here.</div>
+              </fieldset>
+
+              <fieldset aria-labelledby="gateway-analysis-heading">
+                <legend id="gateway-analysis-heading">Analysis intent and human approval</legend>
+                <label for="gateway-adapter-select">Allowlisted adapter</label>
+                <select id="gateway-adapter-select" disabled aria-describedby="gateway-adapter-reason">
+                  <option value="">No adapter execution</option>
+                </select>
+                <p id="gateway-adapter-reason" class="note">Load and validate a package to view adapter availability.</p>
+                <div id="gateway-adapter-metadata" class="muted">No adapter selected.</div>
+                <div id="gateway-parameter-controls" class="muted">Typed parameter controls will be generated from the selected adapter schema.</div>
+                <label for="gateway-record-selector">Eligible record selector</label>
+                <select id="gateway-record-selector" class="gateway-record-selector" multiple disabled aria-describedby="gateway-record-help"></select>
+                <p id="gateway-record-help" class="note">Omitting a selector means all eligible records. Selecting no listed record creates an explicit empty selection. Out-of-scope records never appear as eligible.</p>
+                <label>
+                  <input id="gateway-human-approval" type="checkbox" disabled aria-describedby="gateway-approval-reason">
+                  I approve this bounded adapter action for draft, research-use-only review.
+                </label>
+                <p id="gateway-approval-reason" class="note">Select an available adapter after package validation.</p>
+                <div id="gateway-execution-result" class="muted" aria-live="polite">No gateway adapter result yet.</div>
+              </fieldset>
+
+              <div class="gateway-safety" aria-label="v0.36 safety boundaries">
+                <strong>draft_not_clinically_approved · research use only · human review required</strong><br>
+                No diagnosis, treatment recommendation, final ACMG classification, clinical sign-out, raw-read calling, external annotation retrieval, shell, subprocess, or network execution.
+              </div>
+              <p id="gateway-action-reason" class="note" aria-live="polite">No gateway package is active; ordinary dry-run submissions remain available.</p>
+            </div>
 
             <details id="global-intake-panel">
               <summary><strong>Global Care and Intake Context (optional)</strong></summary>
@@ -476,7 +581,7 @@
               </div>
             </div>
             <div class="badge-row">
-              <button type="submit" id="run-button">Start Mock Agent Run</button>
+              <button type="submit" id="run-button" aria-describedby="gateway-action-reason">Start Mock Agent Run</button>
               <button type="button" class="secondary" id="refresh-runs">Refresh Run History</button>
             </div>
             <div id="status" class="status">Ready. This UI is local-only and dry-run only.</div>
@@ -560,6 +665,8 @@
           <div id="test-strategy-workspace" class="muted">No staged test-strategy workspace loaded.</div>
           <h3>Result and Evidence Workspace</h3>
           <div id="result-evidence-workspace" class="muted">No result and evidence workspace loaded.</div>
+          <h3>Controlled Clinical Result and Bioinformatics Gateway (v0.36)</h3>
+          <div id="result-gateway" class="muted">No v0.36 controlled result gateway loaded.</div>
           <h3>Specialist Agents and Candidate ACMG Workspace</h3>
           <div id="specialist-agent-workspace" class="muted">No specialist-agent workspace loaded.</div>
           <h3>JARVIS Synthesis, Critics, and Report Studio</h3>
@@ -591,7 +698,15 @@
     const runButton = document.getElementById("run-button");
     const refreshRunsButton = document.getElementById("refresh-runs");
     const statusBox = document.getElementById("status");
+    const gatewayPackageFile = document.getElementById("gateway-package-file");
+    const gatewayLoadFixtureButton = document.getElementById("gateway-load-fixture");
+    const gatewayRejectButton = document.getElementById("gateway-reject-package");
+    const gatewayBuildConfirmation = document.getElementById("gateway-build-confirmation");
+    const gatewayAdapterSelect = document.getElementById("gateway-adapter-select");
+    const gatewayRecordSelector = document.getElementById("gateway-record-selector");
+    const gatewayHumanApproval = document.getElementById("gateway-human-approval");
     let activeByokSessionId = null;
+    let gatewayState = null;
     const HANDOFF_STAGE_ORDER = Object.freeze([
       "referral",
       "clinical_history",
@@ -644,6 +759,311 @@
       return message && message.length < 220 ? message : fallback;
     }
 
+    function gatewayStatus(message, isError = false, moveFocus = false) {
+      const target = document.getElementById("gateway-intake-status");
+      target.textContent = message;
+      target.className = `status${isError ? " error" : ""}`;
+      target.setAttribute("role", isError ? "alert" : "status");
+      if (moveFocus) target.focus();
+    }
+
+    function normalizeGatewayPackage(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("The selected package must be a JSON object.");
+      }
+      let intake;
+      if (value.result_gateway && typeof value.result_gateway === "object") {
+        intake = JSON.parse(JSON.stringify(value));
+      } else if (value.schema_version === "0.36" && Array.isArray(value.manifest) && Array.isArray(value.files)) {
+        intake = {
+          schema_version: "0.27",
+          pseudonymous_case_id: value.declared_case_id || "CASE-GATEWAY-UI",
+          intended_use: "clinical_genetics_research_curation",
+          redaction_declared: true,
+          reviewer_status: "pending",
+          human_review_required: true,
+          result_gateway: JSON.parse(JSON.stringify(value)),
+        };
+      } else {
+        throw new Error("Select a clinical intake containing result_gateway or a standalone v0.36 gateway package.");
+      }
+      intake.result_gateway.adapter_invocations = [];
+      intake.result_gateway.tool_analysis_intent = null;
+      return intake;
+    }
+
+    function gatewayIssueList(preview) {
+      const errors = Array.isArray(preview?.errors) ? preview.errors : [];
+      const warnings = Array.isArray(preview?.warnings) ? preview.warnings : [];
+      const rows = [...errors, ...warnings];
+      if (!rows.length) return "<li>No validation issues recorded.</li>";
+      return rows.map((item) => `<li><strong>${escapeHtml(item.severity || "issue")}: ${escapeHtml(item.code || "gateway_issue")}</strong>${item.path ? ` — ${escapeHtml(item.path)}` : ""}<br>${escapeHtml(item.message || "No detail supplied.")}</li>`).join("");
+    }
+
+    function renderGatewayManifestPreview() {
+      const target = document.getElementById("gateway-manifest-preview");
+      const preview = gatewayState?.preview;
+      if (!preview) {
+        target.className = "muted";
+        target.textContent = "No authoritative gateway preview is available.";
+        return;
+      }
+      const exactHashes = preview.input_file_hashes || {};
+      const entries = Array.isArray(preview.manifest_entries) ? preview.manifest_entries : [];
+      const rows = entries.map((entry) => {
+        const exact = exactHashes[entry.safe_relative_path];
+        const verified = preview.manifest_verified === true && exact && String(exact).toLowerCase() === String(entry.sha256 || "").toLowerCase();
+        return `<tr><td>${escapeHtml(entry.logical_role || "unknown")}</td><td>${escapeHtml(entry.safe_relative_path || "unknown")}</td><td>${escapeHtml(entry.media_type || "unknown")}</td><td>${escapeHtml(entry.byte_size ?? "unknown")}</td><td><span class="handoff-hash">${escapeHtml(entry.sha256 || "not supplied")}</span></td><td>${verified ? "verified" : "not verified"}</td></tr>`;
+      }).join("") || `<tr><td colspan="6">No manifest entries supplied.</td></tr>`;
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric ${preview.manifest_verified ? "safe" : "warn"}"><strong>structural verification</strong>${preview.manifest_verified ? "verified" : "blocked / not verified"}</div>
+          <div class="metric"><strong>package status</strong>${escapeHtml(preview.package_status || "unknown")}</div>
+          <div class="metric"><strong>complete package identity</strong><span class="handoff-hash">${escapeHtml(preview.package_identity_sha256 || "not available")}</span></div>
+          <div class="metric"><strong>manifest-only hash</strong><span class="handoff-hash">${escapeHtml(preview.input_manifest_sha256 || "not available")}</span></div>
+        </div>
+        <div class="technical-table-wrap" role="region" aria-label="Manifest role and hash verification table" tabindex="0">
+          <table><thead><tr><th>Role</th><th>Path</th><th>Media type</th><th>Bytes</th><th>Expected SHA-256</th><th>State</th></tr></thead><tbody>${rows}</tbody></table>
+        </div>
+        <h4>Typed validation messages</h4><ul>${gatewayIssueList(preview)}</ul>`;
+    }
+
+    function accreditationLabel(value) {
+      const labels = {
+        supplied_but_unverified: "supplied claim — unverified",
+        independently_verified: "independently verified through trusted evidence",
+        not_supplied: "missing",
+        not_applicable: "not applicable",
+        requires_review: "supplied claim — requires review",
+      };
+      return labels[value] || "missing";
+    }
+
+    function renderGatewaySampleAndQc() {
+      const preview = gatewayState?.preview || {};
+      const vcf = preview.vcf || {};
+      const header = vcf.header || {};
+      const sampleTarget = document.getElementById("gateway-sample-review");
+      const samples = Array.isArray(header.sample_names) ? header.sample_names : [];
+      sampleTarget.className = "";
+      sampleTarget.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>redacted sample fields</strong>${escapeHtml(samples.join(", ") || "missing")}</div>
+          <div class="metric ${header.build_validation === "matched" ? "safe" : "warn"}"><strong>reference build</strong>${escapeHtml(header.reference_build || "missing")} — ${escapeHtml(header.build_validation || "not assessed")}</div>
+          <div class="metric"><strong>reference declarations</strong>${escapeHtml((header.reference_declarations || []).join(", ") || "missing")}</div>
+          <div class="metric"><strong>eligible record IDs</strong>${escapeHtml((preview.accepted_record_ids || []).length)}</div>
+        </div>`;
+
+      const lab = preview.laboratory_report || {};
+      const qc = preview.qc || {};
+      const coverage = preview.coverage || {};
+      const assay = preview.assay_scope || {};
+      const claims = Array.isArray(lab.accreditation_claims) ? lab.accreditation_claims : [];
+      const claimRows = claims.map((claim) => `<li><strong>${escapeHtml(claim.claim_kind || "claim")}</strong> — ${escapeHtml(accreditationLabel(claim.verification_state))}; body/standard ${escapeHtml(claim.accreditation_body_or_standard || "missing")}; certificate/reference ${escapeHtml(claim.certificate_or_reference_identifier || "missing")}; scope ${escapeHtml(claim.supplied_scope || "missing")}</li>`).join("") || "<li>Accreditation claim missing.</li>";
+      const trustedCount = Array.isArray(lab.trusted_accreditation_evidence) ? lab.trusted_accreditation_evidence.length : 0;
+      const qcMetrics = Object.entries(qc.metrics || {}).map(([key, value]) => `${key}: ${value}`).join("; ") || "missing";
+      const poorRegions = (coverage.poor_regions || []).map((item) => item.gene_or_region || item.region_id).join("; ") || "none supplied";
+      document.getElementById("gateway-qc-review").className = "";
+      document.getElementById("gateway-qc-review").innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>laboratory</strong>${escapeHtml(lab.laboratory_name || "missing")}</div>
+          <div class="metric warn"><strong>package accreditation status</strong>${escapeHtml(accreditationLabel(lab.accreditation_status))}</div>
+          <div class="metric ${trustedCount ? "safe" : "warn"}"><strong>trusted accreditation evidence</strong>${trustedCount ? `${trustedCount} trusted record(s)` : "missing — no authorized v0.36 verification action"}</div>
+          <div class="metric"><strong>QC summary</strong>${escapeHtml(qcMetrics)}</div>
+          <div class="metric warn"><strong>inadequately covered regions</strong>${escapeHtml(poorRegions)}</div>
+          <div class="metric"><strong>reportable scope</strong>${escapeHtml([...(assay.reportable_genes || []), ...(assay.reportable_regions || [])].join("; ") || "missing")}</div>
+          <div class="metric warn"><strong>blind spots / limitations</strong>${escapeHtml((assay.blind_spots || []).join("; ") || "missing")}</div>
+          <div class="metric"><strong>CNV inclusion / exclusion</strong>${escapeHtml(assay.cnv_scope || "missing")}</div>
+          <div class="metric"><strong>mitochondrial inclusion / exclusion</strong>${escapeHtml(assay.mitochondrial_scope || "missing")}</div>
+          <div class="metric"><strong>repeat inclusion / exclusion</strong>${escapeHtml(assay.repeat_scope || "missing")}</div>
+          <div class="metric"><strong>mosaic inclusion / exclusion</strong>${escapeHtml(assay.mosaic_scope || "missing")}</div>
+          <div class="metric"><strong>supplied poor-region policy</strong>${escapeHtml(assay.poor_region_policy_as_supplied || "missing")}</div>
+        </div><h4>Accreditation claims</h4><ul>${claimRows}</ul>`;
+    }
+
+    function selectedGatewayAdapter() {
+      return (gatewayState?.adapters || []).find((item) => item.adapter_id === gatewayAdapterSelect.value) || null;
+    }
+
+    function populateGatewayAdapterOptions() {
+      const previous = gatewayAdapterSelect.value;
+      const adapters = gatewayState?.adapters || [];
+      gatewayAdapterSelect.innerHTML = `<option value="">No adapter execution</option>${adapters.map((adapter) => `<option value="${escapeHtml(adapter.adapter_id)}">${escapeHtml(adapter.adapter_id)} — ${escapeHtml(adapter.version)} — ${escapeHtml(adapter.availability)}</option>`).join("")}`;
+      if (adapters.some((item) => item.adapter_id === previous)) gatewayAdapterSelect.value = previous;
+      gatewayAdapterSelect.disabled = !gatewayState?.structurallyValid || gatewayState?.rejected;
+    }
+
+    function renderGatewayAdapterControls() {
+      const adapter = selectedGatewayAdapter();
+      const metadata = document.getElementById("gateway-adapter-metadata");
+      const controls = document.getElementById("gateway-parameter-controls");
+      const reason = document.getElementById("gateway-adapter-reason");
+      const approvalReason = document.getElementById("gateway-approval-reason");
+      const eligible = gatewayState?.preview?.accepted_record_ids || [];
+      gatewayRecordSelector.innerHTML = `<option value="__all__" selected>All eligible records (selector omitted)</option>${eligible.map((recordId) => `<option value="${escapeHtml(recordId)}">${escapeHtml(recordId)}</option>`).join("")}`;
+      gatewayRecordSelector.disabled = !adapter || adapter.availability !== "available";
+      if (!adapter) {
+        metadata.className = "muted";
+        metadata.textContent = "No adapter selected.";
+        controls.className = "muted";
+        controls.textContent = "Select an allowlisted adapter to generate its typed controls.";
+        gatewayHumanApproval.checked = false;
+        gatewayHumanApproval.disabled = true;
+        reason.textContent = gatewayState?.structurallyValid ? "Package validation is complete; adapter execution is optional." : "A structurally verified package is required.";
+        approvalReason.textContent = "Select an available adapter after package validation.";
+        syncGatewayActionState();
+        return;
+      }
+      metadata.className = "";
+      metadata.innerHTML = `<div class="metrics"><div class="metric"><strong>version</strong>${escapeHtml(adapter.version)}</div><div class="metric ${adapter.availability === "available" ? "safe" : "warn"}"><strong>availability</strong>${escapeHtml(adapter.availability)}</div><div class="metric"><strong>parameter schema</strong>${escapeHtml(adapter.parameter_schema_id)} / ${escapeHtml(adapter.parameter_schema_version)}</div><div class="metric"><strong>network policy</strong>${escapeHtml(adapter.network_policy || "disabled")}</div></div>`;
+      const defaults = adapter.default_parameters || {};
+      const parameterRows = Object.entries(defaults).filter(([key]) => !["parameter_schema_id", "parameter_schema_version"].includes(key));
+      controls.className = "form-grid";
+      controls.innerHTML = parameterRows.map(([key, value]) => `<div><label for="gateway-param-${escapeHtml(key)}">${escapeHtml(key)} (typed allowlist)</label><select id="gateway-param-${escapeHtml(key)}" data-gateway-param="${escapeHtml(key)}"><option value="${escapeHtml(value)}">${escapeHtml(value)}</option></select></div>`).join("") || `<p class="note">This schema has no user-adjustable parameters.</p>`;
+      if (adapter.availability !== "available") {
+        controls.querySelectorAll("select").forEach((input) => { input.disabled = true; });
+        gatewayHumanApproval.checked = false;
+        gatewayHumanApproval.disabled = true;
+        reason.textContent = adapter.unavailable_reason || "This registered adapter is unavailable.";
+        approvalReason.textContent = "Approval is disabled because this adapter is unavailable; package validation may still be submitted.";
+      } else {
+        gatewayHumanApproval.disabled = false;
+        reason.textContent = "The adapter is available only through its fixed in-process schema; no command, URL, executable, image, or working-directory field exists.";
+        approvalReason.textContent = "Approval is required before the bounded adapter action can be submitted.";
+      }
+      syncGatewayActionState();
+    }
+
+    function syncGatewayActionState() {
+      let reason = "No gateway package is active; ordinary dry-run submissions remain available.";
+      let blocked = false;
+      if (gatewayState) {
+        if (gatewayState.rejected) {
+          reason = "The selected package was explicitly rejected. Load another package to continue.";
+          blocked = true;
+        } else if (!gatewayState.structurallyValid) {
+          reason = "Gateway submission is disabled because structural validation failed.";
+          blocked = true;
+        } else if (!gatewayBuildConfirmation.checked) {
+          reason = "Confirm the redacted sample binding and declared reference build before submission.";
+          blocked = true;
+        } else {
+          const adapter = selectedGatewayAdapter();
+          if (adapter?.availability === "available" && !gatewayHumanApproval.checked) {
+            reason = "Human-review approval is required for the selected bounded adapter action.";
+            blocked = true;
+          } else if (adapter?.availability !== "available" && adapter) {
+            reason = "The unavailable adapter will be recorded truthfully without execution; package review may proceed.";
+          } else {
+            reason = "Gateway package and approval gates are ready for a draft research-use-only run.";
+          }
+        }
+      }
+      document.getElementById("gateway-action-reason").textContent = reason;
+      runButton.disabled = blocked;
+      runButton.title = blocked ? reason : "";
+    }
+
+    function renderGatewayPackageState() {
+      if (!gatewayState) return;
+      const preview = gatewayState.preview;
+      gatewayState.structurallyValid = Boolean(preview?.manifest_verified) && !(preview?.errors || []).length;
+      gatewayRejectButton.disabled = false;
+      document.getElementById("gateway-rejection-reason").textContent = gatewayState.rejected ? "Package explicitly rejected; no parsing or adapter action will be submitted." : "Rejecting marks the current selection unusable until another package is loaded.";
+      gatewayBuildConfirmation.disabled = !gatewayState.structurallyValid || gatewayState.rejected;
+      if (!gatewayState.structurallyValid || gatewayState.rejected) gatewayBuildConfirmation.checked = false;
+      document.getElementById("gateway-build-reason").textContent = gatewayState.structurallyValid ? "Review the backend-redacted samples and matched build, then confirm." : "Build confirmation is disabled until all structural, role, media, content, size, and hash checks pass.";
+      renderGatewayManifestPreview();
+      renderGatewaySampleAndQc();
+      populateGatewayAdapterOptions();
+      renderGatewayAdapterControls();
+      const errorCount = (preview?.errors || []).length;
+      gatewayStatus(
+        gatewayState.structurallyValid ? `Package ${preview.package_id || "selected"} is structurally verified. Review sample/build, QC, scope, and approval controls.` : `Package validation is blocked with ${errorCount} typed error(s). Parsers and adapters were not run for structural failures.`,
+        !gatewayState.structurallyValid,
+        !gatewayState.structurallyValid,
+      );
+      syncGatewayActionState();
+    }
+
+    async function loadGatewayPackage(value, previewPayload = null) {
+      const intake = normalizeGatewayPackage(value);
+      gatewayStatus("Validating the selected package through the controlled v0.36 gateway...");
+      let payload = previewPayload;
+      if (!payload) {
+        payload = await requestJson("/insilicopop/workbench/result-gateway/preview", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(intake),
+        }, "v0.36 package preview");
+      }
+      gatewayState = {
+        intake,
+        preview: payload.gateway_preview,
+        adapters: Array.isArray(payload.adapter_definitions) ? payload.adapter_definitions : [],
+        rejected: false,
+        structurallyValid: false,
+      };
+      document.getElementById("clinical_case_intake").value = JSON.stringify(intake, null, 2);
+      document.getElementById("query").value = "Review the supplied v0.36 result package through clinical stages 9 and 10.";
+      gatewayBuildConfirmation.checked = false;
+      gatewayHumanApproval.checked = false;
+      renderGatewayPackageState();
+    }
+
+    function applyGatewayWorkflowToIntake() {
+      if (!gatewayState) return;
+      if (gatewayState.rejected || !gatewayState.structurallyValid) {
+        document.getElementById("gateway-intake-status").focus();
+        throw new Error("The v0.36 package is rejected or structurally invalid.");
+      }
+      if (!gatewayBuildConfirmation.checked) {
+        gatewayBuildConfirmation.focus();
+        throw new Error("Confirm the redacted sample and reference build before submitting the package.");
+      }
+      const gateway = gatewayState.intake.result_gateway;
+      gateway.adapter_invocations = [];
+      gateway.tool_analysis_intent = null;
+      const adapter = selectedGatewayAdapter();
+      if (adapter) {
+        if (adapter.availability === "available" && !gatewayHumanApproval.checked) {
+          gatewayHumanApproval.focus();
+          throw new Error("Human-review approval is required for the selected adapter.");
+        }
+        const parameters = {...(adapter.default_parameters || {})};
+        document.querySelectorAll("[data-gateway-param]").forEach((input) => { parameters[input.dataset.gatewayParam] = input.value; });
+        const selected = Array.from(gatewayRecordSelector.selectedOptions).map((option) => option.value);
+        const invocation = {
+          invocation_id: "WORKBENCH-ADAPTER-036",
+          adapter_id: adapter.adapter_id,
+          adapter_version: adapter.version,
+          parameters,
+          timeout_seconds: Math.min(adapter.timeout_seconds || 30, 30),
+          max_output_bytes: Math.min(adapter.max_output_bytes || 1000000, 1000000),
+          network_policy: "disabled",
+          working_directory_policy: "none",
+          human_review_approved: adapter.availability === "available" && gatewayHumanApproval.checked,
+        };
+        if (!selected.includes("__all__")) invocation.input_record_ids = selected;
+        gateway.adapter_invocations.push(invocation);
+      }
+      document.getElementById("clinical_case_intake").value = JSON.stringify(gatewayState.intake, null, 2);
+    }
+
+    function renderGatewayExecutionState(gateway) {
+      const target = document.getElementById("gateway-execution-result");
+      if (!gatewayState || !gateway) return;
+      const results = gateway.adapter_results || [];
+      if (!results.length) {
+        target.className = "muted";
+        target.textContent = `Gateway package state: ${gateway.package_status || "unknown"}. No adapter action was requested.`;
+        return;
+      }
+      target.className = "";
+      target.innerHTML = results.map((item) => `<div class="metric ${item.status === "completed" ? "safe" : "warn"}"><strong>${escapeHtml(item.adapter?.adapter_id || "adapter")} — ${escapeHtml(item.status || "unknown")}</strong>Selected record provenance: ${escapeHtml((item.provenance?.selected_record_ids || []).join(", ") || "explicit empty selection")}<br>Invocation: <span class="handoff-hash">${escapeHtml(item.provenance?.invocation_sha256 || "not available")}</span><br>${escapeHtml((item.errors || []).join("; ") || "Bounded result completed; human review remains required.")}</div>`).join("");
+    }
+
     function basename(value) {
       const trimmed = value.trim();
       const parts = trimmed.split(/[\\/]+/).filter(Boolean);
@@ -673,6 +1093,7 @@
     }
 
     function appendClinicalCaseIntake(formData) {
+      applyGatewayWorkflowToIntake();
       mergeOptionalGlobalIntake();
       appendJsonObjectField(formData, "clinical_case_intake", "Clinical case intake");
     }
@@ -1619,6 +2040,64 @@
         <h3>Human-review actions and audit history</h3><ul>${actionRows}</ul>`;
     }
 
+    function renderResultGateway(gateway) {
+      const target = document.getElementById("result-gateway");
+      if (!gateway || typeof gateway !== "object" || Object.keys(gateway).length === 0) {
+        target.className = "muted";
+        target.textContent = "No v0.36 controlled result gateway loaded. This is expected for runs without a supplied result package.";
+        return;
+      }
+      const manifest = (gateway.manifest_entries || []).slice(0, 1000);
+      const vcf = gateway.vcf || {};
+      const records = (vcf.records || []).slice(0, 500);
+      const adapterResults = (gateway.adapter_results || []).slice(0, 100);
+      const errors = (gateway.errors || []).slice(0, 100);
+      const warnings = (gateway.warnings || []).slice(0, 100);
+      const fileRows = manifest.map((item) => `<li><strong>${escapeHtml(item.safe_relative_path || "file")}</strong> — role ${escapeHtml(item.logical_role || "unknown")} — ${escapeHtml(item.byte_size ?? "not available")} bytes — persisted SHA-256 <span class="handoff-hash">${escapeHtml(item.sha256 || "not available")}</span></li>`).join("") || "<li>No manifest entries recorded.</li>";
+      const recordRows = records.map((item) => {
+        const normalized = item.normalized_position ? `${item.normalized_chromosome || item.chromosome}:${item.normalized_position} ${item.normalized_reference_allele || "?"}&gt;${item.normalized_alternate_allele || "?"}` : "not produced";
+        const calls = (item.sample_calls || []).map((call) => {
+          const gt = call.genotype || {};
+          const values = (call.format_values || []).map((value) => `${value.key}=${value.source_token}`).join("; ");
+          return `<li><strong>${escapeHtml(call.sample_name || "redacted sample")}</strong> — source ${escapeHtml(call.source_token || ".")}; GT ${escapeHtml(gt.source_token || "not supplied")}; alleles ${escapeHtml((gt.allele_indices || []).map((value) => value === null ? "." : value).join(",") || "not supplied")}; ploidy ${escapeHtml(gt.ploidy ?? "unknown")}; phase ${escapeHtml(gt.phase_state || "unknown")}; PS ${escapeHtml(call.phase_set_source_token || "missing")}; FORMAT ${escapeHtml(values || "none")}</li>`;
+        }).join("") || "<li>No sample calls supplied.</li>";
+        const presence = (item.selected_alt_presence || []).map((entry) => `${entry.sample_name}: ALT ${entry.selected_alt_index} ${entry.state}`).join("; ") || "not determinable";
+        return `<details><summary>Supplied record ${escapeHtml(item.record_id || "record")} — ${escapeHtml(item.variant_scope || "unknown")}</summary><p><strong>Source:</strong> ${escapeHtml(item.chromosome || "?")}:${escapeHtml(item.position || "?")} ${escapeHtml(item.reference_allele || "?")}&gt;${escapeHtml(item.alternate_allele || "?")} — source hash ${escapeHtml(item.source_record_sha256 || "not available")}</p><p><strong>FORMAT order:</strong> ${escapeHtml((item.format_keys || []).join(":") || "not supplied")}; <strong>selected ALT presence:</strong> ${escapeHtml(presence)}</p><ul>${calls}</ul><p><strong>Normalized representation:</strong> ${escapeHtml(normalized)} — ${escapeHtml(item.normalized_state || "not normalized")}</p><p><strong>Decomposition:</strong> ${String(item.decomposition_performed ?? false)}; <strong>source genotype rewritten:</strong> false; <strong>reference-dependent left normalization:</strong> ${String(item.reference_dependent_left_normalization_performed ?? false)}</p><p><strong>Review state:</strong> ${escapeHtml(item.review_status || "requires_review")} ${item.reason_if_out_of_scope ? `— ${escapeHtml(item.reason_if_out_of_scope)}` : ""}</p></details>`;
+      }).join("") || "<p>No VCF records were parsed.</p>";
+      const adapterRows = adapterResults.map((item) => {
+        const adapter = item.adapter || {};
+        const provenance = item.provenance || {};
+        return `<details><summary>Adapter ${escapeHtml(adapter.adapter_id || "adapter")} — ${escapeHtml(item.status || "unknown")}</summary><p><strong>Version:</strong> ${escapeHtml(adapter.version || "not available")} — <strong>parameter schema:</strong> ${escapeHtml(adapter.parameter_schema_id || "not available")} / ${escapeHtml(adapter.parameter_schema_version || "not available")}</p><p><strong>Selected-record provenance:</strong> ${escapeHtml((provenance.selected_record_ids || []).join(", ") || "explicit empty selection")}</p><p><strong>Invocation hash:</strong> ${escapeHtml(provenance.invocation_sha256 || "not available")}</p><p><strong>Output hash:</strong> ${escapeHtml(item.output_sha256 || "not available")}</p><p><strong>Network policy:</strong> disabled — <strong>external execution:</strong> false</p><p><strong>Messages:</strong> ${escapeHtml((item.errors || []).join("; ") || (item.warnings || []).join("; ") || "none")}</p></details>`;
+      }).join("") || "<p>No adapter invocation was requested.</p>";
+      const issueRows = [...errors.map((item) => `error: ${item.code || "gateway_error"}`), ...warnings.map((item) => `warning: ${item.code || "gateway_warning"}`)].map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>None recorded.</li>";
+      const lab = gateway.laboratory_report || {};
+      const coverage = gateway.coverage || {};
+      const assay = gateway.assay_scope || {};
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>package status</strong>${escapeHtml(notAvailable(gateway.package_status))}</div>
+          <div class="metric"><strong>package ID / version</strong>${escapeHtml(notAvailable(gateway.package_id))} / ${escapeHtml(notAvailable(gateway.package_version))}</div>
+          <div class="metric ${gateway.manifest_verified ? "safe" : "warn"}"><strong>manifest verified</strong>${String(gateway.manifest_verified ?? false)}</div>
+          <div class="metric"><strong>input manifest SHA-256</strong><span class="handoff-hash">${escapeHtml(notAvailable(gateway.input_manifest_sha256))}</span></div>
+          <div class="metric"><strong>complete package identity</strong><span class="handoff-hash">${escapeHtml(notAvailable(gateway.package_identity_sha256))}</span></div>
+          <div class="metric"><strong>VCF records</strong>${escapeHtml(vcf.record_count ?? records.length)}</div>
+          <div class="metric"><strong>accepted SNV/small indels</strong>${escapeHtml((gateway.accepted_record_ids || []).length)}</div>
+          <div class="metric warn"><strong>retained out-of-scope</strong>${escapeHtml((gateway.retained_out_of_scope_record_ids || []).length)}</div>
+          <div class="metric"><strong>replay status</strong>${escapeHtml(notAvailable(gateway.replay_status))}</div>
+          <div class="metric safe"><strong>draft_not_clinically_approved</strong>true</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <p class="note"><strong>Controlled supplied-data lane.</strong> Persisted bytes are checked against the manifest. Source-reported records, decomposition-only normalized representations, and out-of-scope records remain visibly separate. No raw reads, reference-dependent left normalization, CNV/mitochondrial/repeat/mosaic calling, diagnosis, treatment, final ACMG classification, or sign-out is performed.</p>
+        <h3>Manifest and exact persisted-byte hashes</h3><ul>${fileRows}</ul>
+        <h3>VCF source and normalized representations</h3>${recordRows}
+        <h3>Laboratory, QC, coverage, and assay scope</h3><div class="metrics"><div class="metric"><strong>laboratory</strong>${escapeHtml(notAvailable(lab.laboratory_name))}</div><div class="metric warn"><strong>accreditation</strong>${escapeHtml(accreditationLabel(lab.accreditation_status))}</div><div class="metric"><strong>trusted evidence records</strong>${escapeHtml((lab.trusted_accreditation_evidence || []).length)}</div><div class="metric"><strong>assay / platform</strong>${escapeHtml(notAvailable(lab.assay_or_test_type))} / ${escapeHtml(notAvailable(lab.platform))}</div><div class="metric"><strong>minimum coverage</strong>${escapeHtml(notAvailable(coverage.minimum_coverage_declared ?? assay.minimum_coverage_requirement))}</div><div class="metric warn"><strong>poor regions</strong>${escapeHtml((coverage.poor_regions || []).length)}</div><div class="metric"><strong>reportable genes</strong>${escapeHtml((assay.reportable_genes || []).join(", ") || "not supplied")}</div><div class="metric warn"><strong>blind spots</strong>${escapeHtml((assay.blind_spots || []).join("; ") || "not supplied")}</div><div class="metric"><strong>confirmation method</strong>${escapeHtml(notAvailable(lab.confirmation_method))}</div></div>
+        <h3>Fixed adapter registry and provenance</h3>${adapterRows}
+        <h3>Validation warnings and errors</h3><ul>${issueRows}</ul>
+        <p class="note"><strong>India-aware fields are supplied-but-unverified unless independently evidenced through a trusted channel:</strong> laboratory name/reference, accreditation status/scope, test type, platform, build, transcript/database versions, confirmation method, report date, turnaround, transport, and access/affordability. Package wording can never promote accreditation trust. No accreditation, ancestry, caste/community, or identity inference is made.</p>`;
+      renderGatewayExecutionState(gateway);
+    }
+
     function renderSpecialistAgentWorkspace(workspace) {
       const target = document.getElementById("specialist-agent-workspace");
       if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
@@ -1987,6 +2466,7 @@
       renderPreTestAssessment(data.pre_test_assessment || data.final_state?.pre_test_assessment);
       renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
       renderResultEvidenceWorkspace(data.result_evidence_workspace || data.final_state?.result_evidence_workspace);
+      renderResultGateway(data.result_gateway || data.final_state?.result_gateway);
       renderSpecialistAgentWorkspace(data.specialist_agent_workspace || data.final_state?.specialist_agent_workspace);
       renderJarvisSynthesisReportWorkspace(data.jarvis_synthesis_report_workspace || data.final_state?.jarvis_synthesis_report_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
@@ -2058,6 +2538,7 @@
         renderPreTestAssessment(detail?.pre_test_assessment);
         renderTestStrategyWorkspace(detail?.test_strategy_workspace);
         renderResultEvidenceWorkspace(detail?.result_evidence_workspace);
+        renderResultGateway(detail?.result_gateway);
         renderSpecialistAgentWorkspace(detail?.specialist_agent_workspace);
         renderJarvisSynthesisReportWorkspace(detail?.jarvis_synthesis_report_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);
@@ -2142,6 +2623,58 @@
       `;
     }
 
+    gatewayLoadFixtureButton.addEventListener("click", async () => {
+      gatewayLoadFixtureButton.disabled = true;
+      gatewayStatus("Loading the local synthetic v0.36 fixture...");
+      try {
+        const payload = await requestJson("/insilicopop/workbench/fixtures/v036", undefined, "Synthetic v0.36 fixture");
+        await loadGatewayPackage(payload.fixture, payload);
+      } catch (error) {
+        gatewayStatus(friendlyError(error, "The synthetic v0.36 fixture could not be loaded."), true, true);
+      } finally {
+        gatewayLoadFixtureButton.disabled = false;
+      }
+    });
+
+    gatewayPackageFile.addEventListener("change", async () => {
+      const file = gatewayPackageFile.files?.[0];
+      if (!file) return;
+      if (file.size > 10000000) {
+        gatewayStatus("The selected package exceeds the 10 MB Workbench preview limit.", true, true);
+        return;
+      }
+      gatewayStatus(`Reading ${file.name} for controlled validation...`);
+      try {
+        const payload = JSON.parse(await file.text());
+        await loadGatewayPackage(payload);
+      } catch (error) {
+        gatewayStatus(friendlyError(error, "The selected result package is not valid JSON or failed typed validation."), true, true);
+      }
+    });
+
+    gatewayRejectButton.addEventListener("click", () => {
+      if (!gatewayState) return;
+      gatewayState.rejected = true;
+      gatewayBuildConfirmation.checked = false;
+      gatewayHumanApproval.checked = false;
+      renderGatewayPackageState();
+      gatewayStatus("The selected package was explicitly rejected. No package parsing or adapter action will be submitted from this selection.", true, true);
+    });
+
+    gatewayBuildConfirmation.addEventListener("change", syncGatewayActionState);
+    gatewayHumanApproval.addEventListener("change", syncGatewayActionState);
+    gatewayAdapterSelect.addEventListener("change", () => {
+      gatewayHumanApproval.checked = false;
+      renderGatewayAdapterControls();
+    });
+    gatewayRecordSelector.addEventListener("change", () => {
+      const selected = Array.from(gatewayRecordSelector.selectedOptions);
+      if (selected.length > 1) {
+        const allOption = selected.find((option) => option.value === "__all__");
+        if (allOption) allOption.selected = false;
+      }
+    });
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       runButton.disabled = true;
@@ -2165,7 +2698,7 @@
       } catch (error) {
         setStatus(friendlyError(error, "Agent run failed. Check the local backend and declared input inventory."), true);
       } finally {
-        runButton.disabled = false;
+        syncGatewayActionState();
       }
     });
 

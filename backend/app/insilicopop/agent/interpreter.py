@@ -23,6 +23,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
+    "reproducibility/result_gateway.json",
     "reproducibility/specialist_agent_workspace.json",
     "reproducibility/jarvis_synthesis_report_workspace.json",
     "reproducibility/handoff_workspace.json",
@@ -67,6 +68,7 @@ class AgentInterpreter:
         pre_test_assessment: dict[str, Any] | None = None,
         test_strategy_workspace: dict[str, Any] | None = None,
         result_evidence_workspace: dict[str, Any] | None = None,
+        result_gateway: dict[str, Any] | None = None,
         specialist_agent_workspace: dict[str, Any] | None = None,
         jarvis_synthesis_report_workspace: dict[str, Any] | None = None,
         handoff_workspace: dict[str, Any] | None = None,
@@ -99,6 +101,7 @@ class AgentInterpreter:
         pre_test_assessment = pre_test_assessment or {}
         test_strategy_workspace = test_strategy_workspace or {}
         result_evidence_workspace = result_evidence_workspace or {}
+        result_gateway = result_gateway or {}
         specialist_agent_workspace = specialist_agent_workspace or {}
         jarvis_synthesis_report_workspace = (
             jarvis_synthesis_report_workspace or {}
@@ -196,6 +199,8 @@ class AgentInterpreter:
             *_test_strategy_workspace_lines(test_strategy_workspace),
             "",
             *_result_evidence_workspace_lines(result_evidence_workspace),
+            "",
+            *_result_gateway_lines(result_gateway),
             "",
             *_specialist_agent_workspace_lines(specialist_agent_workspace),
             "",
@@ -1067,6 +1072,41 @@ def _result_evidence_workspace_lines(workspace: dict[str, Any]) -> list[str]:
         ]
     )
     return lines
+
+
+def _result_gateway_lines(gateway: dict[str, Any]) -> list[str]:
+    if not gateway:
+        return []
+    vcf = gateway.get("vcf", {}) or {}
+    adapter_results = gateway.get("adapter_results", []) or []
+    errors = gateway.get("errors", []) or []
+    warnings = gateway.get("warnings", []) or []
+    return [
+        "## v0.36 Controlled Clinical Result and Bioinformatics Gateway",
+        "",
+        "Supplied result bytes were checked against a deterministic manifest and processed by fixed local adapters only. "
+        "This is a draft research-curation gateway; it is not a diagnostic, clinical sign-out, or final classification system.",
+        f"- schema_version: `{_redact(str(gateway.get('schema_version', 'unknown')))}`",
+        f"- gateway_version: `{_redact(str(gateway.get('gateway_version', 'unknown')))}`",
+        f"- package_id: `{_redact(str(gateway.get('package_id', 'unknown')))}`",
+        f"- package_status: `{_redact(str(gateway.get('package_status', 'unknown')))}`",
+        f"- replay_status: `{_redact(str(gateway.get('replay_status', 'not_requested')))}`",
+        f"- manifest_verified: `{str(bool(gateway.get('manifest_verified', False))).lower()}`",
+        f"- input_manifest_sha256: `{_redact(str(gateway.get('input_manifest_sha256', 'unknown')))}`",
+        f"- VCF record count: `{len(vcf.get('records', []) or []) if isinstance(vcf, dict) else 0}`",
+        f"- accepted SNV/small-indel record count: `{len(gateway.get('accepted_record_ids', []) or [])}`",
+        f"- retained out-of-scope record count: `{len(gateway.get('retained_out_of_scope_record_ids', []) or [])}`",
+        f"- adapter result count: `{len(adapter_results)}`",
+        f"- adapter statuses: `{', '.join(_redact(str(item.get('status', 'unknown'))) for item in adapter_results if isinstance(item, dict)) or 'none'}`",
+        f"- error count: `{len(errors)}`",
+        f"- warning count: `{len(warnings)}`",
+        "- Source-reported and normalized representations remain separate.",
+        "- Reference-dependent left normalization was not performed without a pinned reference.",
+        "- Symbolic/SV/CNV/mitochondrial/repeat/mosaic records remain retained with out-of-scope reasons; no raw calling was performed.",
+        "- external_tools_executed: `false`; external_api_call_made: `false`; external_llm_called: `false`",
+        "- diagnosis_made: `false`; treatment_recommendation_made: `false`; final_acmg_classification_made: `false`",
+        "- draft_not_clinically_approved: `true`; human_review_required: `true`",
+    ]
 
 
 def _specialist_agent_workspace_lines(workspace: dict[str, Any]) -> list[str]:

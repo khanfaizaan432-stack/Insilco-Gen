@@ -97,12 +97,12 @@ def build_handoff_workspace(
     specialist_agent_workspace: Any,
     jarvis_workspace: Any,
     handoff_request: HandoffWorkspaceRequest | None = None,
+    result_gateway: Any = None,
 ) -> HandoffWorkspaceResult:
     """Build the deterministic v0.35 handoff over the frozen v0.34 artifacts."""
 
     handoff_request = handoff_request or HandoffWorkspaceRequest()
-    artifacts = _artifact_manifest(
-        (
+    artifact_items = [
             ("clinical_case_intake", intake, "clinical_case_intake.json", SourceClassification.SUPPLIED_FACT),
             ("phenotype_hpo_curation", phenotype_curation, "phenotype_hpo_curation.json", SourceClassification.DETERMINISTIC_FINDING),
             ("pedigree_inheritance_audit", pedigree_audit, "pedigree_inheritance_audit.json", SourceClassification.DETERMINISTIC_FINDING),
@@ -112,8 +112,8 @@ def build_handoff_workspace(
             ("result_evidence_workspace", result_evidence_workspace, "result_evidence_workspace.json", SourceClassification.RETRIEVED_EVIDENCE),
             ("specialist_agent_workspace", specialist_agent_workspace, "specialist_agent_workspace.json", SourceClassification.MODEL_OR_SPECIALIST_PROPOSAL),
             ("jarvis_synthesis_report_workspace", jarvis_workspace, "jarvis_synthesis_report_workspace.json", SourceClassification.CANDIDATE_INTERPRETATION),
-        )
-    )
+        ]
+    artifacts = _artifact_manifest(artifact_items)
     source_hashes = {
         item.artifact_id: item.sha256
         for item in artifacts
@@ -128,6 +128,7 @@ def build_handoff_workspace(
         intake=intake,
         pretest_assessment=pretest_assessment,
         jarvis_workspace=jarvis_workspace,
+        result_gateway=result_gateway,
     )
     uncertainties = _uncertainties(
         jarvis_workspace=jarvis_workspace,
@@ -143,6 +144,7 @@ def build_handoff_workspace(
         pretest_assessment=pretest_assessment,
         test_strategy_workspace=test_strategy_workspace,
         result_evidence_workspace=result_evidence_workspace,
+        result_gateway=result_gateway,
         specialist_agent_workspace=specialist_agent_workspace,
         jarvis_workspace=jarvis_workspace,
         external_checkpoint=handoff_request.external_checkpoint,
@@ -723,7 +725,7 @@ def _pointers(*, jarvis_workspace: Any, result_evidence_workspace: Any) -> tuple
     return claims, evidence
 
 
-def _blockers(*, intake: Any, pretest_assessment: Any, jarvis_workspace: Any) -> list[HandoffBlocker]:
+def _blockers(*, intake: Any, pretest_assessment: Any, jarvis_workspace: Any, result_gateway: Any = None) -> list[HandoffBlocker]:
     blockers: list[HandoffBlocker] = []
     intake_data = _dump(intake) or {}
     for category, field in (
@@ -767,6 +769,17 @@ def _blockers(*, intake: Any, pretest_assessment: Any, jarvis_workspace: Any) ->
                 message=str(finding.get("message") or finding.get("finding") or "A blocking critic finding requires review."),
                 source_artifact_ids=["jarvis_synthesis_report_workspace"],
                 source_fact_paths=[f"jarvis_synthesis_report_workspace.critic_findings.{index}"],
+            )
+        )
+    gateway = _dump(result_gateway) or {}
+    if str(gateway.get("package_status", "")).lower() in {"blocked", "rejected", "failed", "stale"}:
+        blockers.append(
+            HandoffBlocker(
+                blocker_id="blocker-result-gateway-package",
+                code="result_gateway_package_blocked",
+                message="The supplied result package gateway is blocked or stale and requires reviewer resolution before downstream use.",
+                source_artifact_ids=["clinical_case_intake"],
+                source_fact_paths=["clinical_case_intake.result_gateway.package_status"],
             )
         )
     return _dedupe_blockers(blockers)
@@ -888,6 +901,7 @@ def _case_stages(
     pretest_assessment: Any,
     test_strategy_workspace: Any,
     result_evidence_workspace: Any,
+    result_gateway: Any,
     specialist_agent_workspace: Any,
     jarvis_workspace: Any,
     external_checkpoint: ExternalCheckpoint | None,
@@ -900,7 +914,10 @@ def _case_stages(
     case_data = _dump(case) or {}
     has_context = bool(case_data.get("global_intake_context") or case_data.get("provenance") or case_data.get("case_label"))
     has_pedigree = bool(_dump(pedigree_audit) or case_data.get("pedigree"))
-    has_results = bool(_dump(result_evidence_workspace))
+    has_results = bool(_dump(result_evidence_workspace) or _dump(result_gateway))
+    gateway_data = _dump(result_gateway) or {}
+    gateway_blocked = str(gateway_data.get("package_status", "")).lower() in {"blocked", "rejected", "failed", "stale"}
+    has_qc_or_assay = bool(gateway_data.get("qc") or gateway_data.get("coverage") or gateway_data.get("assay_scope"))
     has_candidates = bool((_dump(specialist_agent_workspace) or {}).get("candidate_criteria"))
     has_jarvis = bool(_dump(jarvis_workspace))
     component_status = {
@@ -918,8 +935,8 @@ def _case_stages(
             if external_checkpoint and external_checkpoint.status == "needs_review"
             else CaseStageStatus.AVAILABLE
         ),
-        "result_intake": _available_status(has_results),
-        "qc_assay_scope": CaseStageStatus.NOT_STARTED,
+        "result_intake": CaseStageStatus.BLOCKED if gateway_blocked else _available_status(has_results),
+        "qc_assay_scope": CaseStageStatus.BLOCKED if gateway_blocked else CaseStageStatus.COMPLETED_FOR_DRAFT_USE if has_qc_or_assay else CaseStageStatus.NOT_STARTED,
         "candidate_analysis": _available_status(has_candidates),
         "evidence": _available_status(has_results),
         "candidate_acmg": _available_status(has_candidates),
@@ -935,10 +952,10 @@ def _case_stages(
             stage_id=stage_id,
             label=label,
             status=component_status[stage_id],
-            artifact_ids=_stage_artifacts(stage_id, intake, phenotype_curation, pedigree_audit, pretest_assessment, test_strategy_workspace, result_evidence_workspace, specialist_agent_workspace, jarvis_workspace),
+            artifact_ids=_stage_artifacts(stage_id, intake, phenotype_curation, pedigree_audit, pretest_assessment, test_strategy_workspace, result_evidence_workspace, result_gateway, specialist_agent_workspace, jarvis_workspace),
             blocker_ids=[item.blocker_id for item in blockers if _stage_has_artifact(stage_id, item.source_artifact_ids)],
             pending_decision_ids=[item.decision_id for item in pending_decisions if stage_id in {"human_review", "external_handoff"}],
-            source_classifications=_stage_classifications(stage_id),
+            source_classifications=_stage_classifications(stage_id, gateway_present=result_gateway is not None),
         )
         for index, (stage_id, label) in enumerate(STAGE_DEFINITIONS, start=1)
     ]
@@ -970,6 +987,7 @@ def _refresh_stage_statuses(stages: list[CaseStage], status: HandoffState, readi
 
 
 def _stage_artifacts(stage_id: str, *components: Any) -> list[str]:
+    gateway_present = len(components) > 6 and components[6] is not None
     mapping = {
         "referral": ["clinical_case_intake"],
         "clinical_history": ["clinical_case_intake"],
@@ -990,14 +1008,21 @@ def _stage_artifacts(stage_id: str, *components: Any) -> list[str]:
         "external_handoff": ["handoff_packet", "handoff_receipt"],
         "reanalysis": [],
     }
-    return mapping.get(stage_id, [])
+    artifacts = list(mapping.get(stage_id, []))
+    if gateway_present and stage_id in {"result_intake", "qc_assay_scope"}:
+        artifacts.append("clinical_case_intake")
+    return artifacts
 
 
-def _stage_classifications(stage_id: str) -> list[SourceClassification]:
+def _stage_classifications(stage_id: str, *, gateway_present: bool = False) -> list[SourceClassification]:
     if stage_id in {"referral", "clinical_history", "pedigree_family", "previous_investigations"}:
         return [SourceClassification.SUPPLIED_FACT]
-    if stage_id in {"phenotype_hpo", "readiness", "result_intake", "evidence", "synthesis_critics", "draft_report"}:
+    if stage_id in {"phenotype_hpo", "readiness", "evidence", "synthesis_critics", "draft_report"}:
         return [SourceClassification.DETERMINISTIC_FINDING]
+    if stage_id == "result_intake":
+        return [SourceClassification.SUPPLIED_FACT, SourceClassification.DETERMINISTIC_FINDING] if gateway_present else [SourceClassification.DETERMINISTIC_FINDING]
+    if stage_id == "qc_assay_scope":
+        return [SourceClassification.SUPPLIED_FACT, SourceClassification.DETERMINISTIC_FINDING] if gateway_present else []
     if stage_id in {"test_strategy", "candidate_analysis", "candidate_acmg"}:
         return [SourceClassification.MODEL_OR_SPECIALIST_PROPOSAL, SourceClassification.CANDIDATE_INTERPRETATION]
     if stage_id == "external_checkpoint":
@@ -1008,7 +1033,10 @@ def _stage_classifications(stage_id: str) -> list[SourceClassification]:
 
 
 def _stage_has_artifact(stage_id: str, artifact_ids: list[str]) -> bool:
-    return bool(set(_stage_artifacts(stage_id)) & set(artifact_ids))
+    expected = set(_stage_artifacts(stage_id))
+    if stage_id in {"result_intake", "qc_assay_scope"}:
+        expected.add("clinical_case_intake")
+    return bool(expected & set(artifact_ids))
 
 
 def _artifact_status(value: Any, blocked: bool) -> CaseStageStatus:

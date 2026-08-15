@@ -25,6 +25,8 @@ from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
 from app.insilicopop.memory.compressor import DomainMemoryCompressor
 from app.insilicopop.llm.byok_runtime import BYOKSessionConfiguration, byok_runtime
 from app.insilicopop.clinical.handoff_models import HandoffReviewAction, HandoffWorkspaceResult
+from app.insilicopop.clinical.result_gateway import build_result_gateway
+from app.insilicopop.clinical.result_gateway_execution import registered_adapters
 from app.schemas.memory import MemoryCompressRequest, MemoryCompressResponse
 from app.workflows.dry_biotics import DryBioticsWorkflow
 
@@ -36,6 +38,7 @@ app = FastAPI(
 )
 
 MAX_BYOK_CONFIGURATION_BYTES = 64_000
+MAX_RESULT_GATEWAY_PREVIEW_BYTES = 10_000_000
 CAPABILITY_PATH_PATTERN = re.compile(r"(/insilicopop/byok/session/)[A-Za-z0-9_.:%-]+")
 
 
@@ -57,6 +60,12 @@ if not any(isinstance(item, _CapabilityAccessLogFilter) for item in _access_logg
     _access_logger.addFilter(_CapabilityAccessLogFilter())
 
 WORKBENCH_HTML_PATH = Path(__file__).resolve().parent / "insilicopop" / "workbench_static" / "index.html"
+RESULT_GATEWAY_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "examples"
+    / "insilicopop_demo"
+    / "canonical_v036_result_package.json"
+)
 
 
 class MemoryBenchmarkRequest(BaseModel):
@@ -148,6 +157,58 @@ def insilicopop_workbench() -> HTMLResponse:
     if not WORKBENCH_HTML_PATH.is_file():
         raise HTTPException(status_code=500, detail="workbench UI asset is missing")
     return HTMLResponse(WORKBENCH_HTML_PATH.read_text(encoding="utf-8"))
+
+
+@app.get("/insilicopop/workbench/fixtures/v036")
+def insilicopop_v036_workbench_fixture() -> dict[str, object]:
+    """Return the local synthetic package and a preview from the one gateway backend."""
+
+    if not RESULT_GATEWAY_FIXTURE_PATH.is_file():
+        raise HTTPException(status_code=500, detail="v0.36 synthetic fixture is missing")
+    fixture = json.loads(RESULT_GATEWAY_FIXTURE_PATH.read_text(encoding="utf-8"))
+    preview_request = dict(fixture["result_gateway"])
+    preview_request["adapter_invocations"] = []
+    preview_request["tool_analysis_intent"] = None
+    preview = build_result_gateway(
+        preview_request,
+        pseudonymous_case_id=fixture.get("pseudonymous_case_id"),
+    )
+    return {
+        "fixture": fixture,
+        "gateway_preview": preview.model_dump(mode="json"),
+        "adapter_definitions": [item.model_dump(mode="json") for item in registered_adapters()],
+    }
+
+
+@app.post("/insilicopop/workbench/result-gateway/preview")
+async def insilicopop_v036_workbench_preview(request: Request) -> dict[str, object]:
+    """Validate a selected package with the existing gateway without persisting a run."""
+
+    raw = bytearray()
+    async for chunk in request.stream():
+        if len(raw) + len(chunk) > MAX_RESULT_GATEWAY_PREVIEW_BYTES:
+            raise HTTPException(status_code=413, detail="v0.36 preview package is too large")
+        raw.extend(chunk)
+    try:
+        payload = json.loads(bytes(raw))
+        if not isinstance(payload, dict):
+            raise ValueError("preview input must be an object")
+        gateway_payload = payload.get("result_gateway", payload)
+        if not isinstance(gateway_payload, dict):
+            raise ValueError("result_gateway must be an object")
+        preview_request = dict(gateway_payload)
+        preview_request["adapter_invocations"] = []
+        preview_request["tool_analysis_intent"] = None
+        preview = build_result_gateway(
+            preview_request,
+            pseudonymous_case_id=payload.get("pseudonymous_case_id"),
+        )
+        return {
+            "gateway_preview": preview.model_dump(mode="json"),
+            "adapter_definitions": [item.model_dump(mode="json") for item in registered_adapters()],
+        }
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid typed v0.36 result-gateway preview package.") from exc
 
 
 @app.post("/insilicopop/audit")

@@ -45,6 +45,20 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    v036_demo = subparsers.add_parser(
+        "v036-demo",
+        help="Run the deterministic v0.36 controlled result-gateway demonstration.",
+    )
+    v036_demo.add_argument(
+        "--fixture",
+        default=str(
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "insilicopop_demo"
+            / "canonical_v036_result_package.json"
+        ),
+    )
+
     audit = subparsers.add_parser("audit")
     audit.add_argument("--metadata")
     audit.add_argument("--pca")
@@ -241,6 +255,43 @@ def main(argv: list[str] | None = None) -> int:
             },
             "canonical_action_count": len(handoff.applied_review_actions),
             "snapshot_hash": handoff.snapshot_hash,
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+    if args.command == "v036-demo":
+        payload = _json_object_file(args.fixture)
+        bundle = build_clinical_case_v035_bundle(payload)
+        gateway = bundle[0].result_gateway
+        if gateway is None:
+            raise ValueError("v0.36 fixture did not produce a controlled result-gateway result")
+        summary = {
+            "bundle_width": len(bundle),
+            "case_id": gateway.pseudonymous_case_id,
+            "schema_version": gateway.schema_version,
+            "gateway_version": gateway.gateway_version,
+            "package_id": gateway.package_id,
+            "package_status": gateway.package_status.value,
+            "manifest_verified": gateway.manifest_verified,
+            "input_manifest_sha256": gateway.input_manifest_sha256,
+            "package_identity_sha256": gateway.package_identity_sha256,
+            "file_hashes": {item.safe_relative_path: item.sha256 for item in gateway.input_file_hashes},
+            "canonical_file_hashes": {item.safe_relative_path: item.sha256 for item in gateway.canonical_file_hashes},
+            "vcf_record_count": gateway.vcf.record_count if gateway.vcf else 0,
+            "accepted_record_count": len(gateway.accepted_record_ids),
+            "retained_out_of_scope_record_count": len(gateway.retained_out_of_scope_record_ids),
+            "multiallelic_source_record_count": gateway.vcf.multiallelic_source_record_count if gateway.vcf else 0,
+            "adapter_statuses": [item.status.value for item in gateway.adapter_results],
+            "adapter_provenance_count": len(gateway.tool_provenance),
+            "reference_dependent_left_normalization_performed": False,
+            "draft_not_clinically_approved": gateway.draft_not_clinically_approved,
+            "human_review_required": gateway.human_review_required,
+            "external_tools_executed": gateway.external_tools_executed,
+            "external_api_call_made": gateway.external_api_call_made,
+            "diagnosis_made": gateway.diagnosis_made,
+            "treatment_recommendation_made": gateway.treatment_recommendation_made,
+            "final_acmg_classification_made": gateway.final_acmg_classification_made,
+            "error_codes": [item.code for item in gateway.errors],
+            "warning_codes": [item.code for item in gateway.warnings],
         }
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 0

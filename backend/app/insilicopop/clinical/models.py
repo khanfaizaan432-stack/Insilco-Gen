@@ -11,6 +11,7 @@ from app.insilicopop.clinical.variant_models import VariantIntelligenceRequest
 from app.insilicopop.clinical.global_intake_models import GlobalIntakeContext
 from app.insilicopop.clinical.pretest_models import PreTestAssessmentRequest
 from app.insilicopop.clinical.result_evidence_models import ResultEvidenceWorkspaceRequest
+from app.insilicopop.clinical.result_gateway_models import ResultGatewayRequest, ResultGatewayResult
 from app.insilicopop.clinical.specialist_agent_models import SpecialistAgentWorkspaceRequest
 from app.insilicopop.clinical.test_strategy_models import TestStrategyWorkspaceRequest
 from app.insilicopop.clinical.jarvis_report_models import (
@@ -165,6 +166,14 @@ class ClinicalCaseIntake(FrozenModel):
     pre_test_assessment: PreTestAssessmentRequest | None = None
     test_strategy_workspace: TestStrategyWorkspaceRequest | None = None
     result_evidence_workspace: ResultEvidenceWorkspaceRequest | None = None
+    result_gateway: ResultGatewayRequest | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "result_gateway",
+            "clinical_result_gateway",
+            "controlled_result_gateway",
+        ),
+    )
     specialist_agent_workspace: SpecialistAgentWorkspaceRequest | None = None
     jarvis_synthesis_report_workspace: JarvisSynthesisReportWorkspaceRequest | None = Field(
         default=None,
@@ -238,4 +247,5 @@ class ClinicalCaseIntakeResult(FrozenModel):
     external_llm_called: Literal[False] = False
     external_tools_executed: Literal[False] = False
     raw_genomic_files_parsed: Literal[False] = False
+    result_gateway: ResultGatewayResult | None = Field(default=None, exclude_if=lambda value: value is None)
     global_intake_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)

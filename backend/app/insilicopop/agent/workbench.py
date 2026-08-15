@@ -49,6 +49,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
     "reproducibility/result_evidence_workspace.json",
+    "reproducibility/result_gateway.json",
     "reproducibility/specialist_agent_workspace.json",
     "reproducibility/jarvis_synthesis_report_workspace.json",
     "reproducibility/handoff_workspace.json",
@@ -140,6 +141,11 @@ class AgentRunSummary(BaseModel):
     evidence_conflict_count: int = 0
     evidence_duplicate_count: int = 0
     result_evidence_workspace_artifact_available: bool = False
+    result_gateway_package_status: str | None = None
+    result_gateway_record_count: int = 0
+    result_gateway_out_of_scope_record_count: int = 0
+    result_gateway_manifest_verified: bool = False
+    result_gateway_artifact_available: bool = False
     specialist_agent_spawn_request_count: int = 0
     specialist_agent_output_count: int = 0
     specialist_agent_review_ready_output_count: int = 0
@@ -198,6 +204,7 @@ class AgentRunDetail(AgentRunSummary):
     pre_test_assessment: dict[str, Any] | None = None
     test_strategy_workspace: dict[str, Any] | None = None
     result_evidence_workspace: dict[str, Any] | None = None
+    result_gateway: dict[str, Any] | None = None
     specialist_agent_workspace: dict[str, Any] | None = None
     jarvis_synthesis_report_workspace: dict[str, Any] | None = None
     handoff_workspace: dict[str, Any] | None = None
@@ -266,6 +273,7 @@ class WorkbenchRunStore:
             pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
             result_evidence_workspace=state.get("result_evidence_workspace") if isinstance(state.get("result_evidence_workspace"), dict) else None,
+            result_gateway=state.get("result_gateway") if isinstance(state.get("result_gateway"), dict) else None,
             specialist_agent_workspace=state.get("specialist_agent_workspace") if isinstance(state.get("specialist_agent_workspace"), dict) else None,
             jarvis_synthesis_report_workspace=state.get("jarvis_synthesis_report_workspace") if isinstance(state.get("jarvis_synthesis_report_workspace"), dict) else None,
             handoff_workspace=state.get("handoff_workspace") if isinstance(state.get("handoff_workspace"), dict) else None,
@@ -388,6 +396,8 @@ class WorkbenchRunStore:
         test_strategy_workspace = test_strategy_workspace if isinstance(test_strategy_workspace, dict) else {}
         result_evidence_workspace = state.get("result_evidence_workspace", {}) if isinstance(state, dict) else {}
         result_evidence_workspace = result_evidence_workspace if isinstance(result_evidence_workspace, dict) else {}
+        result_gateway = state.get("result_gateway", {}) if isinstance(state, dict) else {}
+        result_gateway = result_gateway if isinstance(result_gateway, dict) else {}
         specialist_agent_workspace = state.get("specialist_agent_workspace", {}) if isinstance(state, dict) else {}
         specialist_agent_workspace = specialist_agent_workspace if isinstance(specialist_agent_workspace, dict) else {}
         jarvis_workspace = state.get("jarvis_synthesis_report_workspace", {}) if isinstance(state, dict) else {}
@@ -484,6 +494,11 @@ class WorkbenchRunStore:
             result_evidence_workspace_artifact_available=(
                 run_dir / "reproducibility" / "result_evidence_workspace.json"
             ).is_file(),
+            result_gateway_package_status=result_gateway.get("package_status"),
+            result_gateway_record_count=len((result_gateway.get("vcf", {}) or {}).get("records", []) or []) if isinstance(result_gateway.get("vcf"), dict) else 0,
+            result_gateway_out_of_scope_record_count=len(result_gateway.get("retained_out_of_scope_record_ids", []) or []),
+            result_gateway_manifest_verified=bool(result_gateway.get("manifest_verified", False)),
+            result_gateway_artifact_available=(run_dir / "reproducibility" / "result_gateway.json").is_file(),
             specialist_agent_spawn_request_count=len(specialist_agent_workspace.get("spawn_requests", []) or []),
             specialist_agent_output_count=len(specialist_agent_workspace.get("agent_outputs", []) or []),
             specialist_agent_review_ready_output_count=len(specialist_agent_workspace.get("review_ready_output_ids", []) or []),

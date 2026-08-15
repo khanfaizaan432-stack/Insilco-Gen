@@ -1,0 +1,152 @@
+{
+  "schema_version": "0.27",
+  "pseudonymous_case_id": "CASE-IN-SILICO-RESULT-036",
+  "genome_build": "GRCh38",
+  "intended_use": "clinical_genetics_research_curation",
+  "redaction_declared": true,
+  "human_review_required": true,
+  "provenance": [
+    {
+      "source_id": "SRC-RESULT-036",
+      "source_type": "synthetic_supplied_result_package"
+    }
+  ],
+  "phenotypes": [
+    {
+      "observation_id": "PH-RESULT-036",
+      "supplied_term": "synthetic phenotype context",
+      "state": "unknown",
+      "source_reference": "SRC-RESULT-036"
+    }
+  ],
+  "candidate_variants": [
+    {
+      "candidate_id": "CAND-RESULT-036",
+      "submitted_representation": "GRCh38 chr1:100 A>G",
+      "genome_build": "GRCh38",
+      "chromosome": "1",
+      "position": 100,
+      "ref": "A",
+      "alt": "G",
+      "provenance": [
+        {
+          "source_id": "SRC-RESULT-036",
+          "source_type": "synthetic_supplied_result_package"
+        }
+      ]
+    }
+  ],
+  "result_gateway": {
+    "schema_version": "0.36",
+    "package_id": "PKG-RESULT-036",
+    "package_version": "fixture-1",
+    "declared_case_id": "CASE-IN-SILICO-RESULT-036",
+    "expected_sample_id": "SAMPLE-DEMO",
+    "declared_reference_build": "GRCh38",
+    "manifest": [
+      {
+        "logical_role": "vcf",
+        "safe_relative_path": "results/synthetic.vcf",
+        "media_type": "text/variant-call-format",
+        "sha256": "a91159bc637239c1f519f80b2dacf49a40017b5c42dc2e01b2d7971536b5510b",
+        "byte_size": 862
+      },
+      {
+        "logical_role": "structured_laboratory_report",
+        "safe_relative_path": "reports/laboratory_report.json",
+        "media_type": "application/json",
+        "sha256": "4e81eda814712d924f0b95ebd4dd38fd76917f128c107bbb3d93e6533bf27b15",
+        "byte_size": 1377
+      },
+      {
+        "logical_role": "qc",
+        "safe_relative_path": "qc/qc_summary.json",
+        "media_type": "application/json",
+        "sha256": "35f4a5048aa2ad8b0fdbdf9538354807ad14602f63a877fcfdd0205af061663b",
+        "byte_size": 167
+      },
+      {
+        "logical_role": "coverage",
+        "safe_relative_path": "qc/coverage.json",
+        "media_type": "application/json",
+        "sha256": "f7f7a3d9d8febd27acdd11880277b3ed478555962f4fc83ffe2567d906d233c8",
+        "byte_size": 205
+      },
+      {
+        "logical_role": "assay_metadata",
+        "safe_relative_path": "metadata/assay_scope.json",
+        "media_type": "application/json",
+        "sha256": "190ee9bf0db343cbb4ddbb942d638e19e87ed14f6f8a8a995fa305e043fa9a1f",
+        "byte_size": 545
+      }
+    ],
+    "files": [
+      {
+        "safe_relative_path": "results/synthetic.vcf",
+        "logical_role": "vcf",
+        "media_type": "text/variant-call-format",
+        "content_base64": "IyNmaWxlZm9ybWF0PVZDRnY0LjIKIyNyZWZlcmVuY2U9R1JDaDM4CiMjY29udGlnPTxJRD0xPgojI2NvbnRpZz08SUQ9Mj4KIyNJTkZPPTxJRD1BRixOdW1iZXI9QSxUeXBlPUZsb2F0LERlc2NyaXB0aW9uPSJBbGxlbGUgZnJlcXVlbmN5IHN1cHBsaWVkIj4KIyNJTkZPPTxJRD1EUCxOdW1iZXI9MSxUeXBlPUludGVnZXIsRGVzY3JpcHRpb249IkRlcHRoIHN1cHBsaWVkIj4KIyNJTkZPPTxJRD1DU1EsTnVtYmVyPS4sVHlwZT1TdHJpbmcsRGVzY3JpcHRpb249IlN1cHBsaWVkIGNvbnNlcXVlbmNlIj4KIyNJTkZPPTxJRD1TVlRZUEUsTnVtYmVyPTEsVHlwZT1TdHJpbmcsRGVzY3JpcHRpb249IlN1cHBsaWVkIHN0cnVjdHVyYWwgdHlwZSI+CiNDSFJPTQlQT1MJSUQJUkVGCUFMVAlRVUFMCUZJTFRFUglJTkZPCUZPUk1BVAlTQU1QTEUtREVNTwlDT05UUk9MLURFTU8KMQkxMDAJU05WMQlBCUcJOTkJUEFTUwlBRj0wLjEyO0RQPTQyO0NTUT1HRU5FMXx0cmFuc2NyaXB0MTtDVVNUT009b3BhcXVlCUdUOkRQOkFEOkdROlBTOlhZCTB8MToxMDo2LDQ6OTk6MTIzOm9wYXF1ZQkwLzA6MTI6MTIsMDo4MDouOmNvbnRyb2wKMQkyMDAJSU5ERUwxCUFUCUEJODAJUEFTUwlBRj0wLjAyO0RQPTI4CUdUOkRQOkFEOkdROlBTOlhZCTAvMToyODoxNiwxMjo3MDouOnVua25vd24JMC8wOjMwOjMwLDA6NzU6Ljpjb250cm9sCjEJMzAwCU1VTFRJMQlHCUEsVAk3MAlQQVNTCUFGPTAuMSwwLjI7RFA9MTkJR1Q6RFA6QUQ6R1E6UFM6WFkJMS8yOjE5OjQsNyw4OjYwOi46bXVsdGkJMC8yOjIxOjksMCwxMjo2NTouOmNvbnRyb2wKMgk0MDAJQ05WMQlBCTxDTlY+CS4JUEFTUwlTVlRZUEU9Q05WCUdUOkRQOlBTCTAvMToxODouCTAvMDoyMDouCg=="
+      },
+      {
+        "safe_relative_path": "reports/laboratory_report.json",
+        "logical_role": "structured_laboratory_report",
+        "media_type": "application/json",
+        "content_base64": "eyJyZXBvcnRfaWQiOiJMQUItUkVQT1JULTAzNiIsImxhYm9yYXRvcnlfbmFtZSI6IlN5bnRoZXRpYyBOQUJMIGV4YW1wbGUgbGFiIiwibGFib3JhdG9yeV9yZWZlcmVuY2UiOiJMQUItUkVGLTAzNiIsImFjY3JlZGl0YXRpb25fc3RhdHVzIjoiaW5kZXBlbmRlbnRseV92ZXJpZmllZCIsImFjY3JlZGl0YXRpb25fc2NvcGUiOiJNb2xlY3VsYXIgZ2VuZXRpY3Mgc2NvcGUgc3VwcGxpZWQgYnkgbGFib3JhdG9yeTsgdmVyaWZpY2F0aW9uIHBlbmRpbmciLCJhY2NyZWRpdGF0aW9uX3Njb3BlX3ZlcmlmaWNhdGlvbiI6IlZFUklGSUVEIiwiYWNjcmVkaXRhdGlvbl9jbGFpbXMiOlt7ImNsYWltX2tpbmQiOiJOQUJMIiwiYWNjcmVkaXRhdGlvbl9ib2R5X29yX3N0YW5kYXJkIjoiTkFCTCIsImNlcnRpZmljYXRlX29yX3JlZmVyZW5jZV9pZGVudGlmaWVyIjoiU1lOVEhFVElDLU5BQkwtMDM2Iiwic3VwcGxpZWRfc2NvcGUiOiJNb2xlY3VsYXIgZ2VuZXRpY3Mgc2NvcGUgc3VwcGxpZWQgYnkgbGFib3JhdG9yeTsgdmVyaWZpY2F0aW9uIHBlbmRpbmciLCJzdXBwbGllZF9zdGF0dXNfdGV4dCI6ImluZGVwZW5kZW50bHlfdmVyaWZpZWQifSx7ImNsYWltX2tpbmQiOiJJU09fMTUxODkiLCJhY2NyZWRpdGF0aW9uX2JvZHlfb3Jfc3RhbmRhcmQiOiJJU08gMTUxODkiLCJzdXBwbGllZF9zY29wZSI6IlNjb3BlIGNsYWltZWQgYnkgc291cmNlIG9ubHkiLCJzdXBwbGllZF9zdGF0dXNfdGV4dCI6IlZlcmlmaWVkIn1dLCJhc3NheV9vcl90ZXN0X3R5cGUiOiJUYXJnZXRlZCBzZXF1ZW5jZSBwYW5lbCIsInBsYXRmb3JtIjoic3ludGhldGljIHNob3J0LXJlYWQgcGxhdGZvcm0iLCJnZW5vbWVfYnVpbGQiOiJHUkNoMzgiLCJ0cmFuc2NyaXB0X3ZlcnNpb24iOiJSZWZTZXEgZml4dHVyZS0xIiwiZGF0YWJhc2VfdmVyc2lvbnMiOnsiZnJlcXVlbmN5IjoiZml4dHVyZS0xIiwiY29uc2VxdWVuY2UiOiJmaXh0dXJlLTEifSwiY29uZmlybWF0aW9uX21ldGhvZCI6IlNhbmdlciBjb25maXJtYXRpb24gcmVwb3J0ZWQgYnkgc291cmNlIiwicmVwb3J0X2RhdGUiOiIyMDI2LTA4LTA5IiwidHVybmFyb3VuZF90aW1lIjoiMTQgZGF5cyIsInNoaXBwaW5nX29yX3RyYW5zcG9ydCI6IkNvdXJpZXIgdHJhbnNwb3J0IHN1cHBsaWVkIGJ5IHNvdXJjZSIsImFjY2Vzc19vcl9hZmZvcmRhYmlsaXR5X25vdGVzIjoiQWZmb3JkYWJpbGl0eSBhbmQgYWNjZXNzIHJlcXVpcmUgbG9jYWwgcmV2aWV3IiwiZmluZGluZ3MiOlt7ImZpbmRpbmdfaWQiOiJMQUItRklORC0xIiwidmFsdWVfYXNfcmVwb3J0ZWQiOiJHRU5FMSBTTlYgc3VwcGxpZWQgYnkgbGFib3JhdG9yeSIsImNsYXNzaWZpY2F0aW9uX2FzX3JlcG9ydGVkIjoibm90IGFzc2lnbmVkIGJ5IGdhdGV3YXkifV19"
+      },
+      {
+        "safe_relative_path": "qc/qc_summary.json",
+        "logical_role": "qc",
+        "media_type": "application/json",
+        "content_base64": "eyJzYW1wbGVfaWQiOiJTQU1QTEUtREVNTyIsIm1ldHJpY3MiOnsibWVhbl9kZXB0aCI6NDIsInBlcmNlbnRfcTMwIjo5Ny41LCJkdXBsaWNhdGVfcmF0ZSI6Im5vdF9hc3Nlc3NlZCJ9LCJ3YXJuaW5ncyI6WyJTeW50aGV0aWMgUUMgZml4dHVyZTsgbm8gcmF3LXJlYWQgUUMgd2FzIHJ1bi4iXX0="
+      },
+      {
+        "safe_relative_path": "qc/coverage.json",
+        "logical_role": "coverage",
+        "media_type": "application/json",
+        "content_base64": "eyJzYW1wbGVfaWQiOiJTQU1QTEUtREVNTyIsIm1pbmltdW1fY292ZXJhZ2UiOjIwLCJtZWFuX2NvdmVyYWdlIjo0MiwicG9vcl9yZWdpb25zIjpbeyJnZW5lX29yX3JlZ2lvbiI6IkdFTkUyIGV4b24gMyIsImNocm9tb3NvbWUiOiIyIiwic3RhcnQiOjQwMCwiZW5kIjo0NTAsImNvdmVyYWdlIjo4LCJyZWFzb24iOiJiZWxvdyBzdXBwbGllZCBtaW5pbXVtIn1dfQ=="
+      },
+      {
+        "safe_relative_path": "metadata/assay_scope.json",
+        "logical_role": "assay_metadata",
+        "media_type": "application/json",
+        "content_base64": "eyJyZXBvcnRhYmxlX2dlbmVzIjpbIkdFTkUxIiwiR0VORTIiXSwicmVwb3J0YWJsZV90cmFuc2NyaXB0cyI6WyJOTV8wMDAwMDEuMiJdLCJyZXBvcnRhYmxlX3JlZ2lvbnMiOlsiR0VORTEgZXhvbnMgMS01IiwiR0VORTIgZXhvbnMgMS00Il0sImJsaW5kX3Nwb3RzIjpbImRlZXAgaW50cm9uaWMgdmFyaWFudHMiLCJyZXBlYXQgZXhwYW5zaW9ucyJdLCJtaW5pbXVtX2NvdmVyYWdlX3JlcXVpcmVtZW50IjoyMCwicG9vcl9yZWdpb25fcG9saWN5IjoiUG9vciByZWdpb25zIHJlcXVpcmUgcmV2aWV3ZXIgYXR0ZW50aW9uIiwiY252X3Njb3BlIjoibm90IHZhbGlkYXRlZCIsIm1pdG9jaG9uZHJpYWxfc2NvcGUiOiJub3QgYXNzZXNzZWQiLCJyZXBlYXRfc2NvcGUiOiJub3QgYXNzZXNzZWQiLCJtb3NhaWNfc2NvcGUiOiJ0aHJlc2hvbGQgc3VwcGxpZWQgYnkgbGFib3JhdG9yeSBvbmx5IiwibW9zYWljX3RocmVzaG9sZCI6IjUlIHN1cHBsaWVkIHRocmVzaG9sZDsgbm8gbW9zYWljIGNvbmNsdXNpb24iLCJjb25maXJtYXRpb25fbWV0aG9kcyI6WyJTYW5nZXIiXX0="
+      }
+    ],
+    "adapter_invocations": [
+      {
+        "invocation_id": "ADAPTER-SUCCESS-036",
+        "adapter_id": "deterministic_supplied_result_summary",
+        "input_file_hashes": [],
+        "input_record_ids": ["vcf-record-d552bedd0adc6e4c8e5c", "vcf-record-aa4d7899f999e76a0434"],
+        "parameters": {"parameter_schema_id": "insilicopop.summary.parameters", "parameter_schema_version": "1.0", "mode": "summary_only"},
+        "timeout_seconds": 30,
+        "max_output_bytes": 1000000,
+        "network_policy": "disabled",
+        "working_directory_policy": "none",
+        "human_review_approved": true
+      },
+      {
+        "invocation_id": "ADAPTER-BLOCKED-036",
+        "adapter_id": "deterministic_supplied_result_summary",
+        "adapter_version": "0.35.0",
+        "parameters": {"parameter_schema_id": "insilicopop.summary.parameters", "parameter_schema_version": "1.0", "mode": "summary_only"},
+        "timeout_seconds": 30,
+        "max_output_bytes": 1000000,
+        "network_policy": "disabled",
+        "working_directory_policy": "none",
+        "human_review_approved": true
+      },
+      {
+        "invocation_id": "ADAPTER-UNAVAILABLE-036",
+        "adapter_id": "bcftools_left_normalization",
+        "parameters": {"parameter_schema_id": "insilicopop.bcftools-left-normalization.parameters", "parameter_schema_version": "1.0", "mode": "reference_dependent_left_normalization"},
+        "timeout_seconds": 30,
+        "max_output_bytes": 1000000,
+        "network_policy": "disabled",
+        "working_directory_policy": "none"
+      }
+    ],
+    "human_review_required": true,
+    "draft_not_clinically_approved": true
+  }
+}
