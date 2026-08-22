@@ -19,6 +19,7 @@ REPRODUCIBILITY_FILES = [
     "reproducibility/clinical_case_intake.json",
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
+    "reproducibility/candidate_analysis.json",
     "reproducibility/variant_intelligence.json",
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
@@ -64,6 +65,7 @@ class AgentInterpreter:
         clinical_case_intake: dict[str, Any] | None = None,
         phenotype_hpo_curation: dict[str, Any] | None = None,
         pedigree_inheritance_audit: dict[str, Any] | None = None,
+        candidate_analysis: dict[str, Any] | None = None,
         variant_intelligence: dict[str, Any] | None = None,
         pre_test_assessment: dict[str, Any] | None = None,
         test_strategy_workspace: dict[str, Any] | None = None,
@@ -97,6 +99,7 @@ class AgentInterpreter:
         clinical_case_intake = clinical_case_intake or {}
         phenotype_hpo_curation = phenotype_hpo_curation or {}
         pedigree_inheritance_audit = pedigree_inheritance_audit or {}
+        candidate_analysis = candidate_analysis or {}
         variant_intelligence = variant_intelligence or {}
         pre_test_assessment = pre_test_assessment or {}
         test_strategy_workspace = test_strategy_workspace or {}
@@ -190,6 +193,8 @@ class AgentInterpreter:
             *_phenotype_hpo_curation_lines(phenotype_hpo_curation),
             "",
             *_pedigree_inheritance_audit_lines(pedigree_inheritance_audit),
+            "",
+            *_candidate_analysis_lines(candidate_analysis),
             "",
             *_pre_test_assessment_lines(
                 pre_test_assessment,
@@ -287,6 +292,39 @@ def _handoff_workspace_lines(workspace: dict[str, Any]) -> list[str]:
         "- human_review_required: `true`",
         "- clinical_approval_granted: `false`",
         "- external handoff records workflow state only; it is not clinical approval or sign-out.",
+    ]
+
+
+def _candidate_analysis_lines(analysis: dict[str, Any]) -> list[str]:
+    if not analysis:
+        return [
+            "## v0.37 Explainable Candidate Analysis",
+            "",
+            "- No v0.37 candidate analysis was generated for this run.",
+        ]
+    negative = analysis.get("negative_unresolved_result", {}) or {}
+    rule = analysis.get("ranking_rule", {}) or {}
+    ranked = analysis.get("ranked_candidates", []) or []
+    excluded = analysis.get("excluded_candidates", []) or []
+    return [
+        "## v0.37 Explainable Candidate Analysis",
+        "",
+        f"- schema_version: `{_redact(str(analysis.get('schema_version', '0.37')))}`",
+        f"- analysis_status: `{_redact(str(analysis.get('analysis_status', 'unknown')))}`",
+        f"- ranking_rule_version: `{_redact(str(rule.get('rule_version', 'unknown')))}`",
+        f"- ranking_weight_version: `{_redact(str(rule.get('weight_version', 'unknown')))}`",
+        f"- ranked_candidate_count: `{len(ranked)}`",
+        f"- excluded_candidate_count: `{len(excluded)}`",
+        f"- exclusion_trace_count: `{len(analysis.get('exclusion_trace', []) or [])}`",
+        f"- no_sufficiently_supported_candidate: `{str(bool(negative.get('no_sufficiently_supported_candidate', False))).lower()}`",
+        f"- ranking_input_identity_sha256: `{_redact(str(analysis.get('ranking_input_identity_sha256', 'unknown')))}`",
+        f"- ranking_output_identity_sha256: `{_redact(str(analysis.get('ranking_output_identity_sha256', 'unknown')))}`",
+        "- rank order is a deterministic review aid, not a diagnosis, causality conclusion, or final classification.",
+        f"- unresolved_result: `{_redact(str(negative.get('summary', 'not recorded')))}`",
+        "- human_review_required: `true`",
+        "- draft_not_clinically_approved: `true`",
+        "- diagnosis_made: `false`",
+        "- final_acmg_classification_made: `false`",
     ]
 
 

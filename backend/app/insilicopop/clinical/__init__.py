@@ -90,6 +90,15 @@ from app.insilicopop.clinical.handoff_models import (
     ReviewReadiness,
     SourceClassification,
 )
+from app.insilicopop.clinical.candidate_analysis import build_candidate_analysis
+from app.insilicopop.clinical.candidate_analysis_models import (
+    CandidateAnalysisRequest,
+    CandidateAnalysisResult,
+    CandidateAnalysisState,
+    CandidateRankingRule,
+    CandidateVariantScope,
+    ComponentState,
+)
 
 __all__ = [
     "ClinicalCaseIntake",
@@ -166,4 +175,11 @@ __all__ = [
     "HandoffWorkspaceResult",
     "ReviewReadiness",
     "SourceClassification",
+    "build_candidate_analysis",
+    "CandidateAnalysisRequest",
+    "CandidateAnalysisResult",
+    "CandidateAnalysisState",
+    "CandidateRankingRule",
+    "CandidateVariantScope",
+    "ComponentState",
 ]

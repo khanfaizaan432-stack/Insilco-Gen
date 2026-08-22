@@ -59,6 +59,20 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
 
+    v037_demo = subparsers.add_parser(
+        "v037-demo",
+        help="Run the deterministic v0.37 explainable candidate-analysis demonstration.",
+    )
+    v037_demo.add_argument(
+        "--fixture",
+        default=str(
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "insilicopop_demo"
+            / "canonical_v037_candidate_analysis.json"
+        ),
+    )
+
     audit = subparsers.add_parser("audit")
     audit.add_argument("--metadata")
     audit.add_argument("--pca")
@@ -295,6 +309,83 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 0
+    if args.command == "v037-demo":
+        payload = _load_v037_fixture(args.fixture)
+        bundle = build_clinical_case_v035_bundle(payload)
+        analysis = bundle[0].candidate_analysis
+        if analysis is None:
+            raise ValueError("v0.37 fixture did not produce a candidate-analysis result")
+        negative = analysis.negative_unresolved_result
+        summary = {
+            "bundle_width": len(bundle),
+            "case_id": analysis.pseudonymous_case_id,
+            "schema_version": analysis.schema_version,
+            "algorithm_version": analysis.algorithm_version,
+            "analysis_status": analysis.analysis_status.value,
+            "ranking_rule_version": analysis.ranking_rule.rule_version,
+            "ranking_weight_version": analysis.ranking_rule.weight_version,
+            "support_threshold": analysis.ranking_rule.support_threshold,
+            "tie_epsilon": analysis.ranking_rule.tie_epsilon,
+            "ranked_candidates": [
+                {
+                    "candidate_id": item.candidate_identity.candidate_id,
+                    "source_record_id": item.candidate_identity.source_record.source_record_id,
+                    "rank": item.deterministic_rank,
+                    "score": item.aggregate_score,
+                    "tied": item.tied,
+                    "review_status": item.review_status.value,
+                    "supporting_evidence_count": len(item.supporting_evidence),
+                    "contradicting_evidence_count": len(item.contradicting_evidence),
+                }
+                for item in analysis.ranked_candidates
+            ],
+            "excluded_candidates": [
+                {
+                    "candidate_id": item.candidate_id,
+                    "codes": sorted({trace.code.value for trace in item.exclusion_history}),
+                }
+                for item in analysis.excluded_candidates
+            ],
+            "exclusion_trace_count": len(analysis.exclusion_trace),
+            "family": {
+                "shape": analysis.family_segregation.family_shape.value,
+                "member_count": analysis.family_segregation.member_count,
+                "tested_member_count": analysis.family_segregation.tested_member_count,
+                "missing_relative_ids": list(analysis.family_segregation.missing_relative_ids),
+            },
+            "negative_unresolved_result": {
+                "no_sufficiently_supported_candidate": negative.no_sufficiently_supported_candidate,
+                "summary": negative.summary,
+                "retained_candidate_ids": list(negative.retained_candidate_ids),
+                "excluded_candidate_ids": list(negative.excluded_candidate_ids),
+                "unsupported_result_types": list(negative.unsupported_result_types),
+                "unavailable_adapters": list(negative.unavailable_adapters),
+            },
+            "source_record_ids": list(analysis.source_record_ids),
+            "identities": {
+                "v036_package_identity_sha256": analysis.v036_package_identity_sha256,
+                "v036_manifest_identity_sha256": analysis.v036_manifest_identity_sha256,
+                "phenotype_snapshot_identity_sha256": analysis.phenotype_snapshot_identity_sha256,
+                "family_snapshot_identity_sha256": analysis.family_snapshot_identity_sha256,
+                "assay_coverage_identity_sha256": analysis.assay_coverage_identity_sha256,
+                "evidence_input_identity_sha256": analysis.evidence_input_identity_sha256,
+                "ranking_input_identity_sha256": analysis.ranking_input_identity_sha256,
+                "ranking_output_identity_sha256": analysis.ranking_output_identity_sha256,
+                "analysis_identity_sha256": analysis.analysis_identity_sha256,
+            },
+            "safety": {
+                "research_use_only": analysis.research_use_only,
+                "human_review_required": analysis.human_review_required,
+                "draft_not_clinically_approved": analysis.draft_not_clinically_approved,
+                "diagnosis_made": analysis.diagnosis_made,
+                "final_acmg_classification_made": analysis.final_acmg_classification_made,
+                "external_api_call_made": analysis.external_api_call_made,
+                "external_llm_called": analysis.external_llm_called,
+                "external_tools_executed": analysis.external_tools_executed,
+            },
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
     return 2
 
 
@@ -351,6 +442,19 @@ def _json_object_file(path_value: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("clinical case intake file must contain a JSON object")
     return value
+
+
+def _load_v037_fixture(path_value: str) -> dict[str, Any]:
+    """Load a standalone v0.37 overlay without changing the v0.36 package fixture."""
+
+    overlay = _json_object_file(path_value)
+    base_name = overlay.pop("base_fixture", None)
+    if not base_name:
+        return overlay
+    base_path = Path(path_value).resolve().parent / str(base_name)
+    base = _json_object_file(str(base_path))
+    base.update(overlay)
+    return base
 
 
 if __name__ == "__main__":

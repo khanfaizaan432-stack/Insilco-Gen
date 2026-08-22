@@ -42,6 +42,7 @@ from app.insilicopop.clinical.jarvis_report_models import (
 )
 from app.insilicopop.clinical.handoff import build_handoff_workspace
 from app.insilicopop.clinical.handoff_models import HandoffWorkspaceResult
+from app.insilicopop.clinical.candidate_analysis import build_candidate_analysis
 
 
 def build_clinical_case_intake(payload: dict[str, Any], *, request_text: str | None = None) -> ClinicalCaseIntakeResult:
@@ -154,6 +155,31 @@ def build_clinical_case_extended_bundle(
         missing_information=missing,
         policy_blocks=blocks,
     )
+    if safe_case.candidate_analysis is not None:
+        # Rebuild with the existing deterministic phenotype and family outputs
+        # so their snapshot identities are part of the v0.37 replay contract.
+        try:
+            candidate_analysis = build_candidate_analysis(
+                safe_case,
+                result_gateway=result.result_gateway,
+                phenotype_curation=curation,
+                pedigree_audit=inheritance_audit,
+                request=safe_case.candidate_analysis,
+            )
+            result = result.model_copy(update={"candidate_analysis": candidate_analysis})
+        except (ValidationError, ValueError) as exc:
+            candidate_issue = ClinicalIntakeIssue(
+                code="candidate_analysis_validation_error",
+                field="candidate_analysis",
+                message="The bounded v0.37 candidate analysis could not be assembled: " + str(exc),
+            )
+            result = result.model_copy(
+                update={
+                    "validation_errors": [*result.validation_errors, candidate_issue],
+                    "intake_completeness": "blocked",
+                    "candidate_analysis": None,
+                }
+            )
     variant_intelligence = build_variant_intelligence(safe_case)
     return result, curation, inheritance_audit, variant_intelligence
 

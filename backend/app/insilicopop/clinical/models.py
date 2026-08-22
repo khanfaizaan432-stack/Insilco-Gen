@@ -18,6 +18,10 @@ from app.insilicopop.clinical.jarvis_report_models import (
     JarvisSynthesisReportWorkspaceRequest,
 )
 from app.insilicopop.clinical.handoff_models import HandoffWorkspaceRequest
+from app.insilicopop.clinical.candidate_analysis_models import (
+    CandidateAnalysisRequest,
+    CandidateAnalysisResult,
+)
 
 
 SCHEMA_VERSION = "0.27"
@@ -191,6 +195,14 @@ class ClinicalCaseIntake(FrozenModel):
             "v035_handoff_workspace",
         ),
     )
+    candidate_analysis: CandidateAnalysisRequest | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "candidate_analysis",
+            "candidate_prioritization",
+            "v037_candidate_analysis",
+        ),
+    )
 
 
 class ClinicalIntakeIssue(FrozenModel):
@@ -248,4 +260,5 @@ class ClinicalCaseIntakeResult(FrozenModel):
     external_tools_executed: Literal[False] = False
     raw_genomic_files_parsed: Literal[False] = False
     result_gateway: ResultGatewayResult | None = Field(default=None, exclude_if=lambda value: value is None)
+    candidate_analysis: CandidateAnalysisResult | None = Field(default=None, exclude_if=lambda value: value is None)
     global_intake_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)

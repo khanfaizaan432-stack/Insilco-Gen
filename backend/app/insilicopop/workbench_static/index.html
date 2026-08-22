@@ -343,6 +343,28 @@
       margin-top: 10px;
     }
     .gateway-record-selector { min-height: 96px; }
+    .candidate-analysis-safety {
+      border-left: 4px solid var(--danger);
+      background: var(--warn);
+      padding: 9px 10px;
+      margin-top: 10px;
+    }
+    .candidate-analysis-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .candidate-analysis-table-wrap table { min-width: 760px; }
+    .candidate-sort-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 8px 0;
+    }
+    .candidate-sort-control select { min-width: 180px; }
     .status[tabindex="-1"]:focus { outline: 3px solid #0b5bd3; outline-offset: 2px; }
     @media (max-width: 860px) {
       .grid, .two-col, .form-grid, .handoff-action-controls { grid-template-columns: minmax(0, 1fr); }
@@ -667,6 +689,8 @@
           <div id="result-evidence-workspace" class="muted">No result and evidence workspace loaded.</div>
           <h3>Controlled Clinical Result and Bioinformatics Gateway (v0.36)</h3>
           <div id="result-gateway" class="muted">No v0.36 controlled result gateway loaded.</div>
+          <h3>Explainable Candidate Analysis (v0.37)</h3>
+          <div id="candidate-analysis" class="muted">No v0.37 candidate analysis loaded.</div>
           <h3>Specialist Agents and Candidate ACMG Workspace</h3>
           <div id="specialist-agent-workspace" class="muted">No specialist-agent workspace loaded.</div>
           <h3>JARVIS Synthesis, Critics, and Report Studio</h3>
@@ -707,6 +731,7 @@
     const gatewayHumanApproval = document.getElementById("gateway-human-approval");
     let activeByokSessionId = null;
     let gatewayState = null;
+    let currentCandidateAnalysis = null;
     const HANDOFF_STAGE_ORDER = Object.freeze([
       "referral",
       "clinical_history",
@@ -2098,6 +2123,115 @@
       renderGatewayExecutionState(gateway);
     }
 
+    function renderCandidateAnalysis(analysis) {
+      const target = document.getElementById("candidate-analysis");
+      if (!analysis || typeof analysis !== "object" || Object.keys(analysis).length === 0) {
+        target.className = "muted";
+        target.textContent = "No v0.37 candidate analysis loaded. This is expected for runs without an explicit candidate-analysis declaration.";
+        return;
+      }
+      const rule = analysis.ranking_rule || {};
+      const ranked = Array.isArray(analysis.ranked_candidates) ? analysis.ranked_candidates.slice(0, 500) : [];
+      const excluded = Array.isArray(analysis.excluded_candidates) ? analysis.excluded_candidates.slice(0, 500) : [];
+      const traces = Array.isArray(analysis.exclusion_trace) ? analysis.exclusion_trace.slice(0, 1000) : [];
+      const family = analysis.family_segregation || {};
+      const negative = analysis.negative_unresolved_result || {};
+      const sourceIds = Array.isArray(analysis.source_record_ids) ? analysis.source_record_ids : [];
+      const buildRankedRows = (items) => items.map((item) => {
+        const identity = item.candidate_identity || {};
+        const source = identity.source_record || {};
+        const gene = item.gene_transcript_context || {};
+        const phenotype = item.phenotype_match || {};
+        const inheritance = item.inheritance_compatibility || {};
+        const frequency = item.frequency_context || {};
+        const quality = item.quality_coverage_assay || {};
+        const components = Array.isArray(item.ranking_components) ? item.ranking_components : [];
+        const evidence = [...(item.supporting_evidence || []), ...(item.contradicting_evidence || [])];
+        const componentRows = components.map((component) => `<tr><td>${escapeHtml(component.display_name || component.component_id || "component")}</td><td>${escapeHtml(component.state || "not_assessed")}</td><td>${escapeHtml(component.numerical_contribution ?? "not assessed")}</td><td>${escapeHtml(component.weight ?? "not assessed")}</td><td>${escapeHtml(component.deterministic_rule || "not supplied")}</td><td>${escapeHtml(component.explanation || "not supplied")}</td></tr>`).join("") || "<tr><td colspan=\"6\">No ranking components recorded.</td></tr>";
+        const evidenceRows = evidence.map((entry) => `<li><strong>${escapeHtml(entry.role || "evidence")}</strong> — ${escapeHtml(entry.statement || "not supplied")} — source ${escapeHtml((entry.source || {}).source_id || "unknown")}</li>`).join("") || "<li>No linked evidence supplied.</li>";
+        const missingRows = (item.missing_information || []).map((entry) => `<li>${escapeHtml(entry.category || "missing input")}: ${escapeHtml(entry.information_needed || "not supplied")}</li>`).join("") || "<li>None recorded.</li>";
+        const unresolvedRows = (item.unresolved_uncertainties || []).map((entry) => `<li>${escapeHtml(entry.category || "uncertainty")}: ${escapeHtml(entry.statement || "not resolved")} — ${escapeHtml(entry.reason || "human review required")}</li>`).join("") || "<li>None recorded.</li>";
+        return `<tr><td>${escapeHtml(item.deterministic_rank ?? "not ranked")}</td><td><strong>${escapeHtml(identity.candidate_id || "candidate")}</strong><br><span class="muted">${escapeHtml(source.source_record_id || "source unavailable")}</span></td><td>${escapeHtml(item.aggregate_score ?? "not scored")}</td><td>${String(item.tied === true)}<br>${escapeHtml(item.review_status || "requires_review")}</td><td>${escapeHtml(gene.gene || "not supplied")}<br>${escapeHtml(phenotype.explanation || "not assessed")}</td><td>${escapeHtml(inheritance.state || "not_assessed")}<br>${escapeHtml(inheritance.deterministic_compatibility || "not assessed")}</td><td>${escapeHtml(frequency.frequency_supplied ?? "not supplied")}<br>${escapeHtml(quality.coverage_state || "not assessed")}</td></tr><tr><td colspan="7"><details><summary>Explain ${escapeHtml(identity.candidate_id || "candidate")} — components, evidence, missing inputs, and uncertainty</summary><p><strong>Gene / transcript:</strong> ${escapeHtml(gene.gene || "not supplied")} / ${escapeHtml(gene.transcript || "not supplied")} — consequence ${escapeHtml(gene.consequence || "not supplied")} — transcript relevance ${escapeHtml(gene.transcript_relevance || "not assessed")} — gene-disease validity ${escapeHtml(gene.gene_disease_validity || "not assessed")}</p><p><strong>Phenotype match:</strong> exact ${escapeHtml((phenotype.exact_hpo_ids || []).join(", ") || "none")}; related ${escapeHtml((phenotype.related_hpo_ids || []).join(", ") || "none")}; negated ${escapeHtml((phenotype.negated_hpo_ids || []).join(", ") || "none")}; onset ${escapeHtml(phenotype.onset_state || "not assessed")}</p><p><strong>Family / inheritance:</strong> ${escapeHtml(inheritance.explanation || "not assessed")}</p><p><strong>Frequency context:</strong> ${escapeHtml(frequency.explanation || "not supplied")} — Indian-population source label supplied: ${String(frequency.indian_population_source === true)}; absence from a dataset is not evidence.</p><p><strong>Quality / assay:</strong> ${escapeHtml(quality.explanation || "not assessed")} — warnings ${escapeHtml((quality.warnings || []).join("; ") || "none")}</p><h4>Visible score components</h4><div class="candidate-analysis-table-wrap"><table><thead><tr><th>Component</th><th>State</th><th>Contribution</th><th>Weight</th><th>Deterministic rule</th><th>Explanation</th></tr></thead><tbody>${componentRows}</tbody></table></div><h4>Supporting and contradicting evidence</h4><ul>${evidenceRows}</ul><h4>Missing information</h4><ul>${missingRows}</ul><h4>Unresolved uncertainty</h4><ul>${unresolvedRows}</ul><p class="note">Rank, score, and tie status are deterministic review aids only. They are not a diagnosis, causality conclusion, pathogenicity conclusion, or final ACMG classification.</p></details></td></tr>`;
+      }).join("") || "<tr><td colspan=\"7\">No candidate was retained for ranking.</td></tr>";
+      const rankedRows = buildRankedRows(ranked);
+      const excludedRows = excluded.map((item) => {
+        const history = (item.exclusion_history || []).map((trace) => `<li><strong>${escapeHtml(trace.code || "exclusion")}</strong> — ${escapeHtml(trace.reason || "reason not supplied")} — rule ${escapeHtml(trace.rule_id || "unknown")} @ ${escapeHtml(trace.rule_version || "unknown")} — ${escapeHtml(trace.result || "excluded")}</li>`).join("") || "<li>No exclusion trace supplied.</li>";
+        return `<details><summary>Excluded or out-of-scope candidate — ${escapeHtml(item.candidate_id || "candidate")}</summary><ul>${history}</ul><p><strong>Human review:</strong> true. Exclusion is retained for inspection and is not disease-absence evidence.</p></details>`;
+      }).join("") || "<p>No excluded candidate records.</p>";
+      const traceRows = traces.map((trace) => `<li>${escapeHtml(trace.candidate_id || "candidate")} — ${escapeHtml(trace.code || "exclusion")} — ${escapeHtml(trace.reason || "reason not supplied")}</li>`).join("") || "<li>No exclusion trace records.</li>";
+      const observationRows = (family.observations || []).map((item) => `<li><strong>${escapeHtml(item.family_member_id || "member")}</strong> — ${escapeHtml(item.relationship_type || "relationship not supplied")} — affected ${escapeHtml(item.affected_status || "unknown")} — presence ${escapeHtml(item.presence_state || "unknown")} — zygosity ${escapeHtml(item.zygosity || "unknown")} — genotype quality ${escapeHtml(item.genotype_quality_state || "not assessed")} — compatibility ${escapeHtml(item.deterministic_compatibility || "not assessed")} — de novo ${escapeHtml(item.supplied_de_novo_state || "not assessed")} — phase ${escapeHtml(item.phase_state || "not assessed")} — compound ${escapeHtml(item.compound_heterozygosity_state || "not assessed")} — ${escapeHtml(item.status || "not assessed")}</li>`).join("") || "<li>No family observations recorded.</li>";
+      const comparisonOptions = ranked.map((item) => {
+        const candidateId = (item.candidate_identity || {}).candidate_id || "candidate";
+        return `<option value="${escapeHtml(candidateId)}">${escapeHtml(candidateId)}</option>`;
+      }).join("");
+      target.className = "";
+      target.innerHTML = `
+        <div class="metrics">
+          <div class="metric"><strong>analysis status</strong>${escapeHtml(notAvailable(analysis.analysis_status))}</div>
+          <div class="metric"><strong>ranked candidates</strong>${escapeHtml(ranked.length)}</div>
+          <div class="metric warn"><strong>excluded / out-of-scope</strong>${escapeHtml(excluded.length)}</div>
+          <div class="metric"><strong>ties retained</strong>${escapeHtml(ranked.filter((item) => item.tied === true).length)}</div>
+          <div class="metric"><strong>rule / weights</strong>${escapeHtml(notAvailable(rule.rule_version))} / ${escapeHtml(notAvailable(rule.weight_version))}</div>
+          <div class="metric"><strong>family shape</strong>${escapeHtml(notAvailable(family.family_shape))} / ${escapeHtml(family.member_count ?? 0)} members</div>
+          <div class="metric ${negative.no_sufficiently_supported_candidate ? "warn" : "safe"}"><strong>sufficient support in supplied scope</strong>${String(!negative.no_sufficiently_supported_candidate)}</div>
+          <div class="metric safe"><strong>draft_not_clinically_approved</strong>true</div>
+          <div class="metric safe"><strong>human review required</strong>true</div>
+        </div>
+        <div class="candidate-analysis-safety"><strong>v0.37 is a deterministic research-use-only review aid.</strong> Diagnosis made: false; final ACMG classification made: false; external tools executed: false. It does not diagnose, recommend treatment, make a final ACMG classification, establish causality, infer relationships, or sign out a result. Scores and ranks are not scientific superiority claims. ${escapeHtml(negative.summary || "Unresolved result wording is not available.")}</div>
+        <p class="note"><strong>Scope and provenance:</strong> ${escapeHtml(negative.analysis_scope || "Only source-bound v0.36 records are eligible.")} Source record IDs: ${escapeHtml(sourceIds.join(", ") || "none")}. Ranking input identity <span class="handoff-hash">${escapeHtml(analysis.ranking_input_identity_sha256 || "not available")}</span>; output identity <span class="handoff-hash">${escapeHtml(analysis.ranking_output_identity_sha256 || "not available")}</span>; analysis identity <span class="handoff-hash">${escapeHtml(analysis.analysis_identity_sha256 || "not available")}</span>.</p>
+        <div class="candidate-comparison-controls" aria-label="Candidate comparison mode"><strong>Candidate comparison mode</strong><div class="form-grid"><div><label for="candidate-compare-a">Candidate A</label><select id="candidate-compare-a">${comparisonOptions}</select></div><div><label for="candidate-compare-b">Candidate B</label><select id="candidate-compare-b">${comparisonOptions}</select></div></div><button type="button" id="candidate-compare-button" class="secondary">Compare selected candidates</button><div id="candidate-comparison-result" class="status" role="status" aria-live="polite">Select two ranked candidates to compare their visible evidence, components, and limitations.</div></div>
+        <h4>Ranked candidates</h4><div class="candidate-sort-control"><label for="candidate-sort">Candidate table ordering</label><select id="candidate-sort"><option value="rank">Deterministic rank</option><option value="score">Aggregate score</option><option value="candidate_id">Candidate ID</option></select><span class="muted">Display order only; deterministic rank and tie state remain visible.</span></div><div class="candidate-analysis-table-wrap"><table id="candidate-ranked-table" aria-label="v0.37 ranked candidate review table"><thead><tr><th>Rank</th><th>Candidate / source record</th><th>Score</th><th>Tie / review status</th><th>Gene / phenotype</th><th>Inheritance</th><th>Frequency / coverage</th></tr></thead><tbody>${rankedRows}</tbody></table></div>
+        <h4>Excluded and out-of-scope candidates</h4>${excludedRows}
+        <h4>Exclusion trace</h4><ul>${traceRows}</ul>
+        <h4>Family and segregation context</h4><p><strong>Shape:</strong> ${escapeHtml(family.family_shape || "not assessed")}; member count ${escapeHtml(family.member_count ?? 0)}; tested members ${escapeHtml(family.tested_member_count ?? 0)}; affected members ${escapeHtml(family.affected_member_count ?? 0)}; missing relative IDs ${escapeHtml((family.missing_relative_ids || []).join(", ") || "none")}; low-quality member IDs ${escapeHtml((family.low_quality_member_ids || []).join(", ") || "none")}; relationship inference performed: false.</p><ul>${observationRows}</ul>
+        <h4>Rule, provenance, and replay identities</h4><details><summary>Open technical provenance drawer</summary><p><strong>Rule:</strong> ${escapeHtml(rule.rule_id || "candidate_prioritization")} @ ${escapeHtml(rule.rule_version || "unknown")}; weights @ ${escapeHtml(rule.weight_version || "unknown")}; threshold ${escapeHtml(rule.support_threshold ?? "not available")}; tie epsilon ${escapeHtml(rule.tie_epsilon ?? "not available")}.</p><p><strong>v0.36 package:</strong> ${escapeHtml(analysis.v036_package_id || "not available")} — package identity <span class="handoff-hash">${escapeHtml(analysis.v036_package_identity_sha256 || "not available")}</span> — manifest identity <span class="handoff-hash">${escapeHtml(analysis.v036_manifest_identity_sha256 || "not available")}</span>.</p><p><strong>Phenotype / family / assay identities:</strong> <span class="handoff-hash">${escapeHtml(analysis.phenotype_snapshot_identity_sha256 || "not available")}</span> / <span class="handoff-hash">${escapeHtml(analysis.family_snapshot_identity_sha256 || "not available")}</span> / <span class="handoff-hash">${escapeHtml(analysis.assay_coverage_identity_sha256 || "not available")}</span>.</p><p><strong>Runtime metadata:</strong> ${escapeHtml(asJson(analysis.runtime_metadata || {}))}; timestamps are runtime metadata only.</p></details>
+        <h4>Unresolved result and next review questions</h4><p><strong>Required wording:</strong> ${escapeHtml(negative.required_no_candidate_wording || "No sufficiently supported candidate was identified within the supplied analysis scope.")}</p><p>${escapeHtml(negative.summary || "not recorded")}</p><ul>${(negative.human_review_questions || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No additional review question recorded.</li>"}</ul><p><strong>Coverage gaps:</strong> ${escapeHtml((negative.coverage_gaps || []).join(", ") || "none")}; unsupported result types: ${escapeHtml((negative.unsupported_result_types || []).join(", ") || "none")}; unavailable adapters: ${escapeHtml((negative.unavailable_adapters || []).join(", ") || "none")}.</p>`;
+      currentCandidateAnalysis = analysis;
+      const sortSelect = document.getElementById("candidate-sort");
+      const rankedBody = typeof target.querySelector === "function" ? target.querySelector("#candidate-ranked-table tbody") : null;
+      if (sortSelect && rankedBody && "options" in sortSelect) {
+        sortSelect.addEventListener("change", () => {
+          const candidateId = (item) => ((item.candidate_identity || {}).candidate_id || "candidate");
+          const sorted = ranked.slice().sort((left, right) => {
+            if (sortSelect.value === "score") {
+              const scoreDelta = Number(right.aggregate_score ?? Number.NEGATIVE_INFINITY) - Number(left.aggregate_score ?? Number.NEGATIVE_INFINITY);
+              return scoreDelta || candidateId(left).localeCompare(candidateId(right));
+            }
+            if (sortSelect.value === "candidate_id") return candidateId(left).localeCompare(candidateId(right));
+            return (Number(left.deterministic_rank ?? Number.MAX_SAFE_INTEGER) - Number(right.deterministic_rank ?? Number.MAX_SAFE_INTEGER)) || candidateId(left).localeCompare(candidateId(right));
+          });
+          rankedBody.innerHTML = buildRankedRows(sorted);
+        });
+      }
+      const compareA = document.getElementById("candidate-compare-a");
+      const compareB = document.getElementById("candidate-compare-b");
+      const compareButton = document.getElementById("candidate-compare-button");
+      const compareResult = document.getElementById("candidate-comparison-result");
+      if (compareA && compareB && compareButton && compareResult && "options" in compareA) {
+        if (ranked.length > 1) compareB.selectedIndex = 1;
+        compareButton.addEventListener("click", () => {
+          const candidateById = Object.fromEntries(ranked.map((item) => [item.candidate_identity.candidate_id, item]));
+          const left = candidateById[compareA.value];
+          const right = candidateById[compareB.value];
+          if (!left || !right || left === right) {
+            compareResult.textContent = "Choose two different ranked candidates.";
+            compareResult.className = "status error";
+            return;
+          }
+          const leftIdentity = left.candidate_identity || {};
+          const rightIdentity = right.candidate_identity || {};
+          const leftGene = left.gene_transcript_context || {};
+          const rightGene = right.gene_transcript_context || {};
+          const leftPhenotype = left.phenotype_match || {};
+          const rightPhenotype = right.phenotype_match || {};
+          const leftInheritance = left.inheritance_compatibility || {};
+          const rightInheritance = right.inheritance_compatibility || {};
+          compareResult.className = "status";
+          compareResult.innerHTML = `<div class="candidate-analysis-table-wrap"><table aria-label="Candidate comparison"><thead><tr><th>Dimension</th><th>${escapeHtml(leftIdentity.candidate_id || "A")}</th><th>${escapeHtml(rightIdentity.candidate_id || "B")}</th></tr></thead><tbody><tr><th>Stable rank / score</th><td>${escapeHtml(left.deterministic_rank ?? "not ranked")} / ${escapeHtml(left.aggregate_score ?? "not scored")}</td><td>${escapeHtml(right.deterministic_rank ?? "not ranked")} / ${escapeHtml(right.aggregate_score ?? "not scored")}</td></tr><tr><th>Phenotype</th><td>${escapeHtml(leftPhenotype.explanation || "not assessed")}</td><td>${escapeHtml(rightPhenotype.explanation || "not assessed")}</td></tr><tr><th>Inheritance</th><td>${escapeHtml(leftInheritance.explanation || "not assessed")}</td><td>${escapeHtml(rightInheritance.explanation || "not assessed")}</td></tr><tr><th>Gene / transcript</th><td>${escapeHtml(leftGene.gene || "not supplied")} / ${escapeHtml(leftGene.transcript || "not supplied")}</td><td>${escapeHtml(rightGene.gene || "not supplied")} / ${escapeHtml(rightGene.transcript || "not supplied")}</td></tr><tr><th>Review limitation</th><td>${escapeHtml((left.missing_information || []).length)} missing; ${escapeHtml((left.unresolved_uncertainties || []).length)} unresolved</td><td>${escapeHtml((right.missing_information || []).length)} missing; ${escapeHtml((right.unresolved_uncertainties || []).length)} unresolved</td></tr></tbody></table></div>`;
+        });
+      }
+    }
+
     function renderSpecialistAgentWorkspace(workspace) {
       const target = document.getElementById("specialist-agent-workspace");
       if (!workspace || typeof workspace !== "object" || Object.keys(workspace).length === 0) {
@@ -2467,6 +2601,7 @@
       renderTestStrategyWorkspace(data.test_strategy_workspace || data.final_state?.test_strategy_workspace);
       renderResultEvidenceWorkspace(data.result_evidence_workspace || data.final_state?.result_evidence_workspace);
       renderResultGateway(data.result_gateway || data.final_state?.result_gateway);
+      renderCandidateAnalysis(data.candidate_analysis || data.final_state?.candidate_analysis);
       renderSpecialistAgentWorkspace(data.specialist_agent_workspace || data.final_state?.specialist_agent_workspace);
       renderJarvisSynthesisReportWorkspace(data.jarvis_synthesis_report_workspace || data.final_state?.jarvis_synthesis_report_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
@@ -2539,6 +2674,7 @@
         renderTestStrategyWorkspace(detail?.test_strategy_workspace);
         renderResultEvidenceWorkspace(detail?.result_evidence_workspace);
         renderResultGateway(detail?.result_gateway);
+        renderCandidateAnalysis(detail?.candidate_analysis);
         renderSpecialistAgentWorkspace(detail?.specialist_agent_workspace);
         renderJarvisSynthesisReportWorkspace(detail?.jarvis_synthesis_report_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);

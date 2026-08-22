@@ -59,6 +59,7 @@ Completed baseline:
 - v0.28 bounded local phenotype/HPO curation proposals with explicit reviewer decisions and deterministic promotion.
 - v0.29 bounded deterministic pedigree and supplied-inheritance consistency auditing with mandatory human review.
 - v0.36 controlled clinical result and bioinformatics gateway (implemented locally and frozen as a release).
+- v0.37 explainable candidate analysis and prioritization over typed v0.36 records (implemented locally and frozen as a release).
 
 Supported workflow families today:
 
@@ -210,6 +211,8 @@ v0.35 adds a deterministic structured human-review handoff layer over the valida
 
 v0.36 adds a fail-closed supplied-result gateway. It requires exactly one file for each exact canonical role (`vcf`, `structured_laboratory_report`, `qc`, `coverage`, and `assay_metadata`); rejects role aliases; verifies NFC/case-folded path uniqueness, role/media/content consistency, byte sizes, and SHA-256 values before parsing; preserves typed VCF FORMAT order, sample order, source genotypes, ploidy, phase, PS, missing calls, and unknown source fields; and uses a complete package-identity hash for replay. Adapter parameters and record selectors are strict per-adapter models; invocation identities bind package, manifest, requested and selected records; adapter summaries use selected eligible records only; persisted public JSON reloads into deeply immutable models; and package accreditation wording always remains a supplied/unverified claim unless a separate trusted evidence action exists (none is authorized in v0.36). Workbench stages 9 and 10 provide package preview, build review, QC/assay scope, allowlisted intent, record selection, approval gating, and execution provenance. The gateway never ingests raw reads, calls variants, browses, downloads tools/databases, runs arbitrary commands, diagnoses, recommends treatment, assigns final ACMG classifications, signs out, or grants clinical approval. Run the compact fixture with `python -m app.insilicopop.cli v036-demo`.
 
+v0.37 adds a deterministic, explainable candidate-analysis result over the typed v0.36 package. Candidate IDs are domain-separated hashes of complete source bindings (package, manifest, invocation, source record/hash, coordinates, REF/ALT, ALT index, source gene/transcript, and schema); caller aliases and mismatched representations are excluded. It ranks only supported SNV/small-indel records with a fixed component registry, strict finite numeric inputs, canonical unordered-input hashing, complete tie-group marking, actual v0.36 header/sample/selected-ALT/GQ family checks, safe compound-pair states, builder-controlled unresolved wording, and fail-closed persisted-result integrity verification. It records supplied HPO exact/pinned-related matches, family observations, bounded de novo prerequisites, missing information, unresolved questions, coverage gaps, unavailable adapters, and India-aware source labels without inferring ancestry, caste, community, religion, ethnicity, identity, or clinical status. The result is embedded in the existing ten-item bundle, API run state, 18-stage handoff, Workbench, decision trace, provenance index, runtime lock, and allowlisted `reproducibility/candidate_analysis.json` artifact. It remains research-use-only, draft-not-clinically-approved, and never diagnoses, recommends treatment, assigns final ACMG classification, or performs external calls. Run the synthetic overlay with `python -m app.insilicopop.cli v037-demo`.
+
 ## Roadmap
 
 - v0.27 Clinical Intake + Case Schema.
@@ -224,6 +227,7 @@ v0.36 adds a fail-closed supplied-result gateway. It requires exactly one file f
 - v0.34 JARVIS Synthesis, Critics, and Report Studio (implemented locally).
 - v0.35 Structured Human-Review Handoff and Canonical Demo (implemented locally).
 - v0.36 Controlled Clinical Result and Bioinformatics Gateway (implemented locally; frozen release).
+- v0.37 Explainable Candidate Analysis (implemented locally; frozen release).
 
 Every roadmap item preserves the core rule: AI automates repeated workflow steps and drafting support, while qualified human experts remain responsible for final scientific or clinical interpretation.
 
@@ -247,4 +251,6 @@ The system does not claim to produce final biological truth. It helps researcher
 - [v0.35 Release Manifest](RELEASE_MANIFEST_v0.35.md)
 - [v0.36 Controlled Result Gateway](docs/v036_result_gateway.md)
 - [v0.36 Release Manifest](RELEASE_MANIFEST_v0.36.md)
+- [v0.37 Explainable Candidate Analysis](docs/v037_candidate_analysis.md)
+- [v0.37 Release Manifest](RELEASE_MANIFEST_v0.37.md)
 - [Demo examples](examples/insilicopop_demo/README.md)

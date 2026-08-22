@@ -1,0 +1,314 @@
+{
+  "base_fixture": "canonical_v036_result_package.json",
+  "candidate_analysis": {
+    "schema_version": "0.37",
+    "ranking_rule_version": "insilicopop-candidate-ranking-0.37.0",
+    "ranking_weight_version": "insilicopop-candidate-ranking-weights-0.37.0",
+    "support_threshold": 8.0,
+    "tie_epsilon": 0.000001,
+    "candidate_contexts": [
+      {
+        "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+        "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+        "gene": "GENE1",
+        "transcript": "transcript1",
+        "consequence": "loss_of_function",
+        "transcript_relevance": "relevant",
+        "gene_disease_validity": "established",
+        "phenotype_hpo_ids": ["HP:0001250"],
+        "phenotype_specificity_score": 0.95,
+        "onset_compatibility": "compatible",
+        "population_frequency": 0.0001,
+        "population_source_name": "synthetic_indian_frequency",
+        "population_source_version": "fixture-1",
+        "population_source_scope": "synthetic Indian reference set",
+        "indian_population_source": true,
+        "zygosity": "heterozygous",
+        "supplied_inheritance": ["de_novo", "autosomal_dominant"],
+        "quality_state": "positive",
+        "qc_state": "positive",
+        "provenance": [
+          {
+            "source_id": "ANNOTATION-SYN-037",
+            "source_type": "synthetic_supplied_candidate_context",
+            "source_version": "fixture-1"
+          }
+        ]
+      },
+      {
+        "candidate_id": "candidate-v037-4995d09756964b7166e8",
+        "source_record_id": "vcf-record-29633f1653a99fdda8b8",
+        "consequence": "missense",
+        "transcript_relevance": "relevant",
+        "gene_disease_validity": "conflicting",
+        "phenotype_hpo_ids": ["HP:0001260"],
+        "phenotype_specificity_score": 0.4,
+        "onset_compatibility": "unknown",
+        "population_frequency": 0.2,
+        "population_source_name": "synthetic_population_frequency",
+        "population_source_version": "fixture-1",
+        "population_source_scope": "synthetic reference set",
+        "zygosity": "heterozygous",
+        "supplied_inheritance": ["autosomal_recessive"],
+        "quality_state": "positive",
+        "qc_state": "positive"
+      },
+      {
+        "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+        "source_record_id": "vcf-record-0b9fc8231a2250957455",
+        "consequence": "missense",
+        "transcript_relevance": "relevant",
+        "gene_disease_validity": "limited",
+        "phenotype_hpo_ids": ["HP:0001260"],
+        "phenotype_specificity_score": 0.6,
+        "onset_compatibility": "compatible",
+        "population_frequency": 0.001,
+        "population_source_name": "synthetic_indian_frequency",
+        "population_source_version": "fixture-1",
+        "population_source_scope": "synthetic Indian reference set",
+        "indian_population_source": true,
+        "zygosity": "heterozygous",
+        "inheritance_context_state": "missing",
+        "supplied_inheritance": [],
+        "supplied_phase": "phase_unknown",
+        "compound_heterozygosity_partner_candidate_id": "candidate-v037-3a5d83c0d8322e941a40",
+        "compound_gene_context": "GENE2",
+        "quality_state": "positive",
+        "qc_state": "positive"
+      },
+      {
+        "candidate_id": "CAND-UNBOUND-037",
+        "source_record_id": "vcf-record-not-present-037",
+        "consequence": "missense",
+        "transcript_relevance": "relevant",
+        "gene_disease_validity": "limited",
+        "phenotype_hpo_ids": ["HP:0001260"],
+        "phenotype_specificity_score": 0.6,
+        "onset_compatibility": "compatible",
+        "population_frequency": 0.001,
+        "population_source_name": "synthetic_indian_frequency",
+        "population_source_version": "fixture-1",
+        "population_source_scope": "synthetic Indian reference set",
+        "indian_population_source": true,
+        "zygosity": "heterozygous",
+        "inheritance_context_state": "missing",
+        "supplied_inheritance": [],
+        "supplied_phase": "phase_unknown",
+        "quality_state": "positive",
+        "qc_state": "positive"
+      },
+      {
+        "candidate_id": "candidate-v037-3a5d83c0d8322e941a40",
+        "source_record_id": "vcf-record-aa4d7899f999e76a0434",
+        "consequence": "missense",
+        "transcript_relevance": "not_relevant",
+        "gene_disease_validity": "conflicting",
+        "phenotype_hpo_ids": ["HP:0004322"],
+        "population_frequency": 0.05,
+        "population_source_name": "synthetic_population_frequency",
+        "population_source_version": "fixture-1",
+        "population_source_scope": "synthetic reference set",
+        "zygosity": "heterozygous",
+        "supplied_phase": "phase_unknown",
+        "compound_heterozygosity_partner_candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+        "compound_gene_context": "GENE2",
+        "quality_state": "positive",
+        "qc_state": "positive"
+      },
+      {
+        "candidate_id": "candidate-v037-ee1542f46cfa1dc60227",
+        "source_record_id": "vcf-record-78f62a0e5c1098c7ba4f",
+        "phenotype_hpo_ids": ["HP:0001250"]
+      }
+    ],
+    "phenotype_relations": [
+      {
+        "source_hpo_id": "HP:0001250",
+        "target_hpo_id": "HP:0001260",
+        "relation": "is_a",
+        "ontology_version": "synthetic-hpo-1",
+        "source_id": "HPO-REL-037",
+        "source_type": "synthetic_pinned_hpo_relation"
+      }
+    ],
+    "evidence": [
+      {
+        "evidence_id": "EVID-SUPPORT-037",
+        "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+        "role": "supporting",
+        "statement": "Synthetic supplied evidence supports review of this candidate within the declared scope.",
+        "source_id": "EVIDENCE-SRC-037",
+        "source_type": "synthetic_evidence_register",
+        "source_version": "fixture-1",
+        "source_reference": "evidence/strong.json"
+      },
+      {
+        "evidence_id": "EVID-CONTRA-037",
+        "candidate_id": "candidate-v037-4995d09756964b7166e8",
+        "role": "contradicting",
+        "statement": "Synthetic supplied evidence is contradictory and requires reviewer comparison.",
+        "source_id": "EVIDENCE-SRC-037",
+        "source_type": "synthetic_evidence_register",
+        "source_version": "fixture-1",
+        "source_reference": "evidence/contradiction.json"
+      },
+      {
+        "evidence_id": "EVID-MISSING-037",
+        "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+        "role": "missing",
+        "statement": "A confirmatory laboratory record is missing from the supplied package.",
+        "source_id": "EVIDENCE-SRC-037",
+        "source_type": "synthetic_evidence_register",
+        "source_version": "fixture-1",
+        "source_reference": "evidence/missing.json"
+      },
+      {
+        "evidence_id": "EVID-UNRESOLVED-037",
+        "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+        "role": "unresolved",
+        "statement": "The supplied evidence has not been resolved by a human reviewer.",
+        "source_id": "EVIDENCE-SRC-037",
+        "source_type": "synthetic_evidence_register",
+        "source_version": "fixture-1",
+        "source_reference": "evidence/unresolved.json"
+      }
+    ],
+    "family_sample_bindings": [
+      {
+        "family_member_id": "PROBAND-037",
+        "sample_name": "SAMPLE-DEMO",
+        "package_id": "PKG-RESULT-036",
+        "source_id": "FAMILY-SRC-037",
+        "genotype_quality_threshold": 20
+      },
+      {
+        "family_member_id": "MOTHER-037",
+        "sample_name": "CONTROL-DEMO",
+        "package_id": "PKG-RESULT-036",
+        "source_id": "FAMILY-SRC-037",
+        "genotype_quality_threshold": 20
+      }
+    ]
+  },
+  "phenotypes": [
+    {
+      "observation_id": "PH-RESULT-037",
+      "supplied_term": "synthetic seizure phenotype",
+      "hpo_id": "HP:0001250",
+      "state": "present",
+      "onset_text": "childhood",
+      "source_reference": "PHENOTYPE-SRC-037",
+      "review_state": "confirmed"
+    },
+    {
+      "observation_id": "PH-ABSENT-037",
+      "supplied_term": "synthetic absent feature",
+      "hpo_id": "HP:0004322",
+      "state": "absent",
+      "source_reference": "PHENOTYPE-SRC-037",
+      "review_state": "confirmed"
+    }
+  ],
+  "pedigree": [
+    {
+      "family_member_id": "PROBAND-037",
+      "relationship_to_proband": "proband",
+      "affected_status": "affected",
+      "sex_for_inheritance": "male",
+      "testing_availability": "available",
+      "provenance": [{"source_id": "FAMILY-SRC-037", "source_type": "synthetic_family_fixture"}]
+    },
+    {
+      "family_member_id": "MOTHER-037",
+      "relationship_to_proband": "biological mother",
+      "affected_status": "unaffected",
+      "sex_for_inheritance": "female",
+      "testing_availability": "available",
+      "provenance": [{"source_id": "FAMILY-SRC-037", "source_type": "synthetic_family_fixture"}]
+    },
+    {
+      "family_member_id": "FATHER-037",
+      "relationship_to_proband": "biological father",
+      "affected_status": "unaffected",
+      "sex_for_inheritance": "male",
+      "testing_availability": "available",
+      "provenance": [{"source_id": "FAMILY-SRC-037", "source_type": "synthetic_family_fixture"}]
+    }
+  ],
+  "hypotheses": [
+    {
+      "hypothesis_id": "HYP-DE-NOVO-037",
+      "hypothesis_type": "inheritance",
+      "value": "de novo occurrence",
+      "inheritance_candidate": "de_novo",
+      "source": "user_supplied",
+      "review_state": "pending"
+    }
+  ],
+  "pedigree_inheritance_audit": {
+    "schema_version": "0.29",
+    "proband_member_id": "PROBAND-037",
+    "relationships": [
+      {
+        "relationship_id": "REL-MOTHER-037",
+        "relationship_type": "biological_parent",
+        "parent_member_id": "MOTHER-037",
+        "child_member_id": "PROBAND-037",
+        "provenance_source_ids": ["FAMILY-SRC-037"],
+        "review_state": "confirmed"
+      },
+      {
+        "relationship_id": "REL-FATHER-037",
+        "relationship_type": "biological_parent",
+        "parent_member_id": "FATHER-037",
+        "child_member_id": "PROBAND-037",
+        "provenance_source_ids": ["FAMILY-SRC-037"],
+        "review_state": "confirmed"
+      }
+    ],
+    "variant_observations": [
+      {
+        "observation_id": "OBS-PROBAND-037",
+        "family_member_id": "PROBAND-037",
+        "candidate_variant_id": "candidate-v037-587112d0f7e70b149ae9",
+        "presence_state": "present",
+        "zygosity": "heterozygous",
+        "testing_state": "tested",
+        "confirmation_state": "confirmed",
+        "provenance_source_ids": ["FAMILY-SRC-037"],
+        "review_state": "confirmed"
+      },
+      {
+        "observation_id": "OBS-MOTHER-037",
+        "family_member_id": "MOTHER-037",
+        "candidate_variant_id": "candidate-v037-587112d0f7e70b149ae9",
+        "presence_state": "absent",
+        "zygosity": "unknown",
+        "testing_state": "tested",
+        "confirmation_state": "confirmed",
+        "provenance_source_ids": ["FAMILY-SRC-037"],
+        "review_state": "confirmed"
+      },
+      {
+        "observation_id": "OBS-FATHER-037",
+        "family_member_id": "FATHER-037",
+        "candidate_variant_id": "candidate-v037-587112d0f7e70b149ae9",
+        "presence_state": "absent",
+        "zygosity": "unknown",
+        "testing_state": "tested",
+        "confirmation_state": "confirmed",
+        "provenance_source_ids": ["FAMILY-SRC-037"],
+        "review_state": "confirmed"
+      }
+    ],
+    "audit_targets": [
+      {
+        "audit_target_id": "TARGET-DE-NOVO-037",
+        "hypothesis_id": "HYP-DE-NOVO-037",
+        "candidate_variant_ids": ["candidate-v037-587112d0f7e70b149ae9"]
+      }
+    ],
+    "reviewer_status": "pending",
+    "human_review_required": true
+  }
+}

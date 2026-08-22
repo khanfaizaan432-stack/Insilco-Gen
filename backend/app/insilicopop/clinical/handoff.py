@@ -918,7 +918,11 @@ def _case_stages(
     gateway_data = _dump(result_gateway) or {}
     gateway_blocked = str(gateway_data.get("package_status", "")).lower() in {"blocked", "rejected", "failed", "stale"}
     has_qc_or_assay = bool(gateway_data.get("qc") or gateway_data.get("coverage") or gateway_data.get("assay_scope"))
-    has_candidates = bool((_dump(specialist_agent_workspace) or {}).get("candidate_criteria"))
+    candidate_analysis_data = intake_data.get("candidate_analysis") or {}
+    has_candidates = bool(
+        candidate_analysis_data.get("ranked_candidates")
+        or (_dump(specialist_agent_workspace) or {}).get("candidate_criteria")
+    )
     has_jarvis = bool(_dump(jarvis_workspace))
     component_status = {
         "referral": _available_status(has_context),
@@ -937,7 +941,7 @@ def _case_stages(
         ),
         "result_intake": CaseStageStatus.BLOCKED if gateway_blocked else _available_status(has_results),
         "qc_assay_scope": CaseStageStatus.BLOCKED if gateway_blocked else CaseStageStatus.COMPLETED_FOR_DRAFT_USE if has_qc_or_assay else CaseStageStatus.NOT_STARTED,
-        "candidate_analysis": _available_status(has_candidates),
+        "candidate_analysis": _available_status(has_candidates or bool(candidate_analysis_data)),
         "evidence": _available_status(has_results),
         "candidate_acmg": _available_status(has_candidates),
         "synthesis_critics": _artifact_status(jarvis_workspace, False),
@@ -988,6 +992,9 @@ def _refresh_stage_statuses(stages: list[CaseStage], status: HandoffState, readi
 
 def _stage_artifacts(stage_id: str, *components: Any) -> list[str]:
     gateway_present = len(components) > 6 and components[6] is not None
+    candidate_analysis_present = bool(
+        (_dump(components[0]) or {}).get("candidate_analysis")
+    ) if components else False
     mapping = {
         "referral": ["clinical_case_intake"],
         "clinical_history": ["clinical_case_intake"],
@@ -999,7 +1006,13 @@ def _stage_artifacts(stage_id: str, *components: Any) -> list[str]:
         "external_checkpoint": [],
         "result_intake": ["result_evidence_workspace"],
         "qc_assay_scope": [],
-        "candidate_analysis": ["specialist_agent_workspace"],
+        # Preserve the frozen v0.35 manifest for legacy specialist-only runs;
+        # v0.37 adds the embedded intake artifact when candidate analysis is
+        # actually present in the typed intake result.
+        "candidate_analysis": [
+            "clinical_case_intake",
+            "specialist_agent_workspace",
+        ] if candidate_analysis_present else ["specialist_agent_workspace"],
         "evidence": ["result_evidence_workspace"],
         "candidate_acmg": ["specialist_agent_workspace"],
         "synthesis_critics": ["jarvis_synthesis_report_workspace"],

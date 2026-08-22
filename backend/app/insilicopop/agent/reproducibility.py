@@ -43,6 +43,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_clinical_case_intake": "clinical_case_intake.json",
     "repro_phenotype_hpo_curation": "phenotype_hpo_curation.json",
     "repro_pedigree_inheritance_audit": "pedigree_inheritance_audit.json",
+    "repro_candidate_analysis": "candidate_analysis.json",
     "repro_variant_intelligence": "variant_intelligence.json",
     "repro_pre_test_assessment": "pre_test_assessment.json",
     "repro_test_strategy_workspace": "test_strategy_workspace.json",
@@ -96,6 +97,13 @@ def write_reproducibility_bundle(
     if state.pedigree_inheritance_audit:
         paths["repro_pedigree_inheritance_audit"] = optional_paths["repro_pedigree_inheritance_audit"]
         _write_json(paths["repro_pedigree_inheritance_audit"], state.pedigree_inheritance_audit.model_dump())
+    if state.candidate_analysis:
+        state.candidate_analysis.verify_integrity()
+        paths["repro_candidate_analysis"] = optional_paths["repro_candidate_analysis"]
+        _write_json(
+            paths["repro_candidate_analysis"],
+            state.candidate_analysis.model_dump(mode="json"),
+        )
     if state.variant_intelligence:
         paths["repro_variant_intelligence"] = optional_paths["repro_variant_intelligence"]
         _write_json(paths["repro_variant_intelligence"], state.variant_intelligence.model_dump())
@@ -319,6 +327,7 @@ def _guardrail_decisions(state: AgentState, trace: list[dict[str, Any]]) -> dict
         "results_audit": state.results_audit,
         "phenotype_hpo_curation": state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
         "pedigree_inheritance_audit": state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
+        "candidate_analysis": state.candidate_analysis.model_dump(mode="json") if state.candidate_analysis else None,
         "variant_intelligence": state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         "pre_test_assessment": state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
@@ -638,6 +647,26 @@ def _provenance_index(
             "report_status": "draft_not_clinically_approved",
             "human_review_required": True,
         }
+    candidate_path = repro_paths.get("repro_candidate_analysis")
+    if candidate_path and state.candidate_analysis:
+        payload["candidate_analysis"] = {
+            "path": _relative_to_run(run_dir, candidate_path),
+            "json_pointer": "/",
+            "artifact_class": "deterministic_explainable_candidate_prioritization",
+            "schema_version": state.candidate_analysis.schema_version,
+            "algorithm_version": state.candidate_analysis.algorithm_version,
+            "ranking_rule_version": state.candidate_analysis.ranking_rule.rule_version,
+            "ranking_weight_version": state.candidate_analysis.ranking_rule.weight_version,
+            "ranking_input_identity_sha256": state.candidate_analysis.ranking_input_identity_sha256,
+            "ranking_output_identity_sha256": state.candidate_analysis.ranking_output_identity_sha256,
+            "analysis_identity_sha256": state.candidate_analysis.analysis_identity_sha256,
+            "result_integrity_sha256": state.candidate_analysis.result_integrity_sha256,
+            "source_record_ids": list(state.candidate_analysis.source_record_ids),
+            "excluded_candidate_count": len(state.candidate_analysis.excluded_candidates),
+            "exclusion_trace_count": len(state.candidate_analysis.exclusion_trace),
+            "human_review_required": True,
+            "draft_not_clinically_approved": True,
+        }
     handoff_path = repro_paths.get("repro_handoff_workspace")
     if handoff_path and state.handoff_workspace:
         payload["handoff_workspace"] = {
@@ -770,6 +799,20 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "result_gateway_artifact_available": state.result_gateway is not None,
         "result_gateway_raw_reads_ingested": False,
         "result_gateway_external_tools_executed": False,
+        "candidate_analysis_schema_version": state.candidate_analysis.schema_version if state.candidate_analysis else None,
+        "candidate_analysis_algorithm_version": state.candidate_analysis.algorithm_version if state.candidate_analysis else None,
+        "candidate_analysis_rule_version": state.candidate_analysis.ranking_rule.rule_version if state.candidate_analysis else None,
+        "candidate_analysis_weight_version": state.candidate_analysis.ranking_rule.weight_version if state.candidate_analysis else None,
+        "candidate_analysis_input_identity_sha256": state.candidate_analysis.ranking_input_identity_sha256 if state.candidate_analysis else None,
+        "candidate_analysis_output_identity_sha256": state.candidate_analysis.ranking_output_identity_sha256 if state.candidate_analysis else None,
+        "candidate_analysis_identity_sha256": state.candidate_analysis.analysis_identity_sha256 if state.candidate_analysis else None,
+        "candidate_analysis_result_integrity_sha256": state.candidate_analysis.result_integrity_sha256 if state.candidate_analysis else None,
+        "candidate_analysis_source_record_ids": list(state.candidate_analysis.source_record_ids) if state.candidate_analysis else [],
+        "candidate_analysis_exclusion_trace_ids": [item.exclusion_id for item in state.candidate_analysis.exclusion_trace] if state.candidate_analysis else [],
+        "candidate_analysis_artifact_available": state.candidate_analysis is not None,
+        "candidate_analysis_human_review_required": True,
+        "candidate_analysis_diagnosis_made": False,
+        "candidate_analysis_final_acmg_classification_made": False,
         "agent_registry_version": state.specialist_agent_workspace.registry_version if state.specialist_agent_workspace else None,
         "enabled_specialist_agents": [
             item.agent_id

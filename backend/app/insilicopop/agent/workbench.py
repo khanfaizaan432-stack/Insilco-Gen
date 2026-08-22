@@ -10,6 +10,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from app.insilicopop.clinical.handoff import apply_handoff_action
+from app.insilicopop.clinical.candidate_analysis_models import CandidateAnalysisResult
 from app.insilicopop.clinical.handoff_models import (
     HandoffReviewAction,
     HandoffReviewActionResult,
@@ -45,6 +46,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/clinical_case_intake.json",
     "reproducibility/phenotype_hpo_curation.json",
     "reproducibility/pedigree_inheritance_audit.json",
+    "reproducibility/candidate_analysis.json",
     "reproducibility/variant_intelligence.json",
     "reproducibility/pre_test_assessment.json",
     "reproducibility/test_strategy_workspace.json",
@@ -119,6 +121,18 @@ class AgentRunSummary(BaseModel):
     mendelian_inconsistency_count: int = 0
     evaluable_parent_child_transmission_count: int = 0
     pedigree_inheritance_audit_artifact_available: bool = False
+    candidate_analysis_status: str | None = None
+    candidate_analysis_ranked_count: int = 0
+    candidate_analysis_excluded_count: int = 0
+    candidate_analysis_tied_count: int = 0
+    candidate_analysis_no_sufficiently_supported_candidate: bool = False
+    candidate_analysis_rule_version: str | None = None
+    candidate_analysis_weight_version: str | None = None
+    candidate_analysis_identity_sha256: str | None = None
+    candidate_analysis_input_identity_sha256: str | None = None
+    candidate_analysis_output_identity_sha256: str | None = None
+    candidate_analysis_artifact_available: bool = False
+    candidate_analysis_integrity_error: str | None = None
     variant_intelligence_request_count: int = 0
     variant_validation_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
@@ -200,6 +214,7 @@ class AgentRunDetail(AgentRunSummary):
     clinical_case_intake: dict[str, Any] | None = None
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
+    candidate_analysis: dict[str, Any] | None = None
     variant_intelligence: dict[str, Any] | None = None
     pre_test_assessment: dict[str, Any] | None = None
     test_strategy_workspace: dict[str, Any] | None = None
@@ -224,6 +239,8 @@ class AgentArtifactContent(BaseModel):
     file_type: str
     content: Any
     size_bytes: int
+    integrity_status: str = "not_applicable"
+    integrity_error: str | None = None
 
 
 class HandoffActionResponse(BaseModel):
@@ -255,6 +272,9 @@ class WorkbenchRunStore:
         run_dir = self._run_dir(run_id)
         summary = self._summary(run_dir)
         state = self._read_json_if_available(run_dir / "agent_state.json")
+        candidate_analysis, candidate_analysis_error = _verified_candidate_from_payload(
+            state.get("candidate_analysis") if isinstance(state.get("candidate_analysis"), dict) else None
+        )
         return AgentRunDetail(
             **summary.model_dump(),
             query=state.get("query"),
@@ -269,6 +289,7 @@ class WorkbenchRunStore:
             clinical_case_intake=state.get("clinical_case_intake") if isinstance(state.get("clinical_case_intake"), dict) else None,
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
+            candidate_analysis=candidate_analysis,
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
             pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
@@ -303,11 +324,25 @@ class WorkbenchRunStore:
         if not _is_relative_to(path, run_dir.resolve()) or not path.is_file():
             raise FileNotFoundError(relative_path)
         content = _read_safe_content(path)
+        integrity_status = "not_applicable"
+        integrity_error = None
+        if relative_path == "reproducibility/candidate_analysis.json":
+            checksum_error = _verify_reproducibility_checksum(run_dir, relative_path, path)
+            verified, model_error = _verified_candidate_from_payload(content if isinstance(content, dict) else None)
+            integrity_error = checksum_error or model_error
+            if integrity_error:
+                content = {"integrity_error": integrity_error}
+                integrity_status = "integrity_error"
+            else:
+                content = verified
+                integrity_status = "verified"
         return AgentArtifactContent(
             artifact_name=relative_path,
             file_type=_file_type(path),
             content=_redact(content),
             size_bytes=path.stat().st_size,
+            integrity_status=integrity_status,
+            integrity_error=integrity_error,
         )
 
     def final_report(self, run_id: str) -> AgentArtifactContent:
@@ -388,6 +423,11 @@ class WorkbenchRunStore:
         phenotype_hpo_curation = phenotype_hpo_curation if isinstance(phenotype_hpo_curation, dict) else {}
         pedigree_inheritance_audit = state.get("pedigree_inheritance_audit", {}) if isinstance(state, dict) else {}
         pedigree_inheritance_audit = pedigree_inheritance_audit if isinstance(pedigree_inheritance_audit, dict) else {}
+        raw_candidate_analysis = state.get("candidate_analysis", {}) if isinstance(state, dict) else {}
+        candidate_analysis, candidate_analysis_error = _verified_candidate_from_payload(
+            raw_candidate_analysis if isinstance(raw_candidate_analysis, dict) else None
+        )
+        candidate_analysis = candidate_analysis or {}
         variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
         variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
         pre_test_assessment = state.get("pre_test_assessment", {}) if isinstance(state, dict) else {}
@@ -415,6 +455,10 @@ class WorkbenchRunStore:
                 status = str(item.get("status", "cannot_evaluate"))
                 inheritance_status_counts[status] = inheritance_status_counts.get(status, 0) + 1
         transmission_summary = pedigree_inheritance_audit.get("available_parent_child_transmission_summary", {}) or {}
+        candidate_rule = candidate_analysis.get("ranking_rule", {}) or {}
+        candidate_ranked = candidate_analysis.get("ranked_candidates", []) or []
+        candidate_excluded = candidate_analysis.get("excluded_candidates", []) or []
+        candidate_negative = candidate_analysis.get("negative_unresolved_result", {}) or {}
         normalized_findings = result_evidence_workspace.get("normalized_findings", []) or []
         retrieval_records = result_evidence_workspace.get("retrieval_records", []) or []
         ledger_entries = result_evidence_workspace.get("ledger_entries", []) or []
@@ -462,6 +506,22 @@ class WorkbenchRunStore:
             mendelian_inconsistency_count=len(pedigree_inheritance_audit.get("mendelian_inconsistencies", []) or []),
             evaluable_parent_child_transmission_count=int(transmission_summary.get("evaluable_transmission_count", 0) or 0) if isinstance(transmission_summary, dict) else 0,
             pedigree_inheritance_audit_artifact_available=(run_dir / "reproducibility" / "pedigree_inheritance_audit.json").is_file(),
+            candidate_analysis_status=candidate_analysis.get("analysis_status"),
+            candidate_analysis_ranked_count=len(candidate_ranked),
+            candidate_analysis_excluded_count=len(candidate_excluded),
+            candidate_analysis_tied_count=sum(
+                1 for item in candidate_ranked if isinstance(item, dict) and item.get("tied")
+            ),
+            candidate_analysis_no_sufficiently_supported_candidate=bool(
+                candidate_negative.get("no_sufficiently_supported_candidate", False)
+            ),
+            candidate_analysis_rule_version=candidate_rule.get("rule_version"),
+            candidate_analysis_weight_version=candidate_rule.get("weight_version"),
+            candidate_analysis_identity_sha256=candidate_analysis.get("analysis_identity_sha256"),
+            candidate_analysis_input_identity_sha256=candidate_analysis.get("ranking_input_identity_sha256"),
+            candidate_analysis_output_identity_sha256=candidate_analysis.get("ranking_output_identity_sha256"),
+            candidate_analysis_artifact_available=(run_dir / "reproducibility" / "candidate_analysis.json").is_file(),
+            candidate_analysis_integrity_error=candidate_analysis_error,
             variant_intelligence_request_count=len(variant_intelligence.get("normalization_results", []) or []),
             variant_validation_status_counts=_safe_count_dict(variant_intelligence.get("validation_status_counts", {})),
             variant_normalization_status_counts=_safe_count_dict(variant_intelligence.get("normalization_status_counts", {})),
@@ -742,6 +802,38 @@ class WorkbenchRunStore:
         except (json.JSONDecodeError, OSError):
             return {}
         return payload if isinstance(payload, dict) else {}
+
+
+def _verified_candidate_from_payload(
+    payload: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    if payload is None:
+        return None, None
+    try:
+        result = CandidateAnalysisResult.verified_load(payload)
+    except (TypeError, ValueError) as exc:
+        return None, f"candidate analysis integrity verification failed: {exc}"
+    return result.model_dump(mode="json"), None
+
+
+def _verify_reproducibility_checksum(run_dir: Path, relative_path: str, path: Path) -> str | None:
+    checksum_path = run_dir / "reproducibility" / "checksums.sha256"
+    if not checksum_path.is_file():
+        return "candidate analysis reproducibility checksum manifest is missing"
+    expected = None
+    for line in checksum_path.read_text(encoding="utf-8").splitlines():
+        if "  " not in line:
+            continue
+        digest, recorded_path = line.split("  ", 1)
+        if recorded_path.replace("\\", "/") == relative_path:
+            expected = digest.strip().casefold()
+            break
+    if expected is None:
+        return "candidate analysis is not covered by the reproducibility checksum manifest"
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        return "candidate analysis reproducibility checksum does not match the persisted artifact"
+    return None
 
 
 def _read_safe_content(path: Path) -> Any:

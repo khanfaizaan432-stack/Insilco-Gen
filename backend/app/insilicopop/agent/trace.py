@@ -60,6 +60,7 @@ def write_agent_outputs(root: Path, state: AgentState) -> dict[str, Any]:
         clinical_case_intake=state.clinical_case_intake.model_dump(exclude={"supplied_candidate_variants"}) if state.clinical_case_intake else None,
         phenotype_hpo_curation=state.phenotype_hpo_curation.model_dump() if state.phenotype_hpo_curation else None,
         pedigree_inheritance_audit=state.pedigree_inheritance_audit.model_dump() if state.pedigree_inheritance_audit else None,
+        candidate_analysis=state.candidate_analysis.model_dump(mode="json") if state.candidate_analysis else None,
         variant_intelligence=state.variant_intelligence.model_dump() if state.variant_intelligence else None,
         pre_test_assessment=state.pre_test_assessment.model_dump() if state.pre_test_assessment else None,
         test_strategy_workspace=state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,

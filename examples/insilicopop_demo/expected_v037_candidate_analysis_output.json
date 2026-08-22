@@ -1,0 +1,105 @@
+{
+  "algorithm_version": "insilicopop-candidate-analysis-0.37.0",
+  "analysis_status": "partial",
+  "bundle_width": 10,
+  "case_id": "CASE-IN-SILICO-RESULT-036",
+  "excluded_candidates": [
+    {"candidate_id": "CAND-UNBOUND-037", "codes": ["source_record_not_found"]},
+    {"candidate_id": "candidate-v037-ee1542f46cfa1dc60227", "codes": ["unsupported_variant_scope"]}
+  ],
+  "exclusion_trace_count": 2,
+  "family": {
+    "member_count": 3,
+    "missing_relative_ids": ["FATHER-037"],
+    "shape": "trio",
+    "tested_member_count": 2
+  },
+  "identities": {
+    "analysis_identity_sha256": "3869c18397d8a9b6e84c1ba10fbeadbb57185878e6752987b28e98caf39f3068",
+    "assay_coverage_identity_sha256": "6bcc6ec3fd2d5fae1ce772432e3654aaa5b530d1e4407a5edc87aa7b1395c482",
+    "evidence_input_identity_sha256": "f78bcf9c40218d2a2efc43d72a3319430c3d731cf0c3cb897d31bceaf8c685f8",
+    "family_snapshot_identity_sha256": "c0efb2a81188d5fdf6302ba0361c68dde021d5fe0b78c298cb2ce2ac4a50e9fd",
+    "phenotype_snapshot_identity_sha256": "22891cc88f71bbd98c686c8af6636bd0c4c635df2276e3e5817d5f0561a36ac5",
+    "ranking_input_identity_sha256": "282c008a51ebb286141ed1fb614ebfcb3e54eff32087bddc598fbe803a85274c",
+    "ranking_output_identity_sha256": "f9aa7575fbc6c2f0087ed3970019375c2de7143d234684eec0ca3805a15cf56d",
+    "v036_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+    "v036_package_identity_sha256": "da0dcd7422c2af062a47ec5949a32fc80eb5da7cb54a2b9a66d535a430c49810"
+  },
+  "negative_unresolved_result": {
+    "excluded_candidate_ids": ["CAND-UNBOUND-037", "candidate-v037-ee1542f46cfa1dc60227"],
+    "no_sufficiently_supported_candidate": false,
+    "retained_candidate_ids": [
+      "candidate-v037-587112d0f7e70b149ae9",
+      "candidate-v037-2ce0a1c76d0b8293b384",
+      "candidate-v037-4995d09756964b7166e8",
+      "candidate-v037-3a5d83c0d8322e941a40"
+    ],
+    "summary": "No sufficiently supported candidate was identified within the supplied analysis scope.",
+    "unavailable_adapters": ["bcftools_left_normalization"],
+    "unsupported_result_types": ["copy_number_out_of_scope"]
+  },
+  "ranked_candidates": [
+    {
+      "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+      "contradicting_evidence_count": 0,
+      "rank": 1,
+      "review_status": "ranked_for_review",
+      "score": 15.45,
+      "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+      "supporting_evidence_count": 1,
+      "tied": false
+    },
+    {
+      "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+      "contradicting_evidence_count": 0,
+      "rank": 2,
+      "review_status": "ranked_for_review",
+      "score": 9.55,
+      "source_record_id": "vcf-record-0b9fc8231a2250957455",
+      "supporting_evidence_count": 0,
+      "tied": false
+    },
+    {
+      "candidate_id": "candidate-v037-4995d09756964b7166e8",
+      "contradicting_evidence_count": 1,
+      "rank": 3,
+      "review_status": "retained_weak_for_review",
+      "score": 2.4,
+      "source_record_id": "vcf-record-29633f1653a99fdda8b8",
+      "supporting_evidence_count": 0,
+      "tied": false
+    },
+    {
+      "candidate_id": "candidate-v037-3a5d83c0d8322e941a40",
+      "contradicting_evidence_count": 0,
+      "rank": 4,
+      "review_status": "retained_weak_for_review",
+      "score": -4.5,
+      "source_record_id": "vcf-record-aa4d7899f999e76a0434",
+      "supporting_evidence_count": 0,
+      "tied": false
+    }
+  ],
+  "ranking_rule_version": "insilicopop-candidate-ranking-0.37.0",
+  "ranking_weight_version": "insilicopop-candidate-ranking-weights-0.37.0",
+  "safety": {
+    "diagnosis_made": false,
+    "draft_not_clinically_approved": true,
+    "external_api_call_made": false,
+    "external_llm_called": false,
+    "external_tools_executed": false,
+    "final_acmg_classification_made": false,
+    "human_review_required": true,
+    "research_use_only": true
+  },
+  "schema_version": "0.37",
+  "source_record_ids": [
+    "vcf-record-0b9fc8231a2250957455",
+    "vcf-record-29633f1653a99fdda8b8",
+    "vcf-record-78f62a0e5c1098c7ba4f",
+    "vcf-record-aa4d7899f999e76a0434",
+    "vcf-record-d552bedd0adc6e4c8e5c"
+  ],
+  "support_threshold": 8.0,
+  "tie_epsilon": 1e-06
+}

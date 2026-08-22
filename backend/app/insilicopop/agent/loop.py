@@ -333,6 +333,7 @@ class AgentLoop:
         ) = build_clinical_case_v035_bundle(payload, request_text=request_text)
         result = state.clinical_case_intake
         state.result_gateway = result.result_gateway if result else None
+        state.candidate_analysis = result.candidate_analysis if result else None
         state.parsed_inputs = {
             "structured_clinical_intake": True,
             "supplied_result_package_parsed": state.result_gateway is not None,
@@ -389,6 +390,36 @@ class AgentLoop:
                     "raw_reads_ingested": False,
                     "raw_reads_called": False,
                     "human_review_required": True,
+                }
+            )
+        if state.candidate_analysis:
+            candidate_analysis = state.candidate_analysis
+            state.decision_trace.append(
+                {
+                    "event": "candidate_analysis_completed",
+                    "schema_version": candidate_analysis.schema_version,
+                    "algorithm_version": candidate_analysis.algorithm_version,
+                    "pseudonymous_case_id": candidate_analysis.pseudonymous_case_id,
+                    "analysis_status": candidate_analysis.analysis_status.value,
+                    "ranking_rule_version": candidate_analysis.ranking_rule.rule_version,
+                    "ranking_weight_version": candidate_analysis.ranking_rule.weight_version,
+                    "ranking_input_identity_sha256": candidate_analysis.ranking_input_identity_sha256,
+                    "ranking_output_identity_sha256": candidate_analysis.ranking_output_identity_sha256,
+                    "analysis_identity_sha256": candidate_analysis.analysis_identity_sha256,
+                    "result_integrity_sha256": candidate_analysis.result_integrity_sha256,
+                    "ranked_candidate_count": len(candidate_analysis.ranked_candidates),
+                    "excluded_candidate_count": len(candidate_analysis.excluded_candidates),
+                    "exclusion_trace_count": len(candidate_analysis.exclusion_trace),
+                    "tied_candidate_count": sum(item.tied for item in candidate_analysis.ranked_candidates),
+                    "no_sufficiently_supported_candidate": candidate_analysis.negative_unresolved_result.no_sufficiently_supported_candidate,
+                    "human_review_required": True,
+                    "research_use_only": True,
+                    "draft_not_clinically_approved": True,
+                    "diagnosis_made": False,
+                    "treatment_recommendation_made": False,
+                    "final_acmg_classification_made": False,
+                    "external_llm_called": False,
+                    "external_tools_executed": False,
                 }
             )
         if state.phenotype_hpo_curation:
@@ -652,7 +683,8 @@ class AgentLoop:
             state.result_gateway
             and state.result_gateway.package_status.value in {"blocked", "rejected", "failed", "stale"}
         )
-        state.current_step = "blocked" if result.policy_blocks or result.validation_errors or gateway_blocked else "clinical_intake_validated"
+        candidate_blocked = bool(state.candidate_analysis and state.candidate_analysis.analysis_status.value in {"blocked", "stale"})
+        state.current_step = "blocked" if result.policy_blocks or result.validation_errors or gateway_blocked or candidate_blocked else "clinical_intake_validated"
         generated = write_agent_outputs(self.generated_root / state.run_id, state)
         return self._response(state, generated)
 
@@ -686,6 +718,7 @@ class AgentLoop:
             "test_strategy_workspace": state.test_strategy_workspace.model_dump() if state.test_strategy_workspace else None,
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
             "result_gateway": state.result_gateway.model_dump() if state.result_gateway else None,
+            "candidate_analysis": state.candidate_analysis.model_dump(mode="json") if state.candidate_analysis else None,
             "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
             "jarvis_synthesis_report_workspace": state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
             "handoff_workspace": state.handoff_workspace.model_dump() if state.handoff_workspace else None,
