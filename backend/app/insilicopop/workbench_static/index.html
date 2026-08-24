@@ -145,12 +145,16 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       margin-top: 8px;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .metric {
       border: 1px solid var(--line);
       border-radius: 4px;
       padding: 8px;
       background: #fbfcfe;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .metric strong {
       display: block;
@@ -357,6 +361,7 @@
       margin-top: 8px;
     }
     .candidate-analysis-table-wrap table { min-width: 760px; }
+    #run-history { max-width: 100%; overflow-x: auto; }
     .candidate-sort-control {
       display: flex;
       align-items: center;
@@ -365,6 +370,64 @@
       margin: 8px 0;
     }
     .candidate-sort-control select { min-width: 180px; }
+    .integrated-analysis-panel {
+      border-left: 4px solid var(--accent);
+      background: #fbfffe;
+    }
+    .integrated-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0;
+    }
+    .integrated-tabs button[aria-selected="true"] {
+      background: var(--soft);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .integrated-tab-panel[hidden] { display: none; }
+    .integrated-tab-panel,
+    .integrated-tab-panel ul,
+    .integrated-tab-panel li {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .integrated-tab-panel li {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .integrated-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .integrated-table-wrap table { min-width: 560px; }
+    .integrated-lifecycle {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .integrated-lifecycle.eligible { background: var(--soft); color: var(--accent); }
+    .integrated-lifecycle.context_only, .integrated-lifecycle.quarantined, .integrated-lifecycle.excluded { background: var(--warn); color: var(--danger); }
+    .integrated-search { max-width: 360px; margin: 6px 0; }
+    .integrated-integrity-error { border-left: 4px solid var(--danger); background: var(--warn); padding: 10px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     .status[tabindex="-1"]:focus { outline: 3px solid #0b5bd3; outline-offset: 2px; }
     @media (max-width: 860px) {
       .grid, .two-col, .form-grid, .handoff-action-controls { grid-template-columns: minmax(0, 1fr); }
@@ -625,6 +688,12 @@
         <section aria-labelledby="summary-heading">
           <h2 id="summary-heading">3. Run Result Summary</h2>
           <div id="run-summary" class="muted">Submit a run or select a run from history.</div>
+        </section>
+
+        <section id="integrated-analysis-section" class="integrated-analysis-panel" aria-labelledby="integrated-analysis-heading">
+          <h2 id="integrated-analysis-heading">Integrated Analysis Workspace (v0.38)</h2>
+          <p class="note">Summary-first multimodal evidence view. External evidence is linked to candidates without changing the frozen v0.37 rank. Raw JSON is not the default view.</p>
+          <div id="integrated-analysis-workspace" class="muted">No v0.38 integrated analysis workspace loaded.</div>
         </section>
 
         <section id="handoff-section" class="handoff-panel" aria-labelledby="handoff-heading">
@@ -2580,6 +2649,166 @@
       `;
     }
 
+    function renderIntegratedAnalysis(workspace) {
+      const target = document.getElementById("integrated-analysis-workspace");
+      if (!workspace) {
+        target.className = "muted";
+        target.textContent = "No v0.38 integrated analysis workspace loaded.";
+        return;
+      }
+      if (workspace.integrity_error) {
+        target.className = "integrated-integrity-error";
+        target.innerHTML = "<strong>Integrity error.</strong> The integrated workspace was withheld from rendering because persisted content could not be verified. " + escapeHtml(workspace.integrity_error);
+        return;
+      }
+
+      const lifecycleBadge = (value) => {
+        const state = String(value || "unknown");
+        return "<span class=\"integrated-lifecycle " + escapeHtml(state) + "\">" + escapeHtml(state.replaceAll("_", " ")) + "</span>";
+      };
+      const value = (item, key, fallback = "not supplied") => {
+        const current = item && item[key];
+        return escapeHtml(current === null || current === undefined || current === "" ? fallback : String(current));
+      };
+      const listItems = (items, fallback = "None recorded.") => {
+        const list = Array.isArray(items) ? items : [];
+        return list.length ? list.map((item) => "<li>" + escapeHtml(typeof item === "string" ? item : asJson(item)) + "</li>").join("") : "<li>" + fallback + "</li>";
+      };
+      const safe = workspace.safety_flags || {};
+      const tools = Array.isArray(workspace.external_tool_executions) ? workspace.external_tool_executions : [];
+      const papers = Array.isArray(workspace.papers) ? workspace.papers : [];
+      const records = Array.isArray(workspace.database_evidence) ? workspace.database_evidence : [];
+      const ranked = Array.isArray(workspace.ranked_candidates) ? workspace.ranked_candidates.slice().sort((a, b) => (a.deterministic_rank ?? 999999) - (b.deterministic_rank ?? 999999) || String(a.candidate_id).localeCompare(String(b.candidate_id))) : [];
+      const excluded = Array.isArray(workspace.excluded_candidates) ? workspace.excluded_candidates.slice().sort((a, b) => String(a.candidate_id).localeCompare(String(b.candidate_id))) : [];
+      const tabs = [
+        ["integrated-overview", "Overview"],
+        ["integrated-qc", "QC & coverage"],
+        ["integrated-variants", "SNVs / indels"],
+        ["integrated-tools", "External tools"],
+        ["integrated-multimodal", "CNV / mito / mosaic"],
+        ["integrated-candidates", "Candidates"],
+        ["integrated-papers", "Real papers"],
+        ["integrated-databases", "Databases"],
+        ["integrated-conflicts", "Conflicts"],
+        ["integrated-india", "India context"],
+        ["integrated-proposals", "Review proposals"],
+        ["integrated-provenance", "Provenance"]
+      ];
+      const tabButtons = tabs.map((tab, index) => "<button type=\"button\" role=\"tab\" aria-selected=\"" + String(index === 0) + "\" aria-controls=\"" + tab[0] + "-panel\" id=\"" + tab[0] + "-tab\" tabindex=\"" + (index === 0 ? "0" : "-1") + "\">" + tab[1] + "</button>").join("");
+      const panel = (id, title, body, active) => "<section id=\"" + id + "-panel\" class=\"integrated-tab-panel\" role=\"tabpanel\" aria-labelledby=\"" + id + "-tab\"" + (active ? "" : " hidden") + "><h3>" + title + "</h3>" + body + "</section>";
+      const lifecycle = workspace.evidence_lifecycle_summary || {};
+      const overview = "<div class=\"metrics\">" +
+        "<div class=\"metric " + (workspace.status === "complete" ? "safe" : "warn") + "\"><strong>workspace status</strong>" + value(workspace, "status") + "</div>" +
+        "<div class=\"metric\"><strong>workspace ID</strong><code>" + value(workspace, "workspace_id") + "</code></div>" +
+        "<div class=\"metric\"><strong>ranked / excluded candidates</strong>" + ranked.length + " / " + excluded.length + "</div>" +
+        "<div class=\"metric\"><strong>papers / database records</strong>" + papers.length + " / " + records.length + "</div>" +
+        "<div class=\"metric\"><strong>CNV / mitochondrial / mosaic</strong>" + (workspace.supplied_cnv_findings || []).length + " / " + (workspace.supplied_mitochondrial_findings || []).length + " / " + (workspace.mosaicism_measurements || []).length + "</div>" +
+        "<div class=\"metric\"><strong>human-review proposals</strong>" + (workspace.human_review_proposals || []).length + "</div>" +
+        "</div>" +
+        "<div class=\"badge-row\"><span class=\"badge warn\">Research use only</span><span class=\"badge warn\">Human review required</span><span class=\"badge warn\">Draft not clinically approved</span><span class=\"badge\">No diagnosis / treatment / test order</span></div>" +
+        "<div class=\"note\"><ul>" + listItems(workspace.status_reasons, "No workspace blockers recorded.") + "</ul></div>" +
+        "<div class=\"metrics\"><div class=\"metric\"><strong>eligible evidence</strong>" + (lifecycle.eligible_count ?? 0) + "</div><div class=\"metric\"><strong>context only</strong>" + (lifecycle.context_only_count ?? 0) + "</div><div class=\"metric warn\"><strong>quarantined</strong>" + (lifecycle.quarantined_count ?? 0) + "</div><div class=\"metric warn\"><strong>excluded</strong>" + (lifecycle.excluded_count ?? 0) + "</div></div>";
+      const qc = "<div class=\"metrics\"><div class=\"metric\"><strong>QC summary</strong>" + value(workspace.qc_summary || {}, "state") + "</div><div class=\"metric\"><strong>assay / build</strong>" + value(workspace.laboratory_assay_metadata || {}, "assay") + " / " + value(workspace.laboratory_assay_metadata || {}, "genome_build") + "</div><div class=\"metric warn\"><strong>coverage blind spots</strong>" + (workspace.coverage_blind_spots || []).length + "</div></div><ul>" + listItems(workspace.coverage_blind_spots) + "</ul><details><summary>Technical QC and assay detail</summary><pre>" + escapeHtml(asJson({qc_summary: workspace.qc_summary, laboratory_assay_metadata: workspace.laboratory_assay_metadata})) + "</pre></details>";
+      const variantRows = (workspace.normalized_snv_small_indel_summaries || []).map((item) => "<tr data-integrated-search=\"" + escapeHtml(asJson(item).toLowerCase()) + "\"><td>" + value(item, "record_id") + "</td><td>" + value(item, "chromosome") + ":" + value(item, "position") + "</td><td>" + value(item, "reference_allele") + " &gt; " + value(item, "alternate_allele") + "</td><td>" + value(item, "variant_scope") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No normalized SNV/small-indel summary supplied.</td></tr>";
+      const variants = "<div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Normalized SNV and small-indel summaries</caption><thead><tr><th>Source record</th><th>Location</th><th>Alleles</th><th>Scope</th></tr></thead><tbody>" + variantRows + "</tbody></table></div><p class=\"note\">Source-bound summaries only. Reference-dependent left normalization is not claimed without a pinned reference.</p>";
+      const safeToolExecutionDetail = (item) => {
+        const typed = item && typeof item.typed_invocation === "object" ? item.typed_invocation : {};
+        const rawContract = typed && typeof typed.execution_contract === "object" ? typed.execution_contract : {};
+        const rawSummary = typed && typeof typed.result_summary === "object" ? typed.result_summary : {};
+        const contractKeys = [
+          "runtime_binding_identity_sha256", "authorization_identity_sha256", "authorization_scope",
+          "local_file_only", "network_isolation_level", "proxy_environment_removed",
+          "shell_interpolation_used", "work_directory_policy", "max_input_bytes",
+          "max_output_bytes_per_stream_or_file", "expected_exit_codes", "cleanup_outcome",
+          "reference_left_normalization_performed"
+        ];
+        const summaryKeys = [
+          "bcftools_version", "htslib_version", "stdout_sha256", "header_validated",
+          "header_sha256", "input_sha256", "normalized_stdout_sha256", "stats",
+          "sample_names", "sample_count", "decomposed_output_sha256",
+          "decomposed_output_bytes", "reference_left_normalization_performed",
+          "source_representation_matches_deterministic_record",
+          "matched_deterministic_source_record_ids", "representation_comparison_scope"
+        ];
+        const contract = Object.fromEntries(contractKeys.filter((key) => rawContract[key] !== undefined).map((key) => [key, rawContract[key]]));
+        const resultSummary = Object.fromEntries(summaryKeys.filter((key) => rawSummary[key] !== undefined).map((key) => [key, rawSummary[key]]));
+        if (Array.isArray(rawSummary.decomposed_records)) {
+          resultSummary.decomposed_records = rawSummary.decomposed_records.map((record) => ({
+            source_representation: record && record.source_representation,
+            source_record_sha256: record && record.source_record_sha256,
+            source_alt_index: record && record.source_alt_index,
+            decomposed_representation: record && record.decomposed_representation,
+            normalized_representation: record && record.normalized_representation,
+            reference_left_normalization_performed: record && record.reference_left_normalization_performed
+          }));
+        }
+        return {
+          execution_status: item && item.execution_status,
+          availability: item && item.availability,
+          error_code: item && item.error_code,
+          invocation_identity_sha256: item && item.invocation_identity_sha256,
+          execution_contract: contract,
+          result_summary: resultSummary
+        };
+      };
+      const toolRows = tools.map((item) => "<tr><td>" + value(item, "tool_name") + "</td><td>" + value(item, "operation") + "</td><td>" + value(item, "execution_status") + "</td><td>" + value(item, "availability") + "</td><td>" + value(item, "tool_version") + "</td><td><code>" + value(item, "invocation_identity_sha256") + "</code></td></tr>").join("") || "<tr><td colspan=\"6\">No external tool was requested.</td></tr>";
+      const toolDetails = tools.map((item) => "<details><summary>" + value(item, "tool_name") + " " + value(item, "operation") + " — " + value(item, "execution_status") + " boundary</summary><pre>" + escapeHtml(asJson(safeToolExecutionDetail(item))) + "</pre></details>").join("");
+      const toolPanel = "<div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Controlled external tool executions</caption><thead><tr><th>Tool</th><th>Operation</th><th>Status</th><th>Availability / activation</th><th>Version</th><th>Invocation identity</th></tr></thead><tbody>" + toolRows + "</tbody></table></div>" + toolDetails + "<p class=\"note\">Only the registered WSL bcftools adapter may execute after typed authorization. The completed state is limited to the canonical synthetic VCF; the default state remains blocked. Shell interpolation is false. Network enforcement is local-file-only with proxy removal, not a kernel network namespace. No raw tool output, credentials, or approval record is rendered.</p>";
+      const cnvRows = (workspace.supplied_cnv_findings || []).map((item) => "<tr><td>" + value(item, "finding_id") + "</td><td>" + value(item, "event_type") + " " + value(item, "chromosome") + ":" + value(item, "start") + "-" + value(item, "end") + "</td><td>" + value(item, "confirmation_state") + "</td><td>" + lifecycleBadge("context_only") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No supplied CNV findings.</td></tr>";
+      const mitoRows = (workspace.supplied_mitochondrial_findings || []).map((item) => "<tr><td>" + value(item, "finding_id") + "</td><td>" + value(item, "reference_sequence") + ":" + value(item, "coordinate") + " " + value(item, "ref") + " &gt; " + value(item, "alt") + "</td><td>" + value(item, "heteroplasmy") + "</td><td>" + value(item, "tissue") + " / " + value(item, "assay") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No supplied mitochondrial findings.</td></tr>";
+      const mosaicRows = (workspace.mosaicism_measurements || []).map((item) => "<tr><td>" + value(item, "measurement_id") + "</td><td>" + value(item, "variant_allele_fraction") + "</td><td>" + value(item, "tissue") + " / " + value(item, "assay") + "</td><td>" + value(item, "confirmation_state") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No mosaicism-aware measurements.</td></tr>";
+      const multimodal = "<h4>Supplied CNV findings</h4><div class=\"integrated-table-wrap\"><table><thead><tr><th>Finding</th><th>Interval</th><th>Confirmation</th><th>Lifecycle</th></tr></thead><tbody>" + cnvRows + "</tbody></table></div><h4>Supplied mitochondrial findings</h4><div class=\"integrated-table-wrap\"><table><thead><tr><th>Finding</th><th>Variant</th><th>Heteroplasmy</th><th>Context</th></tr></thead><tbody>" + mitoRows + "</tbody></table></div><h4>Mosaicism-aware measurements</h4><div class=\"integrated-table-wrap\"><table><thead><tr><th>Measurement</th><th>VAF</th><th>Context</th><th>Confirmation</th></tr></thead><tbody>" + mosaicRows + "</tbody></table></div><p class=\"note\">These are supplied measurements and review prompts. No raw CNV/mitochondrial calling, maternal inference or mosaic-disease conclusion was performed.</p>";
+      const candidateRows = ranked.map((item) => "<tr data-integrated-search=\"" + escapeHtml((String(item.candidate_id) + " " + String(item.source_record_id) + " " + String(item.gene || "")).toLowerCase()) + "\"><td>" + value(item, "deterministic_rank") + "</td><td><strong>" + value(item, "candidate_id") + "</strong><br><span class=\"muted\">" + value(item, "source_record_id") + "</span></td><td>" + value(item, "aggregate_score") + "</td><td>" + value(item, "candidate_state") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No ranked candidates retained.</td></tr>";
+      const excludedRows = excluded.map((item) => "<tr data-integrated-search=\"" + escapeHtml((String(item.candidate_id) + " " + String(item.source_record_id)).toLowerCase()) + "\"><td>" + value(item, "candidate_id") + "</td><td>" + value(item, "source_record_id") + "</td><td>" + value(item, "candidate_state") + "</td></tr>").join("") || "<tr><td colspan=\"3\">No excluded candidates retained.</td></tr>";
+      const candidates = "<label for=\"integrated-candidate-search\">Search retained candidates and exclusions</label><input class=\"integrated-search\" id=\"integrated-candidate-search\" type=\"search\" placeholder=\"candidate, source record or gene\"><div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Ranked candidate review table</caption><thead><tr><th>Rank</th><th>Candidate / source</th><th>Score</th><th>State</th></tr></thead><tbody id=\"integrated-ranked-candidate-body\">" + candidateRows + "</tbody></table></div><h4>Retained excluded/deprioritized candidates</h4><div class=\"integrated-table-wrap\"><table><thead><tr><th>Candidate</th><th>Source record</th><th>State</th></tr></thead><tbody>" + excludedRows + "</tbody></table></div><h4>Candidate comparison</h4><div class=\"two-col\"><select id=\"integrated-compare-left\" aria-label=\"First candidate for comparison\">" + ranked.map((item) => "<option value=\"" + escapeHtml(item.candidate_id) + "\">" + escapeHtml(item.candidate_id) + "</option>").join("") + "</select><select id=\"integrated-compare-right\" aria-label=\"Second candidate for comparison\">" + ranked.map((item) => "<option value=\"" + escapeHtml(item.candidate_id) + "\">" + escapeHtml(item.candidate_id) + "</option>").join("") + "</select></div><button type=\"button\" class=\"secondary\" id=\"integrated-compare-button\">Compare candidates</button><div id=\"integrated-candidate-compare\" class=\"note\">Choose two retained candidates to compare.</div>";
+      const paperRows = papers.map((item) => "<tr data-integrated-search=\"" + escapeHtml((String(item.title) + " " + String(item.pmid) + " " + String(item.doi || "")).toLowerCase()) + "\"><td><a href=\"" + escapeHtml(item.official_pubmed_url || "#") + "\" target=\"_blank\" rel=\"noreferrer\">" + value(item, "pmid") + "</a><br><span class=\"muted\">" + value(item, "doi", "DOI not supplied") + "</span></td><td>" + value(item, "title") + "</td><td>" + value(item, "journal") + " (" + value(item, "publication_year") + ")</td><td>" + lifecycleBadge(item.evidence_lifecycle_state) + "<br>" + value(item, "correction_retraction_status") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No paper evidence available.</td></tr>";
+      const paperPanel = "<div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Real scientific papers</caption><thead><tr><th>PMID / DOI</th><th>Title</th><th>Journal / year</th><th>Lifecycle / correction</th></tr></thead><tbody>" + paperRows + "</tbody></table></div><p class=\"note\">Citation links point to official PubMed pages. Paraphrases and applicability limits remain human-review inputs; papers do not prove diagnosis.</p>";
+      const databaseRows = records.map((item) => "<tr data-integrated-search=\"" + escapeHtml((String(item.source_id) + " " + String(item.record_id) + " " + String(item.classification || "")).toLowerCase()) + "\"><td>" + value(item, "source_id") + "</td><td>" + value(item, "record_id") + "</td><td>" + value(item, "record_type") + "</td><td>" + lifecycleBadge(item.evidence_lifecycle_state) + "</td><td>" + value(item, "classification", "not supplied") + "</td></tr>").join("") || "<tr><td colspan=\"5\">No database evidence available.</td></tr>";
+      const databasePanel = "<div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Database evidence</caption><thead><tr><th>Source</th><th>Record</th><th>Type</th><th>Lifecycle</th><th>External classification</th></tr></thead><tbody>" + databaseRows + "</tbody></table></div><p class=\"note\">ClinVar assertions are externally supplied and remain visible as evidence, not as an InSilicoPop final classification. ClinGen and population context are labelled by source availability and limitations.</p>";
+      const conflictItems = (workspace.conflicts_and_limitations || []).map((item) => "<li>" + escapeHtml(item) + "</li>").join("") || "<li>No conflicts or limitations recorded.</li>";
+      const conflicts = "<div class=\"badge-row\"><span class=\"badge warn\">Tamper checks active</span><span class=\"badge warn\">Stale/mismatched upstream inputs fail closed</span></div><h4>Conflicts and limitations</h4><ul>" + conflictItems + "</ul><h4>Filter history</h4><div class=\"integrated-table-wrap\"><table><thead><tr><th>Event</th><th>Candidate</th><th>Rule</th><th>Reason</th><th>Result</th></tr></thead><tbody>" + (workspace.filter_history || []).map((item) => "<tr><td>" + value(item, "filter_event_id") + "</td><td>" + value(item, "candidate_id") + "</td><td>" + value(item, "rule") + " (" + value(item, "rule_version") + ")</td><td>" + value(item, "reason") + "</td><td>" + value(item, "resulting_state") + "</td></tr>").join("") + "</tbody></table></div>";
+      const india = workspace.india_context ? "<div class=\"metrics\"><div class=\"metric\"><strong>population contexts</strong>" + (workspace.india_context.population_context || []).length + "</div><div class=\"metric\"><strong>NABL scope records</strong>" + (workspace.india_context.nabl_scope_verifications || []).length + "</div><div class=\"metric\"><strong>managed-access records</strong>" + (workspace.india_context.managed_access_contexts || []).length + "</div><div class=\"metric\"><strong>referral references</strong>" + (workspace.india_context.referral_contexts || []).length + "</div></div><p class=\"note\">No ancestry, caste, community or ethnicity inference was performed. Access, affordability, turnaround, shipping, NABL scope and Centre-of-Excellence context require human verification.</p><details><summary>India-specific source and verification detail</summary><pre>" + escapeHtml(asJson(workspace.india_context)) + "</pre></details>" : "<p class=\"muted\">No India-specific context supplied.</p>";
+      const proposalRows = (workspace.human_review_proposals || []).map((item) => "<tr><td>" + value(item, "proposal_type") + "</td><td>" + value(item, "rationale") + "</td><td>" + value(item, "review_priority") + "</td><td>" + value(item, "human_decision_required") + "</td></tr>").join("") || "<tr><td colspan=\"4\">No human-review proposals recorded.</td></tr>";
+      const proposals = "<div class=\"integrated-table-wrap\"><table><caption class=\"sr-only\">Evidence-backed human-review proposals</caption><thead><tr><th>Proposal</th><th>Rationale</th><th>Priority</th><th>Human decision required</th></tr></thead><tbody>" + proposalRows + "</tbody></table></div><p class=\"note\">These are review prompts, not clinical recommendations, test orders or treatment advice.</p>";
+      const provenance = "<div class=\"metrics\"><div class=\"metric\"><strong>integrated workspace identity</strong><code>" + value(workspace, "integrated_workspace_identity_sha256") + "</code></div><div class=\"metric\"><strong>final integrity</strong><code>" + value(workspace, "final_integrity_sha256") + "</code></div><div class=\"metric\"><strong>retrieval snapshot</strong><code>" + value(workspace.retrieval_snapshot || {}, "normalized_record_identity_sha256") + "</code></div><div class=\"metric\"><strong>lifecycle identity</strong><code>" + value(workspace.evidence_lifecycle_summary || {}, "lifecycle_identity_sha256") + "</code></div></div><p class=\"note\">Source classes remain distinct: supplied, normalized, deterministic, retrieved, candidate interpretation, external assessment and human decision.</p><details><summary>Expandable provenance and review history</summary><pre>" + escapeHtml(asJson({provenance: workspace.provenance, identity_chain: workspace.identity_chain, retrieval_events: workspace.retrieval_events})) + "</pre></details>";
+      target.className = "";
+      target.innerHTML = "<div class=\"metrics\"><div class=\"metric\"><strong>Case</strong>" + value(workspace, "pseudonymous_case_id") + "</div><div class=\"metric\"><strong>Schema</strong>" + value(workspace, "schema_version") + "</div><div class=\"metric\"><strong>Status reasons</strong>" + (workspace.status_reasons || []).length + "</div></div><div class=\"integrated-tabs\" role=\"tablist\" aria-label=\"Integrated analysis sections\">" + tabButtons + "</div>" + panel("integrated-overview", "Workspace summary", overview, true) + panel("integrated-qc", "QC and coverage", qc, false) + panel("integrated-variants", "SNVs and small indels", variants, false) + panel("integrated-tools", "Controlled external-tool runs", toolPanel, false) + panel("integrated-multimodal", "Supplied CNV, mitochondrial and mosaicism measurements", multimodal, false) + panel("integrated-candidates", "Frozen v0.37 candidates and filter history", candidates, false) + panel("integrated-papers", "Real scientific papers", paperPanel, false) + panel("integrated-databases", "Database evidence", databasePanel, false) + panel("integrated-conflicts", "Conflicts, limitations and retained filtering", conflicts, false) + panel("integrated-india", "India-specific population, laboratory, access and referral context", india, false) + panel("integrated-proposals", "Evidence-backed human-review proposals", proposals, false) + panel("integrated-provenance", "Provenance and review history", provenance, false);
+
+      const tabButtonsLive = Array.from(target.querySelectorAll("[role=\"tab\"]"));
+      const tabPanelsLive = Array.from(target.querySelectorAll("[role=\"tabpanel\"]"));
+      const activateTab = (button) => {
+        tabButtonsLive.forEach((item) => {
+          const active = item === button;
+          item.setAttribute("aria-selected", String(active));
+          item.tabIndex = active ? 0 : -1;
+        });
+        tabPanelsLive.forEach((item) => { item.hidden = item.id !== button.getAttribute("aria-controls"); });
+      };
+      tabButtonsLive.forEach((button, index) => {
+        button.addEventListener("click", () => activateTab(button));
+        button.addEventListener("keydown", (event) => {
+          if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === "Home" ? 0 : event.key === "End" ? tabButtonsLive.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabButtonsLive.length) % tabButtonsLive.length;
+          tabButtonsLive[next].focus();
+          activateTab(tabButtonsLive[next]);
+        });
+      });
+      const search = target.querySelector("#integrated-candidate-search");
+      if (search) search.addEventListener("input", () => {
+        const term = search.value.trim().toLowerCase();
+        target.querySelectorAll("[data-integrated-search]").forEach((row) => { row.hidden = Boolean(term) && !row.getAttribute("data-integrated-search").includes(term); });
+      });
+      const compare = target.querySelector("#integrated-compare-button");
+      if (compare) compare.addEventListener("click", () => {
+        const left = ranked.find((item) => item.candidate_id === target.querySelector("#integrated-compare-left")?.value);
+        const right = ranked.find((item) => item.candidate_id === target.querySelector("#integrated-compare-right")?.value);
+        const compareTarget = target.querySelector("#integrated-candidate-compare");
+        if (!left || !right) { compareTarget.textContent = "Two retained candidates are required for comparison."; return; }
+        compareTarget.innerHTML = "<div class=\"integrated-table-wrap\"><table><thead><tr><th>Dimension</th><th>" + value(left, "candidate_id") + "</th><th>" + value(right, "candidate_id") + "</th></tr></thead><tbody><tr><th>Rank / score</th><td>" + value(left, "deterministic_rank") + " / " + value(left, "aggregate_score") + "</td><td>" + value(right, "deterministic_rank") + " / " + value(right, "aggregate_score") + "</td></tr><tr><th>Source</th><td>" + value(left, "source_record_id") + "</td><td>" + value(right, "source_record_id") + "</td></tr><tr><th>State</th><td>" + value(left, "candidate_state") + "</td><td>" + value(right, "candidate_state") + "</td></tr></tbody></table></div>";
+      });
+    }
+
     function renderRun(data) {
       activeHandoffRunId = data.run_id || activeHandoffRunId;
       renderRunSummary(data, null);
@@ -2602,6 +2831,7 @@
       renderResultEvidenceWorkspace(data.result_evidence_workspace || data.final_state?.result_evidence_workspace);
       renderResultGateway(data.result_gateway || data.final_state?.result_gateway);
       renderCandidateAnalysis(data.candidate_analysis || data.final_state?.candidate_analysis);
+      renderIntegratedAnalysis(data.integrated_analysis_workspace || data.final_state?.integrated_analysis_workspace);
       renderSpecialistAgentWorkspace(data.specialist_agent_workspace || data.final_state?.specialist_agent_workspace);
       renderJarvisSynthesisReportWorkspace(data.jarvis_synthesis_report_workspace || data.final_state?.jarvis_synthesis_report_workspace);
       renderVariantIntelligence(data.variant_intelligence || data.final_state?.variant_intelligence);
@@ -2675,6 +2905,7 @@
         renderResultEvidenceWorkspace(detail?.result_evidence_workspace);
         renderResultGateway(detail?.result_gateway);
         renderCandidateAnalysis(detail?.candidate_analysis);
+        renderIntegratedAnalysis(detail?.integrated_analysis_workspace);
         renderSpecialistAgentWorkspace(detail?.specialist_agent_workspace);
         renderJarvisSynthesisReportWorkspace(detail?.jarvis_synthesis_report_workspace);
         renderVariantIntelligence(detail?.variant_intelligence);

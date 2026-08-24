@@ -1,0 +1,361 @@
+{
+  "base_fixture": "canonical_v037_candidate_analysis.json",
+  "integrated_analysis": {
+    "schema_version": "0.38",
+    "source_package_identity_sha256": "da0dcd7422c2af062a47ec5949a32fc80eb5da7cb54a2b9a66d535a430c49810",
+    "v036_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+    "laboratory_assay_metadata": {
+      "assay": "synthetic targeted rare-disease panel",
+      "genome_build": "GRCh38",
+      "reportable_scope": "supplied result package scope only",
+      "source_classification": "supplied"
+    },
+    "qc_summary": {
+      "state": "supplied",
+      "warning": "Synthetic QC fixture; no raw-read QC was run.",
+      "raw_reads_parsed": false
+    },
+    "coverage_blind_spots": [
+      {
+        "region_id": "BLIND-SPOT-1",
+        "reason": "supplied assay coverage blind spot",
+        "review_required": true
+      },
+      {
+        "region_id": "BLIND-SPOT-2",
+        "reason": "supplied assay coverage blind spot",
+        "review_required": true
+      }
+    ],
+    "external_tool_request": {
+      "operation": "stats",
+      "input_relative_path": "examples/insilicopop_demo/canonical_v038_input.vcf",
+      "timeout_seconds": 30
+    },
+    "retrieval_queries": [
+      {
+        "source_id": "pubmed",
+        "query_id": "pubmed-candidate",
+        "rsid": "rs113993960",
+        "gene": "CFTR",
+        "condition_terms": ["cystic fibrosis"],
+        "candidate_binding": {
+          "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+          "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+          "gene": "GENE1",
+          "variant": "1:100:A>G"
+        }
+      },
+      {
+        "source_id": "clinvar",
+        "query_id": "clinvar-candidate",
+        "rsid": "rs113993960",
+        "candidate_binding": {
+          "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+          "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+          "gene": "GENE1",
+          "variant": "1:100:A>G"
+        }
+      },
+      {
+        "source_id": "ensembl",
+        "query_id": "ensembl-candidate",
+        "rsid": "rs113993960",
+        "assembly": "GRCh38",
+        "candidate_binding": {
+          "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+          "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+          "gene": "GENE1",
+          "variant": "1:100:A>G"
+        }
+      },
+      {
+        "source_id": "pubmed",
+        "query_id": "pubmed-retraction-context",
+        "gene": "CFTR",
+        "condition_terms": ["retracted publication[pt]"]
+      }
+    ],
+    "frozen_retrieval_fixtures": [
+      {
+        "fixture_id": "pubmed-real-paper-33623413",
+        "source_id": "pubmed",
+        "request_signature": "{\"assembly\":null,\"candidate_binding\":{\"candidate_id\":\"candidate-v037-587112d0f7e70b149ae9\",\"finding_id\":null,\"gene\":\"GENE1\",\"source_record_id\":\"vcf-record-d552bedd0adc6e4c8e5c\",\"variant\":\"1:100:A>G\"},\"condition_terms\":[\"cystic fibrosis\"],\"gene\":\"CFTR\",\"hgvs\":null,\"inheritance_terms\":[],\"phenotype_terms\":[],\"query_id\":\"pubmed-candidate\",\"rsid\":\"rs113993960\",\"source_id\":\"pubmed\",\"variant_identifier\":null}",
+        "content_type": "application/json",
+        "response_body": "{\"papers\":[{\"pmid\":\"33623413\",\"doi\":\"10.2147/PGPM.S278806\",\"title\":\"Cystic Fibrosis Polymorphic Variants in a Russian Population.\",\"authors_summary\":[\"Kiseleva A\",\"Klimushina M\"],\"journal\":\"Pharmacogenomics and personalized medicine\",\"publication_year\":2020,\"publication_type\":[\"Journal Article\"],\"candidate_binding\":{\"candidate_id\":\"candidate-v037-587112d0f7e70b149ae9\",\"source_record_id\":\"vcf-record-d552bedd0adc6e4c8e5c\",\"gene\":\"GENE1\",\"variant\":\"1:100:A>G\",\"finding_id\":null},\"evidence_role\":\"supporting\",\"evidence_lifecycle_state\":\"eligible\",\"evidence_location\":\"citation metadata\",\"concise_paraphrase\":\"The real PubMed citation is retained as bounded candidate-review context; it does not prove diagnosis.\"}]}",
+        "response_sha256": "fe98c1f4ab6deb8dfe83d3a49a1ce5e2df1959b1b4fc190574c8c8e6b08fe27f",
+        "source_release": "NCBI E-utilities",
+        "recorded_at": "2026-08-23T00:00:00Z",
+        "parser_version": "pubmed-eutils-parser-0.38.0"
+      },
+      {
+        "fixture_id": "clinvar-real-vcv-records",
+        "source_id": "clinvar",
+        "request_signature": "{\"assembly\":null,\"candidate_binding\":{\"candidate_id\":\"candidate-v037-587112d0f7e70b149ae9\",\"finding_id\":null,\"gene\":\"GENE1\",\"source_record_id\":\"vcf-record-d552bedd0adc6e4c8e5c\",\"variant\":\"1:100:A>G\"},\"condition_terms\":[],\"gene\":null,\"hgvs\":null,\"inheritance_terms\":[],\"phenotype_terms\":[],\"query_id\":\"clinvar-candidate\",\"rsid\":\"rs113993960\",\"source_id\":\"clinvar\",\"variant_identifier\":null}",
+        "content_type": "application/json",
+        "response_body": "{\"records\":[{\"record_id\":\"VCV000634837\",\"record_type\":\"Haplotype\",\"record_fields\":{\"variation_id\":null,\"accession\":\"VCV000634837\",\"condition\":null,\"submitter\":null,\"review_status\":null,\"assertion_criteria\":null,\"evaluation_date\":null}},{\"record_id\":\"VCV000007105\",\"record_type\":\"Deletion\",\"record_fields\":{\"variation_id\":null,\"accession\":\"VCV000007105\",\"condition\":null,\"submitter\":null,\"review_status\":null,\"assertion_criteria\":null,\"evaluation_date\":null}}]}",
+        "response_sha256": "dd7742cb91b31f8a607bccecb26123bdd7233e4c3d96f3f0a039e847f25f6280",
+        "source_release": "NCBI ClinVar E-utilities",
+        "recorded_at": "2026-08-23T00:00:00Z",
+        "parser_version": "clinvar-eutils-parser-0.38.0"
+      },
+      {
+        "fixture_id": "ensembl-real-vep-rs113993960",
+        "source_id": "ensembl",
+        "request_signature": "{\"assembly\":\"GRCh38\",\"candidate_binding\":{\"candidate_id\":\"candidate-v037-587112d0f7e70b149ae9\",\"finding_id\":null,\"gene\":\"GENE1\",\"source_record_id\":\"vcf-record-d552bedd0adc6e4c8e5c\",\"variant\":\"1:100:A>G\"},\"condition_terms\":[],\"gene\":null,\"hgvs\":null,\"inheritance_terms\":[],\"phenotype_terms\":[],\"query_id\":\"ensembl-candidate\",\"rsid\":\"rs113993960\",\"source_id\":\"ensembl\",\"variant_identifier\":null}",
+        "content_type": "application/json",
+        "response_body": "{\"vep\":[{\"id\":\"rs113993960\",\"assembly_name\":\"GRCh38\",\"allele_string\":\"TCTT/T/TCTTCTT\",\"most_severe_consequence\":\"inframe_insertion\",\"transcript_consequences\":[{\"gene_id\":\"ENSG00000001626\",\"gene_symbol\":\"CFTR\",\"transcript_id\":\"ENST00000003084\",\"consequence_terms\":[\"inframe_deletion\",\"inframe_insertion\"],\"variant_allele\":\"T\"}]}]}",
+        "response_sha256": "dd12a3283e03b024301612ba2e1846be454d0b1c8288316481345895a76c2a3f",
+        "source_release": "Ensembl REST",
+        "recorded_at": "2026-08-23T00:00:00Z",
+        "parser_version": "ensembl-vep-parser-0.38.0"
+      },
+      {
+        "fixture_id": "pubmed-real-retracted-38356310",
+        "source_id": "pubmed",
+        "request_signature": "{\"assembly\":null,\"candidate_binding\":null,\"condition_terms\":[\"retracted publication[pt]\"],\"gene\":\"CFTR\",\"hgvs\":null,\"inheritance_terms\":[],\"phenotype_terms\":[],\"query_id\":\"pubmed-retraction-context\",\"rsid\":null,\"source_id\":\"pubmed\",\"variant_identifier\":null}",
+        "content_type": "application/json",
+        "response_body": "{\"papers\":[{\"pmid\":\"38356310\",\"doi\":\"10.1002/tox.24161\",\"title\":\"Development of the ARDS-derived gene panel for lung adenocarcinoma prognosis stratification and experiment validation of CCL20 expression.\",\"authors_summary\":[\"Fang J\",\"Shi C\"],\"journal\":\"Environmental toxicology\",\"publication_year\":2024,\"publication_type\":[\"Journal Article\",\"Retracted Publication\"],\"evidence_lifecycle_state\":\"excluded\",\"evidence_role\":\"context_only\",\"concise_paraphrase\":\"This real PubMed record is marked Retracted Publication and is excluded from candidate support.\"}]}",
+        "response_sha256": "53b0bfec003b8fcb0dc6048bc297db7bcf5e5b29d284e87eda287821fc44d798",
+        "source_release": "NCBI E-utilities",
+        "recorded_at": "2026-08-23T00:00:00Z",
+        "parser_version": "pubmed-eutils-parser-0.38.0"
+      }
+    ],
+    "supplied_database_evidence": [
+      {
+        "evidence_id": "clingen-dosage-gene1",
+        "source_id": "clingen",
+        "record_id": "CLINGEN-DOSAGE-GENE1",
+        "record_type": "ClinGen dosage sensitivity fixture record",
+        "source_release": "ClinGen bounded fixture subset 2026-08-23",
+        "assembly": "GRCh38",
+        "classification": "context_only",
+        "record_fields": {
+          "gene": "GENE1",
+          "dosage_sensitivity": "not evaluated",
+          "evidence_pmids": ["33623413"]
+        },
+        "collection_method": "hashed license-compatible deterministic fixture subset",
+        "raw_response_sha256": null,
+        "normalized_identity_sha256": "ad4d02139f017ed75d40941d3976e99d241af823d2cc2e06ef84fa3cbbdc1c0a",
+        "evidence_role": "context_only",
+        "evidence_lifecycle_state": "context_only",
+        "freshness": "fresh",
+        "limitations": ["Bounded fixture subset; manually verified production snapshot is required before operational use."],
+        "source_classification": "external_assessment"
+      },
+      {
+        "evidence_id": "gnomad-unavailable",
+        "source_id": "gnomad",
+        "record_id": "GNOMAD-UNAVAILABLE",
+        "record_type": "Population source availability record",
+        "source_release": "not activated",
+        "assembly": "GRCh38",
+        "classification": "unavailable",
+        "record_fields": {
+          "reason": "No safe stable bounded official interface was activated; browser scraping is prohibited."
+        },
+        "collection_method": "registry availability gate",
+        "raw_response_sha256": null,
+        "normalized_identity_sha256": "8eca50dfecdd98a2ae48578b12aaf75fd17ef4e1ba7e73c384fa3acf8bdd6c3f",
+        "evidence_role": "context_only",
+        "evidence_lifecycle_state": "quarantined",
+        "freshness": "unknown",
+        "limitations": ["Population frequency not available; absence is not zero and South Asian context is not individual ancestry."],
+        "source_classification": "external_assessment"
+      },
+      {
+        "evidence_id": "indigenomes-context",
+        "source_id": "indigenomes",
+        "record_id": "INDIGENOMES-MANUAL-CONTEXT",
+        "record_type": "Supplementary population snapshot context",
+        "source_release": "manual verified snapshot only",
+        "assembly": "GRCh38",
+        "classification": "not supplied",
+        "record_fields": {
+          "genome_build": "GRCh38",
+          "frequency": null,
+          "sample_count": null
+        },
+        "collection_method": "human-supplied verified snapshot reference",
+        "raw_response_sha256": null,
+        "normalized_identity_sha256": "7a638b45e369d11cdbae66f031ee4851ce8d2beb17b617f3c10fc0ff437c5cf1",
+        "evidence_role": "context_only",
+        "evidence_lifecycle_state": "context_only",
+        "freshness": "unknown",
+        "limitations": ["Research-use disclaimer applies; commercial use may require licensing; no frequency was supplied."],
+        "source_classification": "external_assessment"
+      }
+    ],
+    "supplied_cnv_findings": [
+      {
+        "finding_id": "cnv-supplied-001",
+        "source_binding": {
+          "source_report_id": "REPORT-SYNTH-036",
+          "source_manifest_entry_path": "results/synthetic.vcf",
+          "source_manifest_entry_sha256": "a91159bc637239c1f519f80b2dacf49a40017b5c42dc2e01b2d7971536b5510b",
+          "source_package_identity_sha256": "da0dcd7422c2af062a47ec5949a32fc80eb5da7cb54a2b9a66d535a430c49810",
+          "source_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+          "source_report_sha256": "4e81eda814712d924f0b95ebd4dd38fd76917f128c107bbb3d93e6533bf27b15"
+        },
+        "genome_build": "GRCh38",
+        "chromosome": "2",
+        "start": 400,
+        "end": 500,
+        "event_type": "deletion",
+        "supplied_copy_number": 1,
+        "supplied_copy_number_state": "single-copy state supplied by report",
+        "affected_interval": "2:400-500",
+        "gene_exon_overlap": ["GENE-CNV:exon1"],
+        "dosage_evidence_ids": ["clingen-dosage-gene1"],
+        "population_frequency": 0.0002,
+        "phenotype_relevance": "Supplied overlap requires specialist review.",
+        "supplied_inheritance": "unknown",
+        "assay": "synthetic array-CGH report",
+        "resolution_bp": 50000,
+        "confirmation_state": "supplied",
+        "supplied_external_classification": "not supplied",
+        "limitations": ["Supplied CNV only; no raw CNV calling, structural-variant interpretation or final CNV classification."],
+        "provenance": ["REPORT-SYNTH-036", "v0.36 manifest entry results/synthetic.vcf"]
+      }
+    ],
+    "supplied_mitochondrial_findings": [
+      {
+        "finding_id": "mito-supplied-001",
+        "source_binding": {
+          "source_report_id": "REPORT-SYNTH-036",
+          "source_manifest_entry_path": "reports/laboratory_report.json",
+          "source_manifest_entry_sha256": "4e81eda814712d924f0b95ebd4dd38fd76917f128c107bbb3d93e6533bf27b15",
+          "source_package_identity_sha256": "da0dcd7422c2af062a47ec5949a32fc80eb5da7cb54a2b9a66d535a430c49810",
+          "source_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+          "source_report_sha256": "4e81eda814712d924f0b95ebd4dd38fd76917f128c107bbb3d93e6533bf27b15"
+        },
+        "reference_sequence": "rCRS",
+        "coordinate": 3243,
+        "ref": "A",
+        "alt": "G",
+        "heteroplasmy": 0.35,
+        "alternate_read_count": 35,
+        "total_read_count": 100,
+        "depth": 100,
+        "tissue": "blood",
+        "assay": "synthetic mitochondrial amplicon sequencing",
+        "detection_threshold": 0.05,
+        "maternal_family_context_supplied": "not supplied",
+        "mitochondrial_population_frequency": 0.0001,
+        "supplied_external_classification": "not supplied",
+        "confirmation_state": "pending",
+        "limitations": ["Supplied measurement only; no raw mitochondrial calling, recurrence calculation, maternal-relationship inference or autonomous interpretation."],
+        "provenance": ["REPORT-SYNTH-036", "v0.36 manifest entry reports/laboratory_report.json"]
+      }
+    ],
+    "mosaicism_measurements": [
+      {
+        "measurement_id": "mosaic-measurement-001",
+        "source_binding": {
+          "source_report_id": "REPORT-SYNTH-036",
+          "source_manifest_entry_path": "results/synthetic.vcf",
+          "source_manifest_entry_sha256": "a91159bc637239c1f519f80b2dacf49a40017b5c42dc2e01b2d7971536b5510b",
+          "source_package_identity_sha256": "da0dcd7422c2af062a47ec5949a32fc80eb5da7cb54a2b9a66d535a430c49810",
+          "source_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05"
+        },
+        "finding_id": "vcf-record-d552bedd0adc6e4c8e5c",
+        "variant": "1:100:A>G",
+        "variant_allele_fraction": 0.1,
+        "alternate_read_count": 4,
+        "total_read_count": 40,
+        "depth": 40,
+        "tissue": "blood",
+        "assay": "synthetic deep amplicon sequencing",
+        "detection_threshold": 0.02,
+        "technical_artifact_warning": "Low-fraction measurement requires technical-artifact review.",
+        "confirmation_state": "pending",
+        "other_tissue_tested": false,
+        "measurement_state": "confirmation_pending",
+        "limitations": ["Low allele fraction is not converted into a disease conclusion."],
+        "provenance": ["REPORT-SYNTH-036", "v0.36 supplied VCF record"]
+      }
+    ],
+    "candidate_acmg_evidence_organization": [
+      {
+        "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+        "evidence_id": "paper-pmid-33623413",
+        "role": "supporting_context",
+        "classification_state": "candidate_review_only",
+        "final_acmg_classification_performed": false
+      },
+      {
+        "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+        "evidence_id": "clinvar-record-VCV000634837",
+        "role": "external_assessment",
+        "classification_state": "retain_conflict_for_human_review",
+        "final_acmg_classification_performed": false
+      }
+    ],
+    "draft_report_inputs": [
+      {
+        "section": "integrated_evidence_summary",
+        "state": "draft_review_input",
+        "text": "Evidence and supplied multimodal findings require specialist and human review; no diagnosis or final classification is generated."
+      }
+    ],
+    "india_context": {
+      "population_context": [
+        {
+          "source_id": "indigenomes",
+          "availability": "manual_verified_only",
+          "genome_build": "GRCh38",
+          "release": "manual verified snapshot only",
+          "sample_count": null,
+          "frequency": null,
+          "source_url": "https://clingen.igib.res.in/indigen/",
+          "licensing_label": "Research use only; commercial use may require licensing; manually supplied and hashed snapshot required.",
+          "limitations": ["No frequency was supplied; absence is not zero; no ancestry inference."]
+        },
+        {
+          "source_id": "gnomad_south_asian",
+          "availability": "unavailable",
+          "genome_build": "GRCh38",
+          "release": "not activated",
+          "frequency": null,
+          "licensing_label": "South Asian population-level context only; not individual ancestry.",
+          "limitations": ["No safe stable bounded official interface was activated; browser scraping is prohibited."]
+        }
+      ],
+      "nabl_scope_verifications": [
+        {
+          "laboratory_name": "Synthetic Indian molecular laboratory",
+          "laboratory_reference": "LAB-IN-SYNTH-001",
+          "certificate_number": "not supplied",
+          "iso_15189_wording": "ISO 15189 scope must be verified manually.",
+          "exact_accreditation_scope": "Supplied scope not independently verified.",
+          "molecular_genetics_assay_coverage": "not independently verified",
+          "verification_date": "2026-08-23",
+          "official_source_url": "https://nabl-india.org/",
+          "state": "scope_unverified",
+          "limitations": ["Do not infer that all tests offered by a laboratory are accredited."]
+        }
+      ],
+      "managed_access_contexts": [
+        {
+          "source_id": "genomeindia_ibdc",
+          "access_program": "IBDC / FeED / BIOTECH-PRIDE managed access",
+          "official_source_url": "https://ibdc.dbt.gov.in/data_access_portal/",
+          "access_granted": false,
+          "data_retrieved": false,
+          "limitations": ["Managed-access future source; no live GenomeIndia data claim."]
+        }
+      ],
+      "referral_contexts": [
+        {
+          "source_id": "mohfw_rare_disease_centres",
+          "official_source_url": "https://www.rarediseases.mohfw.gov.in/Hospital_Treating_Rare_Diseases",
+          "version_or_access_date": "2026-08-23",
+          "centres_of_excellence_reference": "Human-review referral context only; no automatic hospital selection or service-availability claim."
+        }
+      ]
+    },
+    "workspace_created_at": "2026-08-23T00:00:00Z"
+  }
+}

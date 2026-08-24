@@ -11,8 +11,12 @@ from app.insilicopop.benchmarks.agent_trace import AgentMemoryBenchmarkRunner
 from app.insilicopop.benchmarks.runner import MemoryBenchmarkRunner
 from app.insilicopop.clinical import (
     build_clinical_case_v035_bundle,
+    build_clinical_case_v038_workspace,
     run_canonical_handoff_journey,
 )
+from app.insilicopop.clinical.integrated_analysis_models import TypedRetrievalQuery
+from app.insilicopop.clinical.retrieval_registry import ControlledRetrievalService
+from app.insilicopop.clinical.tool_execution import WslBcftoolsAdapter, load_registered_wsl_runtime
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -72,6 +76,32 @@ def main(argv: list[str] | None = None) -> int:
             / "canonical_v037_candidate_analysis.json"
         ),
     )
+
+    v038_demo = subparsers.add_parser(
+        "v038-demo",
+        help="Run the deterministic v0.38 integrated multimodal evidence workspace demonstration.",
+    )
+    v038_demo.add_argument(
+        "--fixture",
+        default=str(
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "insilicopop_demo"
+            / "canonical_v038_integrated_analysis.json"
+        ),
+    )
+    v038_demo.add_argument(
+        "--authorize-tool",
+        action="store_true",
+        help="Run only the registered typed WSL BCFtools authorization for the canonical synthetic VCF.",
+    )
+
+    v038_live = subparsers.add_parser(
+        "v038-live-smoke",
+        help="Run bounded read-only PubMed, ClinVar and Ensembl smoke queries for a public synthetic identifier.",
+    )
+    v038_live.add_argument("--authorize-live", action="store_true")
+    v038_live.add_argument("--rsid", default="rs113993960")
 
     audit = subparsers.add_parser("audit")
     audit.add_argument("--metadata")
@@ -386,7 +416,155 @@ def main(argv: list[str] | None = None) -> int:
         }
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 0
+    if args.command == "v038-demo":
+        payload = _load_v038_fixture(args.fixture)
+        tool_adapter = None
+        tool_execution_authorization = None
+        if args.authorize_tool:
+            runtime_binding, tool_execution_authorization = load_registered_wsl_runtime()
+            tool_adapter = WslBcftoolsAdapter(
+                runtime_binding=runtime_binding,
+                authorization=tool_execution_authorization,
+            )
+        workspace = build_clinical_case_v038_workspace(
+            payload,
+            tool_adapter=tool_adapter,
+            tool_execution_authorization=tool_execution_authorization,
+        )
+        summary = {
+            "case_id": workspace.pseudonymous_case_id,
+            "schema_version": workspace.schema_version,
+            "algorithm_version": workspace.algorithm_version,
+            "rule_version": workspace.rule_version,
+            "workspace_id": workspace.workspace_id,
+            "workspace_status": workspace.status.value,
+            "status_reasons": list(workspace.status_reasons),
+            "bundle_width": 10,
+            "navigator_stage_count": 18,
+            "ranked_candidates": [
+                {
+                    "candidate_id": item.candidate_id,
+                    "source_record_id": item.source_record_id,
+                    "rank": item.deterministic_rank,
+                    "score": item.aggregate_score,
+                    "state": item.candidate_state,
+                }
+                for item in workspace.ranked_candidates
+            ],
+            "excluded_candidates": [
+                {"candidate_id": item.candidate_id, "source_record_id": item.source_record_id, "state": item.candidate_state}
+                for item in workspace.excluded_candidates
+            ],
+            "filter_history_count": len(workspace.filter_history),
+            "paper_count": len(workspace.papers),
+            "paper_pmids": [item.pmid for item in workspace.papers],
+            "paper_dois": [item.doi for item in workspace.papers if item.doi],
+            "database_evidence_count": len(workspace.database_evidence),
+            "database_record_ids": [item.record_id for item in workspace.database_evidence],
+            "retrieval_event_count": len(workspace.retrieval_events),
+            "retrieval_sources": sorted({item.source_id for item in workspace.retrieval_events}),
+            "retrieval_cache_statuses": [item.cache_status.value for item in workspace.retrieval_events],
+            "evidence_lifecycle": workspace.evidence_lifecycle_summary.model_dump(mode="json"),
+            "external_tool_executions": [_v038_tool_execution_summary(item) for item in workspace.external_tool_executions],
+            "cnv_count": len(workspace.supplied_cnv_findings),
+            "mitochondrial_count": len(workspace.supplied_mitochondrial_findings),
+            "mosaicism_count": len(workspace.mosaicism_measurements),
+            "human_review_proposal_count": len(workspace.human_review_proposals),
+            "identities": {
+                "input_integrity_sha256": workspace.input_integrity.input_integrity_sha256,
+                "v036_manifest_identity_sha256": workspace.identity_chain.v036_manifest_identity_sha256,
+                "v036_result_gateway_identity_sha256": workspace.identity_chain.v036_result_gateway_identity_sha256,
+                "v037_ranking_input_identity_sha256": workspace.identity_chain.v037_ranking_input_identity_sha256,
+                "v037_ranking_output_identity_sha256": workspace.identity_chain.v037_ranking_output_identity_sha256,
+                "candidate_analysis_identity_sha256": workspace.identity_chain.candidate_analysis_identity_sha256,
+                "multimodal_findings_identity_sha256": workspace.multimodal_findings_identity_sha256,
+                "external_tool_execution_identity_sha256": workspace.identity_chain.external_tool_execution_identity_sha256,
+                "retrieval_event_identity_sha256": workspace.identity_chain.retrieval_event_identity_sha256,
+                "retrieval_snapshot_identity_sha256": workspace.identity_chain.retrieval_snapshot_identity_sha256,
+                "evidence_lifecycle_identity_sha256": workspace.identity_chain.evidence_lifecycle_identity_sha256,
+                "integrated_workspace_identity_sha256": workspace.integrated_workspace_identity_sha256,
+                "final_integrity_sha256": workspace.final_integrity_sha256,
+            },
+            "safety": {
+                "research_use_only": workspace.research_use_only,
+                "human_review_required": workspace.human_review_required,
+                "draft_not_clinically_approved": workspace.draft_not_clinically_approved,
+                "diagnosis_performed": workspace.diagnosis_performed,
+                "treatment_recommended": workspace.treatment_recommended,
+                "test_ordered": workspace.test_ordered,
+                "final_acmg_classification_performed": workspace.final_acmg_classification_performed,
+                "clinical_signout_performed": workspace.clinical_signout_performed,
+                "raw_bytes_persisted": workspace.raw_bytes_persisted,
+                "external_llm_called": workspace.external_llm_called,
+            },
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+    if args.command == "v038-live-smoke":
+        if not args.authorize_live:
+            print(json.dumps({"status": "blocked", "reason": "pass --authorize-live to record the explicit human authorization checkpoint"}, indent=2, sort_keys=True))
+            return 2
+        rsid = args.rsid
+        queries = (
+            TypedRetrievalQuery(source_id="pubmed", rsid=rsid, gene="CFTR", condition_terms=("cystic fibrosis",), query_id="pubmed-smoke"),
+            TypedRetrievalQuery(source_id="clinvar", rsid=rsid, query_id="clinvar-smoke"),
+            TypedRetrievalQuery(source_id="ensembl", rsid=rsid, assembly="GRCh38", query_id="ensembl-smoke"),
+        )
+        service = ControlledRetrievalService(allow_live=True, human_authorized=True)
+        results = service.retrieve_many(queries)
+        output = {
+            "status": "complete" if all(item.event.failure_state.value == "none" for item in results) else "partial",
+            "authorization_checkpoint": "human_authorized_for_public_synthetic_identifier_only",
+            "queries": [item.typed_query.model_dump(mode="json") for item in (result.event for result in results)],
+            "results": [
+                {
+                    "source_id": result.source_id,
+                    "failure_state": result.event.failure_state.value,
+                    "failure_reason": result.event.failure_or_quarantine_reason,
+                    "cache_status": result.event.cache_status.value,
+                    "record_ids": list(result.event.record_ids),
+                    "paper_pmids": [item.pmid for item in result.papers],
+                    "database_record_ids": [item.record_id for item in result.database_records],
+                    "normalized_identity_sha256": result.event.normalized_record_identity_sha256,
+                    "raw_response_sha256": result.event.raw_response_sha256,
+                }
+                for result in results
+            ],
+        }
+        print(json.dumps(output, indent=2, sort_keys=True))
+        return 0 if output["status"] == "complete" else 1
     return 2
+
+
+def _v038_tool_execution_summary(item: Any) -> dict[str, Any]:
+    """Expose only parsed, bounded execution provenance in the CLI artifact."""
+
+    summary: dict[str, Any] = {
+        "tool": item.tool_name,
+        "operation": item.operation,
+        "status": item.execution_status.value,
+        "availability": item.availability.value,
+        "activation": (
+            "executed"
+            if item.execution_status.value == "completed"
+            else (
+                "blocked_without_approval"
+                if item.error_code in {"TOOL_AUTHORIZATION_REQUIRED", "TOOL_AUTHORIZATION_RECORD_REQUIRED"}
+                else "not_completed"
+            )
+        ),
+        "version": item.tool_version,
+        "input_sha256": item.input_sha256,
+        "output_sha256": item.output_sha256,
+        "invocation_identity_sha256": item.invocation_identity_sha256,
+    }
+    contract = item.typed_invocation.get("execution_contract") if isinstance(item.typed_invocation, dict) else None
+    result_summary = item.typed_invocation.get("result_summary") if isinstance(item.typed_invocation, dict) else None
+    if isinstance(contract, dict):
+        summary["execution_contract"] = contract
+    if isinstance(result_summary, dict):
+        summary["result_summary"] = result_summary
+    return summary
 
 
 def _audit_uploads(args: argparse.Namespace) -> dict[str, dict[str, bytes | str] | None]:
@@ -453,6 +631,17 @@ def _load_v037_fixture(path_value: str) -> dict[str, Any]:
         return overlay
     base_path = Path(path_value).resolve().parent / str(base_name)
     base = _json_object_file(str(base_path))
+    base.update(overlay)
+    return base
+
+
+def _load_v038_fixture(path_value: str) -> dict[str, Any]:
+    overlay = _json_object_file(path_value)
+    base_name = overlay.pop("base_fixture", None)
+    if not base_name:
+        return overlay
+    base_path = Path(path_value).resolve().parent / str(base_name)
+    base = _load_v037_fixture(str(base_path))
     base.update(overlay)
     return base
 

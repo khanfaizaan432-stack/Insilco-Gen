@@ -78,6 +78,19 @@ def write_agent_outputs(root: Path, state: AgentState) -> dict[str, Any]:
         generated_artifact_count=len(files) + 10,
         validated_actions=state.validated_actions,
     )
+    if state.integrated_analysis_workspace:
+        workspace = state.integrated_analysis_workspace
+        final_report += (
+            "\n## Integrated v0.38 Analysis Workspace\n\n"
+            f"- Status: {workspace.status.value}\n"
+            f"- Workspace identity: `{workspace.integrated_workspace_identity_sha256}`\n"
+            f"- Final integrity: `{workspace.final_integrity_sha256}`\n"
+            f"- Ranked candidates retained: {len(workspace.ranked_candidates)}; excluded candidates retained: {len(workspace.excluded_candidates)}\n"
+            f"- Papers: {len(workspace.papers)}; database evidence records: {len(workspace.database_evidence)}\n"
+            f"- External tool statuses: {', '.join(item.execution_status.value for item in workspace.external_tool_executions) or 'not requested'}\n"
+            f"- Human-review proposals: {len(workspace.human_review_proposals)}\n"
+            "- Research-use-only; human review required; draft not clinically approved; no diagnosis, treatment, test order, final ACMG classification or clinical sign-out.\n"
+        )
     files["agent_state"].write_text(json.dumps(jsonable_encoder(state), indent=2), encoding="utf-8")
     files["agent_trace"].write_text(json.dumps(jsonable_encoder(trace), indent=2), encoding="utf-8")
     files["action_proposals"].write_text(json.dumps(jsonable_encoder(state.llm_action_proposals), indent=2), encoding="utf-8")

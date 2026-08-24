@@ -1,0 +1,332 @@
+{
+  "algorithm_version": "insilicopop-integrated-analysis-0.38.0",
+  "bundle_width": 10,
+  "case_id": "CASE-IN-SILICO-RESULT-036",
+  "cnv_count": 1,
+  "database_evidence_count": 6,
+  "database_record_ids": [
+    "VCV000634837",
+    "VCV000007105",
+    "rs113993960",
+    "CLINGEN-DOSAGE-GENE1",
+    "GNOMAD-UNAVAILABLE",
+    "INDIGENOMES-MANUAL-CONTEXT"
+  ],
+  "evidence_lifecycle": {
+    "context_only_count": 2,
+    "eligible_count": 4,
+    "excluded_count": 1,
+    "lifecycle_identity_sha256": "478f66401f47e432203a52ee45c4b9f0d9dcc6db0494a5adfcf4f9e20b1d4a52",
+    "quarantined_count": 1
+  },
+  "excluded_candidates": [
+    {
+      "candidate_id": "CAND-UNBOUND-037",
+      "source_record_id": "CAND-UNBOUND-037",
+      "state": "excluded"
+    },
+    {
+      "candidate_id": "candidate-v037-ee1542f46cfa1dc60227",
+      "source_record_id": "candidate-v037-ee1542f46cfa1dc60227",
+      "state": "excluded"
+    }
+  ],
+  "external_tool_executions": [
+    {
+      "activation": "executed",
+      "availability": "available",
+      "execution_contract": {
+        "authorization_identity_sha256": "48ffa48d85ed473205b5d81f103cf087210dd1f8b26f4e1af46de2d032161fe1",
+        "authorization_scope": "canonical_synthetic_vcf_only",
+        "cleanup_outcome": "removed",
+        "expected_exit_codes": [
+          0
+        ],
+        "local_file_only": true,
+        "max_input_bytes": 50000000,
+        "max_output_bytes_per_stream_or_file": 50000000,
+        "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+        "proxy_environment_removed": true,
+        "reference_left_normalization_performed": false,
+        "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+        "shell_interpolation_used": false,
+        "work_directory_policy": "fresh_bounded_windows_directory"
+      },
+      "input_sha256": null,
+      "invocation_identity_sha256": "2ab62cfb1debf978e05dda4ec2ed19315e3b012a428da0ca0cd4c89349939349",
+      "operation": "version",
+      "output_sha256": null,
+      "result_summary": {
+        "bcftools_version": "1.24",
+        "htslib_version": "1.24",
+        "stdout_sha256": "dc40b151b96f8b51e79326537319696a9cb86d982e8a154f3889ff84da5773e9"
+      },
+      "status": "completed",
+      "tool": "bcftools",
+      "version": "1.24"
+    },
+    {
+      "activation": "executed",
+      "availability": "available",
+      "execution_contract": {
+        "authorization_identity_sha256": "48ffa48d85ed473205b5d81f103cf087210dd1f8b26f4e1af46de2d032161fe1",
+        "authorization_scope": "canonical_synthetic_vcf_only",
+        "cleanup_outcome": "removed",
+        "expected_exit_codes": [
+          0
+        ],
+        "local_file_only": true,
+        "max_input_bytes": 50000000,
+        "max_output_bytes_per_stream_or_file": 50000000,
+        "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+        "proxy_environment_removed": true,
+        "reference_left_normalization_performed": false,
+        "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+        "shell_interpolation_used": false,
+        "work_directory_policy": "fresh_bounded_windows_directory"
+      },
+      "input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+      "invocation_identity_sha256": "ebd51c733a4897e06413aaf475abe6c2770f99c8255e91bace8adfbf72665f9e",
+      "operation": "validate",
+      "output_sha256": null,
+      "result_summary": {
+        "header_sha256": "6f2872242b273f134b564b8621be362bfb16499436f532475afb6f536d81c716",
+        "header_validated": true
+      },
+      "status": "completed",
+      "tool": "bcftools",
+      "version": "1.24"
+    },
+    {
+      "activation": "executed",
+      "availability": "available",
+      "execution_contract": {
+        "authorization_identity_sha256": "48ffa48d85ed473205b5d81f103cf087210dd1f8b26f4e1af46de2d032161fe1",
+        "authorization_scope": "canonical_synthetic_vcf_only",
+        "cleanup_outcome": "removed",
+        "expected_exit_codes": [
+          0
+        ],
+        "local_file_only": true,
+        "max_input_bytes": 50000000,
+        "max_output_bytes_per_stream_or_file": 50000000,
+        "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+        "proxy_environment_removed": true,
+        "reference_left_normalization_performed": false,
+        "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+        "shell_interpolation_used": false,
+        "work_directory_policy": "fresh_bounded_windows_directory"
+      },
+      "input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+      "invocation_identity_sha256": "0c579e7305bdab32ccb6b56814b54e337c5f757fe498f291f1ee2d6474c62eea",
+      "operation": "stats",
+      "output_sha256": null,
+      "result_summary": {
+        "input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+        "normalized_stdout_sha256": "8a1648241f6009db5c94b02494017e74ba32743fb9543f776d373b1d2f030e8a",
+        "stats": {
+          "number_of_indels": 0,
+          "number_of_mnps": 0,
+          "number_of_multiallelic_sites": 1,
+          "number_of_multiallelic_snp_sites": 1,
+          "number_of_no-alts": 0,
+          "number_of_others": 0,
+          "number_of_records": 2,
+          "number_of_samples": 2,
+          "number_of_snps": 2
+        }
+      },
+      "status": "completed",
+      "tool": "bcftools",
+      "version": "1.24"
+    },
+    {
+      "activation": "executed",
+      "availability": "available",
+      "execution_contract": {
+        "authorization_identity_sha256": "48ffa48d85ed473205b5d81f103cf087210dd1f8b26f4e1af46de2d032161fe1",
+        "authorization_scope": "canonical_synthetic_vcf_only",
+        "cleanup_outcome": "removed",
+        "expected_exit_codes": [
+          0
+        ],
+        "local_file_only": true,
+        "max_input_bytes": 50000000,
+        "max_output_bytes_per_stream_or_file": 50000000,
+        "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+        "proxy_environment_removed": true,
+        "reference_left_normalization_performed": false,
+        "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+        "shell_interpolation_used": false,
+        "work_directory_policy": "fresh_bounded_windows_directory"
+      },
+      "input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+      "invocation_identity_sha256": "085d794f3cab4272f474a5e8a47480d9034f9dbb612f97da18582f3e0a382a43",
+      "operation": "sample_names",
+      "output_sha256": null,
+      "result_summary": {
+        "sample_count": 2,
+        "sample_names": [
+          "SAMPLE-DEMO",
+          "CONTROL-DEMO"
+        ]
+      },
+      "status": "completed",
+      "tool": "bcftools",
+      "version": "1.24"
+    },
+    {
+      "activation": "executed",
+      "availability": "available",
+      "execution_contract": {
+        "authorization_identity_sha256": "48ffa48d85ed473205b5d81f103cf087210dd1f8b26f4e1af46de2d032161fe1",
+        "authorization_scope": "canonical_synthetic_vcf_only",
+        "cleanup_outcome": "removed",
+        "expected_exit_codes": [
+          0
+        ],
+        "local_file_only": true,
+        "max_input_bytes": 50000000,
+        "max_output_bytes_per_stream_or_file": 50000000,
+        "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+        "proxy_environment_removed": true,
+        "reference_left_normalization_performed": false,
+        "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+        "shell_interpolation_used": false,
+        "work_directory_policy": "fresh_bounded_windows_directory"
+      },
+      "input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+      "invocation_identity_sha256": "f09f90a8498aa465dc1e1e741d6cdf5f5022c8128ca74e41ecd4148fe572091d",
+      "operation": "decompose_multiallelic",
+      "output_sha256": "e25f76d920f68f8caa7bc78037339791852ea9023526317361ead0c729f2ae83",
+      "result_summary": {
+        "decomposed_output_bytes": 739,
+        "decomposed_output_sha256": "e25f76d920f68f8caa7bc78037339791852ea9023526317361ead0c729f2ae83",
+        "decomposed_records": [
+          {
+            "decomposed_representation": "1:100:A>G",
+            "normalized_representation": "1:100:A>G",
+            "reference_left_normalization_performed": false,
+            "source_alt_index": 1,
+            "source_record_sha256": "b16be9ce6fcd4e7d01a94a7e5dd594517c2f12448a3f43624e54f886c7bdfe2a",
+            "source_representation": "1:100:A>G"
+          },
+          {
+            "decomposed_representation": "1:300:G>A",
+            "normalized_representation": "1:300:G>A",
+            "reference_left_normalization_performed": false,
+            "source_alt_index": 1,
+            "source_record_sha256": "b2021c2af6cdb8d999b7e4fc16de48a40a8f10260737db20f4a92ec7b71f52e1",
+            "source_representation": "1:300:G>A,T"
+          },
+          {
+            "decomposed_representation": "1:300:G>T",
+            "normalized_representation": "1:300:G>T",
+            "reference_left_normalization_performed": false,
+            "source_alt_index": 2,
+            "source_record_sha256": "b2021c2af6cdb8d999b7e4fc16de48a40a8f10260737db20f4a92ec7b71f52e1",
+            "source_representation": "1:300:G>A,T"
+          }
+        ],
+        "matched_deterministic_source_record_ids": [
+          "vcf-source-2c8fd5ddad44a81b30cc",
+          "vcf-source-6404fd5ac340275e2e78"
+        ],
+        "reference_left_normalization_performed": false,
+        "representation_comparison_scope": "normalized chromosome-position-ref-alt only",
+        "source_representation_matches_deterministic_record": true
+      },
+      "status": "completed",
+      "tool": "bcftools",
+      "version": "1.24"
+    }
+  ],
+  "filter_history_count": 6,
+  "human_review_proposal_count": 8,
+  "identities": {
+    "candidate_analysis_identity_sha256": "3869c18397d8a9b6e84c1ba10fbeadbb57185878e6752987b28e98caf39f3068",
+    "evidence_lifecycle_identity_sha256": "478f66401f47e432203a52ee45c4b9f0d9dcc6db0494a5adfcf4f9e20b1d4a52",
+    "external_tool_execution_identity_sha256": "1292c72366ce44bce00b7c54e80e2fbc575d9b6156e7c0ff5729d86655cef469",
+    "final_integrity_sha256": "3e9df76f0634425142deeb884c173ca0c7dae9f3f8d1f1976722a1fd99d6ca3e",
+    "input_integrity_sha256": "cfbcc164902cffe296ed52a642bc65a46d4d6d0311a19923f46cb1a40cff24f8",
+    "integrated_workspace_identity_sha256": "4e296c095a34733f4ac3ee8fa45053834eb02c1817ec039e68f72833bcc24ba5",
+    "multimodal_findings_identity_sha256": "f2670566ed84fb23dabff73adb131f3b735d8de3483ac6321c1e81ef263f99c4",
+    "retrieval_event_identity_sha256": "bc9ad92b068252c9bae6caad8cd85f69bb378d6e631966285e5b4d21d622566a",
+    "retrieval_snapshot_identity_sha256": "9ebe027dbc7d1460cbdd2dc809b0e8778bc0d9b1c3ad4cfd920a4bb010991f93",
+    "v036_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+    "v036_result_gateway_identity_sha256": "204e54ea3b3f0561c67da9d64bab880683a337a880e10fe64e47c37d0df3d151",
+    "v037_ranking_input_identity_sha256": "282c008a51ebb286141ed1fb614ebfcb3e54eff32087bddc598fbe803a85274c",
+    "v037_ranking_output_identity_sha256": "f9aa7575fbc6c2f0087ed3970019375c2de7143d234684eec0ca3805a15cf56d"
+  },
+  "mitochondrial_count": 1,
+  "mosaicism_count": 1,
+  "navigator_stage_count": 18,
+  "paper_count": 2,
+  "paper_dois": [
+    "10.2147/PGPM.S278806",
+    "10.1002/tox.24161"
+  ],
+  "paper_pmids": [
+    "33623413",
+    "38356310"
+  ],
+  "ranked_candidates": [
+    {
+      "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+      "rank": 1,
+      "score": 15.45,
+      "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+      "state": "ranked_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+      "rank": 2,
+      "score": 9.55,
+      "source_record_id": "vcf-record-0b9fc8231a2250957455",
+      "state": "ranked_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-4995d09756964b7166e8",
+      "rank": 3,
+      "score": 2.4,
+      "source_record_id": "vcf-record-29633f1653a99fdda8b8",
+      "state": "retained_weak_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-3a5d83c0d8322e941a40",
+      "rank": 4,
+      "score": -4.5,
+      "source_record_id": "vcf-record-aa4d7899f999e76a0434",
+      "state": "retained_weak_for_review"
+    }
+  ],
+  "retrieval_cache_statuses": [
+    "replay",
+    "replay",
+    "replay",
+    "replay"
+  ],
+  "retrieval_event_count": 4,
+  "retrieval_sources": [
+    "clinvar",
+    "ensembl",
+    "pubmed"
+  ],
+  "rule_version": "insilicopop-integrated-analysis-rules-0.38.0",
+  "safety": {
+    "clinical_signout_performed": false,
+    "diagnosis_performed": false,
+    "draft_not_clinically_approved": true,
+    "external_llm_called": false,
+    "final_acmg_classification_performed": false,
+    "human_review_required": true,
+    "raw_bytes_persisted": false,
+    "research_use_only": true,
+    "test_ordered": false,
+    "treatment_recommended": false
+  },
+  "schema_version": "0.38",
+  "status_reasons": [],
+  "workspace_id": "integrated-5c56e201a6c4f7fb7488a05a",
+  "workspace_status": "complete"
+}

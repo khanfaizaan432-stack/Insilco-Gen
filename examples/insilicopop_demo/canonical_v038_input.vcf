@@ -1,0 +1,10 @@
+##fileformat=VCFv4.3
+##contig=<ID=1,length=248956422>
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE-DEMO	CONTROL-DEMO
+1	100	rs113993960	A	G	99	PASS	DP=40	GT:DP:AD:GQ	0/1:40:36,4:99	0/0:40:40,0:99
+1	300	rs121909001	G	A,T	70	PASS	DP=40	GT:DP:AD:GQ	1/2:40:12,14,14:60	0/2:40:20,0,20:65

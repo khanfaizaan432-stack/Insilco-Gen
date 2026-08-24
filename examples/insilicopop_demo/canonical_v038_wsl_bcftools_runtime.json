@@ -1,0 +1,21 @@
+{
+  "runtime_id": "v038-wsl-bcftools-1.24-ubuntu-2404",
+  "distribution": "Ubuntu-24.04",
+  "wsl_executable_path": "C:\\Windows\\System32\\wsl.exe",
+  "bcftools_wsl_path": "/home/khanf/.local/share/insilicopop-mamba-root/envs/insilicopop-bcftools-1.24/bin/bcftools",
+  "executable_sha256": "88f3dfdef5687974d288fd70d5335142ac3466cbe68c43f57d54b2c4464234e9",
+  "executable_byte_size": 1461400,
+  "bcftools_version": "1.24",
+  "htslib_version": "1.24",
+  "micromamba_version": "2.9.0",
+  "environment_name": "insilicopop-bcftools-1.24",
+  "environment_lock_sha256": "88be2c3f0a9221d20e957ecd0b51b0b6253e3e0b32b935ad66f013c6718c1e5a",
+  "platform": "linux-64",
+  "license": "GPLv3+ (bcftools); MIT (HTSlib)",
+  "max_input_bytes": 50000000,
+  "max_output_bytes": 50000000,
+  "max_timeout_seconds": 30,
+  "network_isolation_level": "local_file_only_proxy_scrubbed_no_kernel_namespace",
+  "local_file_only": true,
+  "shell_interpolation_allowed": false
+}

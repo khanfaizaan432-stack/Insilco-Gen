@@ -27,6 +27,9 @@ from app.insilicopop.llm.byok_runtime import BYOKSessionConfiguration, byok_runt
 from app.insilicopop.clinical.handoff_models import HandoffReviewAction, HandoffWorkspaceResult
 from app.insilicopop.clinical.result_gateway import build_result_gateway
 from app.insilicopop.clinical.result_gateway_execution import registered_adapters
+from app.insilicopop.clinical.integrated_analysis import build_clinical_case_v038_workspace
+from app.insilicopop.clinical.retrieval_registry import registered_retrieval_adapters
+from app.insilicopop.clinical.tool_execution import discover_bcftools
 from app.schemas.memory import MemoryCompressRequest, MemoryCompressResponse
 from app.workflows.dry_biotics import DryBioticsWorkflow
 
@@ -65,6 +68,12 @@ RESULT_GATEWAY_FIXTURE_PATH = (
     / "examples"
     / "insilicopop_demo"
     / "canonical_v036_result_package.json"
+)
+INTEGRATED_ANALYSIS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "examples"
+    / "insilicopop_demo"
+    / "canonical_v038_integrated_analysis.json"
 )
 
 
@@ -178,6 +187,26 @@ def insilicopop_v036_workbench_fixture() -> dict[str, object]:
         "gateway_preview": preview.model_dump(mode="json"),
         "adapter_definitions": [item.model_dump(mode="json") for item in registered_adapters()],
     }
+
+
+@app.get("/insilicopop/workbench/fixtures/v038")
+def insilicopop_v038_workbench_fixture() -> dict[str, object]:
+    """Return the validated v0.38 workspace without exposing frozen response bodies."""
+
+    if not INTEGRATED_ANALYSIS_FIXTURE_PATH.is_file():
+        raise HTTPException(status_code=500, detail="v0.38 synthetic fixture is missing")
+    try:
+        from app.insilicopop.cli import _load_v038_fixture
+
+        payload = _load_v038_fixture(str(INTEGRATED_ANALYSIS_FIXTURE_PATH))
+        workspace = build_clinical_case_v038_workspace(payload)
+        return {
+            "workspace": workspace.model_dump(mode="json"),
+            "retrieval_registry": [item.model_dump(mode="json") for item in registered_retrieval_adapters()],
+            "bcftools_availability": discover_bcftools().model_dump(mode="json"),
+        }
+    except (OSError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=500, detail="v0.38 synthetic fixture failed validation") from exc
 
 
 @app.post("/insilicopop/workbench/result-gateway/preview")

@@ -1,0 +1,137 @@
+{
+  "algorithm_version": "insilicopop-integrated-analysis-0.38.0",
+  "bundle_width": 10,
+  "case_id": "CASE-IN-SILICO-RESULT-036",
+  "cnv_count": 1,
+  "database_evidence_count": 6,
+  "database_record_ids": [
+    "VCV000634837",
+    "VCV000007105",
+    "rs113993960",
+    "CLINGEN-DOSAGE-GENE1",
+    "GNOMAD-UNAVAILABLE",
+    "INDIGENOMES-MANUAL-CONTEXT"
+  ],
+  "evidence_lifecycle": {
+    "context_only_count": 2,
+    "eligible_count": 4,
+    "excluded_count": 1,
+    "lifecycle_identity_sha256": "478f66401f47e432203a52ee45c4b9f0d9dcc6db0494a5adfcf4f9e20b1d4a52",
+    "quarantined_count": 1
+  },
+  "excluded_candidates": [
+    {
+      "candidate_id": "CAND-UNBOUND-037",
+      "source_record_id": "CAND-UNBOUND-037",
+      "state": "excluded"
+    },
+    {
+      "candidate_id": "candidate-v037-ee1542f46cfa1dc60227",
+      "source_record_id": "candidate-v037-ee1542f46cfa1dc60227",
+      "state": "excluded"
+    }
+  ],
+  "external_tool_executions": [
+    {
+      "activation": "blocked_without_approval",
+      "availability": "auth_required",
+      "input_sha256": null,
+      "invocation_identity_sha256": "16173e47a13140165fbb8b6aea17d709e884b34a150d44d18d7e16750716a452",
+      "operation": "stats",
+      "output_sha256": null,
+      "status": "blocked",
+      "tool": "bcftools",
+      "version": null
+    }
+  ],
+  "filter_history_count": 6,
+  "human_review_proposal_count": 8,
+  "identities": {
+    "candidate_analysis_identity_sha256": "3869c18397d8a9b6e84c1ba10fbeadbb57185878e6752987b28e98caf39f3068",
+    "evidence_lifecycle_identity_sha256": "478f66401f47e432203a52ee45c4b9f0d9dcc6db0494a5adfcf4f9e20b1d4a52",
+    "external_tool_execution_identity_sha256": "5a68472e06ebe1a52b0d5a5cc663b9740a5c2714ff6e36a2fece3468e647ac8e",
+    "final_integrity_sha256": "7168ceae31853c0b780fa66711751f3b6bde46211e4de1befbdbc596e40089aa",
+    "input_integrity_sha256": "cfbcc164902cffe296ed52a642bc65a46d4d6d0311a19923f46cb1a40cff24f8",
+    "integrated_workspace_identity_sha256": "731a2a3ae9c70c048d546151c153892dd117a68c88b2757ad27a1b141939ee84",
+    "multimodal_findings_identity_sha256": "f2670566ed84fb23dabff73adb131f3b735d8de3483ac6321c1e81ef263f99c4",
+    "retrieval_event_identity_sha256": "bc9ad92b068252c9bae6caad8cd85f69bb378d6e631966285e5b4d21d622566a",
+    "retrieval_snapshot_identity_sha256": "9ebe027dbc7d1460cbdd2dc809b0e8778bc0d9b1c3ad4cfd920a4bb010991f93",
+    "v036_manifest_identity_sha256": "2071c8fcb3ea17b10ff8d3c909c9a3fb3b077e0d171ab0ea3ff66acc48a5ce05",
+    "v036_result_gateway_identity_sha256": "204e54ea3b3f0561c67da9d64bab880683a337a880e10fe64e47c37d0df3d151",
+    "v037_ranking_input_identity_sha256": "282c008a51ebb286141ed1fb614ebfcb3e54eff32087bddc598fbe803a85274c",
+    "v037_ranking_output_identity_sha256": "f9aa7575fbc6c2f0087ed3970019375c2de7143d234684eec0ca3805a15cf56d"
+  },
+  "mitochondrial_count": 1,
+  "mosaicism_count": 1,
+  "navigator_stage_count": 18,
+  "paper_count": 2,
+  "paper_dois": [
+    "10.2147/PGPM.S278806",
+    "10.1002/tox.24161"
+  ],
+  "paper_pmids": [
+    "33623413",
+    "38356310"
+  ],
+  "ranked_candidates": [
+    {
+      "candidate_id": "candidate-v037-587112d0f7e70b149ae9",
+      "rank": 1,
+      "score": 15.45,
+      "source_record_id": "vcf-record-d552bedd0adc6e4c8e5c",
+      "state": "ranked_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-2ce0a1c76d0b8293b384",
+      "rank": 2,
+      "score": 9.55,
+      "source_record_id": "vcf-record-0b9fc8231a2250957455",
+      "state": "ranked_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-4995d09756964b7166e8",
+      "rank": 3,
+      "score": 2.4,
+      "source_record_id": "vcf-record-29633f1653a99fdda8b8",
+      "state": "retained_weak_for_review"
+    },
+    {
+      "candidate_id": "candidate-v037-3a5d83c0d8322e941a40",
+      "rank": 4,
+      "score": -4.5,
+      "source_record_id": "vcf-record-aa4d7899f999e76a0434",
+      "state": "retained_weak_for_review"
+    }
+  ],
+  "retrieval_cache_statuses": [
+    "replay",
+    "replay",
+    "replay",
+    "replay"
+  ],
+  "retrieval_event_count": 4,
+  "retrieval_sources": [
+    "clinvar",
+    "ensembl",
+    "pubmed"
+  ],
+  "rule_version": "insilicopop-integrated-analysis-rules-0.38.0",
+  "safety": {
+    "clinical_signout_performed": false,
+    "diagnosis_performed": false,
+    "draft_not_clinically_approved": true,
+    "external_llm_called": false,
+    "final_acmg_classification_performed": false,
+    "human_review_required": true,
+    "raw_bytes_persisted": false,
+    "research_use_only": true,
+    "test_ordered": false,
+    "treatment_recommended": false
+  },
+  "schema_version": "0.38",
+  "status_reasons": [
+    "bcftools execution requires explicit controlled approval"
+  ],
+  "workspace_id": "integrated-5c56e201a6c4f7fb7488a05a",
+  "workspace_status": "partial"
+}

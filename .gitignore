@@ -76,6 +76,9 @@ desktop.ini
 *.crai
 *.sam
 *.fastq
+
+# Small synthetic, non-patient v0.38 adapter fixture
+!examples/insilicopop_demo/canonical_v038_input.vcf
 *.fastq.gz
 *.fq
 *.fq.gz

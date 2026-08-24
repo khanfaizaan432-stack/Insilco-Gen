@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.insilicopop.clinical.handoff import apply_handoff_action
 from app.insilicopop.clinical.candidate_analysis_models import CandidateAnalysisResult
+from app.insilicopop.clinical.integrated_analysis_models import IntegratedAnalysisWorkspace
 from app.insilicopop.clinical.handoff_models import (
     HandoffReviewAction,
     HandoffReviewActionResult,
@@ -62,6 +63,7 @@ ALLOWED_REPRODUCIBILITY_ARTIFACTS = {
     "reproducibility/provenance_index.json",
     "reproducibility/runtime_lock.json",
     "reproducibility/checksums.sha256",
+    "reproducibility/integrated_analysis_workspace.json",
 }
 
 SECRET_KEY_NAMES = {
@@ -133,6 +135,21 @@ class AgentRunSummary(BaseModel):
     candidate_analysis_output_identity_sha256: str | None = None
     candidate_analysis_artifact_available: bool = False
     candidate_analysis_integrity_error: str | None = None
+    integrated_analysis_status: str | None = None
+    integrated_analysis_workspace_id: str | None = None
+    integrated_analysis_identity_sha256: str | None = None
+    integrated_analysis_final_integrity_sha256: str | None = None
+    integrated_analysis_ranked_count: int = 0
+    integrated_analysis_excluded_count: int = 0
+    integrated_analysis_paper_count: int = 0
+    integrated_analysis_database_evidence_count: int = 0
+    integrated_analysis_cnv_count: int = 0
+    integrated_analysis_mitochondrial_count: int = 0
+    integrated_analysis_mosaicism_count: int = 0
+    integrated_analysis_review_proposal_count: int = 0
+    integrated_analysis_tool_statuses: list[str] = Field(default_factory=list)
+    integrated_analysis_artifact_available: bool = False
+    integrated_analysis_integrity_error: str | None = None
     variant_intelligence_request_count: int = 0
     variant_validation_status_counts: dict[str, int] = Field(default_factory=dict)
     variant_normalization_status_counts: dict[str, int] = Field(default_factory=dict)
@@ -215,6 +232,7 @@ class AgentRunDetail(AgentRunSummary):
     phenotype_hpo_curation: dict[str, Any] | None = None
     pedigree_inheritance_audit: dict[str, Any] | None = None
     candidate_analysis: dict[str, Any] | None = None
+    integrated_analysis_workspace: dict[str, Any] | None = None
     variant_intelligence: dict[str, Any] | None = None
     pre_test_assessment: dict[str, Any] | None = None
     test_strategy_workspace: dict[str, Any] | None = None
@@ -275,6 +293,11 @@ class WorkbenchRunStore:
         candidate_analysis, candidate_analysis_error = _verified_candidate_from_payload(
             state.get("candidate_analysis") if isinstance(state.get("candidate_analysis"), dict) else None
         )
+        integrated_workspace, integrated_workspace_error = _verified_integrated_from_payload(
+            state.get("integrated_analysis_workspace")
+            if isinstance(state.get("integrated_analysis_workspace"), dict)
+            else None
+        )
         return AgentRunDetail(
             **summary.model_dump(),
             query=state.get("query"),
@@ -290,6 +313,11 @@ class WorkbenchRunStore:
             phenotype_hpo_curation=state.get("phenotype_hpo_curation") if isinstance(state.get("phenotype_hpo_curation"), dict) else None,
             pedigree_inheritance_audit=state.get("pedigree_inheritance_audit") if isinstance(state.get("pedigree_inheritance_audit"), dict) else None,
             candidate_analysis=candidate_analysis,
+            integrated_analysis_workspace=(
+                integrated_workspace
+                if integrated_workspace is not None
+                else ({"integrity_error": integrated_workspace_error} if integrated_workspace_error else None)
+            ),
             variant_intelligence=state.get("variant_intelligence") if isinstance(state.get("variant_intelligence"), dict) else None,
             pre_test_assessment=state.get("pre_test_assessment") if isinstance(state.get("pre_test_assessment"), dict) else None,
             test_strategy_workspace=state.get("test_strategy_workspace") if isinstance(state.get("test_strategy_workspace"), dict) else None,
@@ -329,6 +357,16 @@ class WorkbenchRunStore:
         if relative_path == "reproducibility/candidate_analysis.json":
             checksum_error = _verify_reproducibility_checksum(run_dir, relative_path, path)
             verified, model_error = _verified_candidate_from_payload(content if isinstance(content, dict) else None)
+            integrity_error = checksum_error or model_error
+            if integrity_error:
+                content = {"integrity_error": integrity_error}
+                integrity_status = "integrity_error"
+            else:
+                content = verified
+                integrity_status = "verified"
+        elif relative_path == "reproducibility/integrated_analysis_workspace.json":
+            checksum_error = _verify_reproducibility_checksum_for_path(run_dir, relative_path, path)
+            verified, model_error = _verified_integrated_from_payload(content if isinstance(content, dict) else None)
             integrity_error = checksum_error or model_error
             if integrity_error:
                 content = {"integrity_error": integrity_error}
@@ -428,6 +466,11 @@ class WorkbenchRunStore:
             raw_candidate_analysis if isinstance(raw_candidate_analysis, dict) else None
         )
         candidate_analysis = candidate_analysis or {}
+        raw_integrated_workspace = state.get("integrated_analysis_workspace", {}) if isinstance(state, dict) else {}
+        integrated_workspace, integrated_workspace_error = _verified_integrated_from_payload(
+            raw_integrated_workspace if isinstance(raw_integrated_workspace, dict) else None
+        )
+        integrated_workspace = integrated_workspace or {}
         variant_intelligence = state.get("variant_intelligence", {}) if isinstance(state, dict) else {}
         variant_intelligence = variant_intelligence if isinstance(variant_intelligence, dict) else {}
         pre_test_assessment = state.get("pre_test_assessment", {}) if isinstance(state, dict) else {}
@@ -522,6 +565,25 @@ class WorkbenchRunStore:
             candidate_analysis_output_identity_sha256=candidate_analysis.get("ranking_output_identity_sha256"),
             candidate_analysis_artifact_available=(run_dir / "reproducibility" / "candidate_analysis.json").is_file(),
             candidate_analysis_integrity_error=candidate_analysis_error,
+            integrated_analysis_status=integrated_workspace.get("status"),
+            integrated_analysis_workspace_id=integrated_workspace.get("workspace_id"),
+            integrated_analysis_identity_sha256=integrated_workspace.get("integrated_workspace_identity_sha256"),
+            integrated_analysis_final_integrity_sha256=integrated_workspace.get("final_integrity_sha256"),
+            integrated_analysis_ranked_count=len(integrated_workspace.get("ranked_candidates", []) or []),
+            integrated_analysis_excluded_count=len(integrated_workspace.get("excluded_candidates", []) or []),
+            integrated_analysis_paper_count=len(integrated_workspace.get("papers", []) or []),
+            integrated_analysis_database_evidence_count=len(integrated_workspace.get("database_evidence", []) or []),
+            integrated_analysis_cnv_count=len(integrated_workspace.get("supplied_cnv_findings", []) or []),
+            integrated_analysis_mitochondrial_count=len(integrated_workspace.get("supplied_mitochondrial_findings", []) or []),
+            integrated_analysis_mosaicism_count=len(integrated_workspace.get("mosaicism_measurements", []) or []),
+            integrated_analysis_review_proposal_count=len(integrated_workspace.get("human_review_proposals", []) or []),
+            integrated_analysis_tool_statuses=[
+                str(item.get("execution_status"))
+                for item in integrated_workspace.get("external_tool_executions", []) or []
+                if isinstance(item, dict)
+            ],
+            integrated_analysis_artifact_available=(run_dir / "reproducibility" / "integrated_analysis_workspace.json").is_file(),
+            integrated_analysis_integrity_error=integrated_workspace_error,
             variant_intelligence_request_count=len(variant_intelligence.get("normalization_results", []) or []),
             variant_validation_status_counts=_safe_count_dict(variant_intelligence.get("validation_status_counts", {})),
             variant_normalization_status_counts=_safe_count_dict(variant_intelligence.get("normalization_status_counts", {})),
@@ -816,6 +878,18 @@ def _verified_candidate_from_payload(
     return result.model_dump(mode="json"), None
 
 
+def _verified_integrated_from_payload(
+    payload: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    if payload is None:
+        return None, None
+    try:
+        result = IntegratedAnalysisWorkspace.verified_load(payload)
+    except (TypeError, ValueError) as exc:
+        return None, f"integrated analysis workspace integrity verification failed: {exc}"
+    return result.model_dump(mode="json"), None
+
+
 def _verify_reproducibility_checksum(run_dir: Path, relative_path: str, path: Path) -> str | None:
     checksum_path = run_dir / "reproducibility" / "checksums.sha256"
     if not checksum_path.is_file():
@@ -833,6 +907,26 @@ def _verify_reproducibility_checksum(run_dir: Path, relative_path: str, path: Pa
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != expected:
         return "candidate analysis reproducibility checksum does not match the persisted artifact"
+    return None
+
+
+def _verify_reproducibility_checksum_for_path(run_dir: Path, relative_path: str, path: Path) -> str | None:
+    checksum_path = run_dir / "reproducibility" / "checksums.sha256"
+    if not checksum_path.is_file():
+        return "integrated analysis reproducibility checksum manifest is missing"
+    expected = None
+    for line in checksum_path.read_text(encoding="utf-8").splitlines():
+        if "  " not in line:
+            continue
+        digest, recorded_path = line.split("  ", 1)
+        if recorded_path.replace("\\", "/") == relative_path:
+            expected = digest.strip().casefold()
+            break
+    if expected is None:
+        return "integrated analysis workspace is not covered by the reproducibility checksum manifest"
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        return "integrated analysis workspace reproducibility checksum does not match the persisted artifact"
     return None
 
 

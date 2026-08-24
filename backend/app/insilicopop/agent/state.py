@@ -19,6 +19,7 @@ from app.insilicopop.clinical.jarvis_report_models import (
 )
 from app.insilicopop.clinical.handoff_models import HandoffWorkspaceResult
 from app.insilicopop.clinical.candidate_analysis_models import CandidateAnalysisResult
+from app.insilicopop.clinical.integrated_analysis_models import IntegratedAnalysisWorkspace
 from app.insilicopop.llm.byok_runtime import BYOKPublicStatus
 
 
@@ -63,6 +64,7 @@ class AgentState(BaseModel):
     result_evidence_workspace: ResultEvidenceWorkspaceResult | None = None
     result_gateway: ResultGatewayResult | None = None
     candidate_analysis: CandidateAnalysisResult | None = None
+    integrated_analysis_workspace: IntegratedAnalysisWorkspace | None = None
     specialist_agent_workspace: SpecialistAgentWorkspaceResult | None = None
     jarvis_synthesis_report_workspace: JarvisSynthesisReportWorkspaceResult | None = None
     handoff_workspace: HandoffWorkspaceResult | None = None

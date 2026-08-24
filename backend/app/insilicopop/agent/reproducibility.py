@@ -54,6 +54,7 @@ OPTIONAL_REPRODUCIBILITY_FILE_KEYS = {
     "repro_handoff_workspace": "handoff_workspace.json",
     "repro_handoff_packet": "handoff_packet.json",
     "repro_handoff_receipt": "handoff_receipt.json",
+    "repro_integrated_analysis_workspace": "integrated_analysis_workspace.json",
 }
 REPRODUCIBILITY_FILE_RELATIVE_PATHS = [
     f"reproducibility/{name}" for name in REPRODUCIBILITY_FILE_KEYS.values()
@@ -143,6 +144,13 @@ def write_reproducibility_bundle(
         _write_json(paths["repro_handoff_workspace"], state.handoff_workspace.model_dump())
         _write_json(paths["repro_handoff_packet"], state.handoff_workspace.handoff_packet.model_dump())
         _write_json(paths["repro_handoff_receipt"], state.handoff_workspace.handoff_receipt.model_dump())
+    if state.integrated_analysis_workspace:
+        state.integrated_analysis_workspace.verify_integrity()
+        paths["repro_integrated_analysis_workspace"] = optional_paths["repro_integrated_analysis_workspace"]
+        _write_json(
+            paths["repro_integrated_analysis_workspace"],
+            state.integrated_analysis_workspace.model_dump(mode="json"),
+        )
     _write_json(paths["repro_guardrail_decisions"], _guardrail_decisions(state, trace))
     _write_json(paths["repro_provenance_index"], _provenance_index(run_dir, state, generated_artifacts, paths))
     _write_json(paths["repro_runtime_lock"], _runtime_lock(run_dir, state, generated_artifacts, paths))
@@ -667,6 +675,54 @@ def _provenance_index(
             "human_review_required": True,
             "draft_not_clinically_approved": True,
         }
+    integrated_path = repro_paths.get("repro_integrated_analysis_workspace")
+    if integrated_path and state.integrated_analysis_workspace:
+        workspace = state.integrated_analysis_workspace
+        workspace.verify_integrity()
+        payload["integrated_analysis_workspace"] = {
+            "path": _relative_to_run(run_dir, integrated_path),
+            "json_pointer": "/",
+            "artifact_class": "immutable_integrated_multimodal_results_and_evidence_workspace",
+            "schema_version": workspace.schema_version,
+            "algorithm_version": workspace.algorithm_version,
+            "rule_version": workspace.rule_version,
+            "workspace_id": workspace.workspace_id,
+            "workspace_status": workspace.status.value,
+            "status_reasons": list(workspace.status_reasons),
+            "input_integrity_sha256": workspace.input_integrity.input_integrity_sha256,
+            "v036_manifest_identity_sha256": workspace.identity_chain.v036_manifest_identity_sha256,
+            "v036_result_gateway_identity_sha256": workspace.identity_chain.v036_result_gateway_identity_sha256,
+            "v037_ranking_input_identity_sha256": workspace.identity_chain.v037_ranking_input_identity_sha256,
+            "v037_ranking_output_identity_sha256": workspace.identity_chain.v037_ranking_output_identity_sha256,
+            "candidate_analysis_identity_sha256": workspace.identity_chain.candidate_analysis_identity_sha256,
+            "multimodal_findings_identity_sha256": workspace.multimodal_findings_identity_sha256,
+            "external_tool_execution_identity_sha256": workspace.identity_chain.external_tool_execution_identity_sha256,
+            "retrieval_event_identity_sha256": workspace.identity_chain.retrieval_event_identity_sha256,
+            "retrieval_snapshot_identity_sha256": workspace.identity_chain.retrieval_snapshot_identity_sha256,
+            "evidence_lifecycle_identity_sha256": workspace.identity_chain.evidence_lifecycle_identity_sha256,
+            "integrated_workspace_identity_sha256": workspace.integrated_workspace_identity_sha256,
+            "final_integrity_sha256": workspace.final_integrity_sha256,
+            "retrieval_event_count": len(workspace.retrieval_events),
+            "paper_count": len(workspace.papers),
+            "database_evidence_count": len(workspace.database_evidence),
+            "ranked_candidate_count": len(workspace.ranked_candidates),
+            "excluded_candidate_count": len(workspace.excluded_candidates),
+            "human_review_proposal_count": len(workspace.human_review_proposals),
+            "external_tool_statuses": [item.execution_status.value for item in workspace.external_tool_executions],
+            "safety_flags": {
+                "research_use_only": workspace.research_use_only,
+                "human_review_required": workspace.human_review_required,
+                "draft_not_clinically_approved": workspace.draft_not_clinically_approved,
+                "diagnosis_performed": workspace.diagnosis_performed,
+                "treatment_recommended": workspace.treatment_recommended,
+                "test_ordered": workspace.test_ordered,
+                "clinical_signout_performed": workspace.clinical_signout_performed,
+                "raw_bytes_persisted": workspace.raw_bytes_persisted,
+                "external_llm_called": workspace.external_llm_called,
+                "patient_data_sent_externally": workspace.patient_data_sent_externally,
+            },
+            "human_review_required": True,
+        }
     handoff_path = repro_paths.get("repro_handoff_workspace")
     if handoff_path and state.handoff_workspace:
         payload["handoff_workspace"] = {
@@ -714,7 +770,7 @@ def _provenance_index(
 
 def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> dict[str, Any]:
     byok = state.byok_runtime
-    return {
+    payload = {
         "run_id": state.run_id,
         "timestamp_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "python_version": platform.python_version(),
@@ -976,6 +1032,66 @@ def _runtime_lock(run_dir: Path, state: AgentState, generated_artifacts: dict[st
         "generated_artifact_list": sorted(_relative_to_run(run_dir, path) for path in generated_artifacts.values()),
         "reproducibility_bundle_file_list": sorted(_relative_to_run(run_dir, path) for path in repro_paths.values()),
     }
+    workspace = state.integrated_analysis_workspace
+    if workspace:
+        workspace.verify_integrity()
+        payload.update(
+            {
+                "integrated_analysis_workspace_artifact_available": True,
+                "integrated_analysis_workspace_id": workspace.workspace_id,
+                "integrated_analysis_workspace_status": workspace.status.value,
+                "integrated_analysis_workspace_status_reasons": list(workspace.status_reasons),
+                "integrated_analysis_workspace_schema_version": workspace.schema_version,
+                "integrated_analysis_workspace_algorithm_version": workspace.algorithm_version,
+                "integrated_analysis_workspace_rule_version": workspace.rule_version,
+                "integrated_analysis_input_integrity_sha256": workspace.input_integrity.input_integrity_sha256,
+                "integrated_analysis_identity_chain": workspace.identity_chain.model_dump(mode="json"),
+                "integrated_analysis_workspace_identity_sha256": workspace.integrated_workspace_identity_sha256,
+                "integrated_analysis_final_integrity_sha256": workspace.final_integrity_sha256,
+                "integrated_analysis_retrieval_snapshot_id": workspace.retrieval_snapshot.snapshot_id,
+                "integrated_analysis_retrieval_event_count": len(workspace.retrieval_events),
+                "integrated_analysis_paper_count": len(workspace.papers),
+                "integrated_analysis_database_evidence_count": len(workspace.database_evidence),
+                "integrated_analysis_evidence_lifecycle": workspace.evidence_lifecycle_summary.model_dump(mode="json"),
+                "integrated_analysis_external_tool_executions": [
+                    {
+                        "execution_id": item.execution_id,
+                        "tool_id": item.tool_id,
+                        "execution_status": item.execution_status.value,
+                        "availability": item.availability.value,
+                        "invocation_identity_sha256": item.invocation_identity_sha256,
+                        "input_sha256": item.input_sha256,
+                        "output_sha256": item.output_sha256,
+                    }
+                    for item in workspace.external_tool_executions
+                ],
+                "integrated_analysis_human_review_proposal_count": len(workspace.human_review_proposals),
+                "integrated_analysis_safety_flags": {
+                    "research_use_only": workspace.research_use_only,
+                    "human_review_required": workspace.human_review_required,
+                    "draft_not_clinically_approved": workspace.draft_not_clinically_approved,
+                    "diagnosis_performed": workspace.diagnosis_performed,
+                    "treatment_recommended": workspace.treatment_recommended,
+                    "test_ordered": workspace.test_ordered,
+                    "final_acmg_classification_performed": workspace.final_acmg_classification_performed,
+                    "clinical_signout_performed": workspace.clinical_signout_performed,
+                    "raw_bytes_persisted": workspace.raw_bytes_persisted,
+                    "external_llm_called": workspace.external_llm_called,
+                    "patient_data_sent_externally": workspace.patient_data_sent_externally,
+                },
+            }
+        )
+    else:
+        payload.update(
+            {
+                "integrated_analysis_workspace_artifact_available": False,
+                "integrated_analysis_workspace_id": None,
+                "integrated_analysis_workspace_status": None,
+                "integrated_analysis_workspace_identity_sha256": None,
+                "integrated_analysis_final_integrity_sha256": None,
+            }
+        )
+    return payload
 
 
 def _checksums(run_dir: Path, generated_artifacts: dict[str, Path], repro_paths: dict[str, Path]) -> str:

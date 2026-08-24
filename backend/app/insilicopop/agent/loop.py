@@ -16,6 +16,7 @@ from app.insilicopop.agent.state import AgentState
 from app.insilicopop.agent.tool_router import ToolRouter
 from app.insilicopop.agent.trace import build_trace, write_agent_outputs
 from app.insilicopop.audit_service import InSilicoPopAuditService
+from app.insilicopop.clinical.integrated_analysis import build_clinical_case_v038_workspace
 from app.insilicopop.clinical.service import build_clinical_case_v035_bundle
 from app.insilicopop.clinical.validation import sanitized_clinical_free_text
 from app.insilicopop.llm.action_validator import ActionValidator
@@ -334,6 +335,76 @@ class AgentLoop:
         result = state.clinical_case_intake
         state.result_gateway = result.result_gateway if result else None
         state.candidate_analysis = result.candidate_analysis if result else None
+        if isinstance(payload, dict) and any(
+            payload.get(key) is not None
+            for key in ("integrated_analysis", "integrated_analysis_workspace", "v038_integrated_analysis")
+        ):
+            try:
+                state.integrated_analysis_workspace = build_clinical_case_v038_workspace(
+                    payload,
+                    base_bundle=(
+                        state.clinical_case_intake,
+                        state.phenotype_hpo_curation,
+                        state.pedigree_inheritance_audit,
+                        state.variant_intelligence,
+                        state.pre_test_assessment,
+                        state.test_strategy_workspace,
+                        state.result_evidence_workspace,
+                        state.specialist_agent_workspace,
+                        state.jarvis_synthesis_report_workspace,
+                        state.handoff_workspace,
+                    ),
+                    request_text=request_text,
+                )
+                integrated = state.integrated_analysis_workspace
+                state.external_tools_executed = any(
+                    item.execution_status.value == "completed"
+                    for item in integrated.external_tool_executions
+                )
+                state.decision_trace.append(
+                    {
+                        "event": "integrated_analysis_workspace_completed",
+                        "schema_version": integrated.schema_version,
+                        "workspace_id": integrated.workspace_id,
+                        "workspace_status": integrated.status.value,
+                        "workspace_identity_sha256": integrated.integrated_workspace_identity_sha256,
+                        "final_integrity_sha256": integrated.final_integrity_sha256,
+                        "retrieval_event_count": len(integrated.retrieval_events),
+                        "paper_count": len(integrated.papers),
+                        "database_evidence_count": len(integrated.database_evidence),
+                        "cnv_count": len(integrated.supplied_cnv_findings),
+                        "mitochondrial_count": len(integrated.supplied_mitochondrial_findings),
+                        "mosaicism_measurement_count": len(integrated.mosaicism_measurements),
+                        "external_tool_execution_count": len(integrated.external_tool_executions),
+                        "external_tool_statuses": [item.execution_status.value for item in integrated.external_tool_executions],
+                        "ranked_candidate_count": len(integrated.ranked_candidates),
+                        "excluded_candidate_count": len(integrated.excluded_candidates),
+                        "human_review_proposal_count": len(integrated.human_review_proposals),
+                        "raw_bytes_persisted": integrated.raw_bytes_persisted,
+                        "research_use_only": integrated.research_use_only,
+                        "human_review_required": integrated.human_review_required,
+                        "draft_not_clinically_approved": integrated.draft_not_clinically_approved,
+                    }
+                )
+            except ValueError as exc:
+                state.failure_reasons.append(
+                    {
+                        "failure_type": "integrated_analysis_workspace_blocked",
+                        "severity": "error",
+                        "message": str(exc),
+                        "triggered_by": ["v0.38_integrated_analysis"],
+                        "recommended_fix": "Provide matching immutable upstream identities and typed source bindings.",
+                        "blocked_action_id": None,
+                    }
+                )
+                state.decision_trace.append(
+                    {
+                        "event": "integrated_analysis_workspace_blocked",
+                        "reason": str(exc),
+                        "raw_bytes_persisted": False,
+                        "human_review_required": True,
+                    }
+                )
         state.parsed_inputs = {
             "structured_clinical_intake": True,
             "supplied_result_package_parsed": state.result_gateway is not None,
@@ -677,14 +748,19 @@ class AgentLoop:
                 }
             )
         state.external_llm_called = False
-        state.external_tools_executed = False
+        if state.integrated_analysis_workspace is None:
+            state.external_tools_executed = False
         state.orchestration_trace = build_orchestration_trace(state).model_dump()
         gateway_blocked = bool(
             state.result_gateway
             and state.result_gateway.package_status.value in {"blocked", "rejected", "failed", "stale"}
         )
         candidate_blocked = bool(state.candidate_analysis and state.candidate_analysis.analysis_status.value in {"blocked", "stale"})
-        state.current_step = "blocked" if result.policy_blocks or result.validation_errors or gateway_blocked or candidate_blocked else "clinical_intake_validated"
+        integrated_blocked = bool(
+            state.integrated_analysis_workspace
+            and state.integrated_analysis_workspace.status.value in {"blocked", "stale", "tampered"}
+        )
+        state.current_step = "blocked" if result.policy_blocks or result.validation_errors or gateway_blocked or candidate_blocked or integrated_blocked or state.failure_reasons else "clinical_intake_validated"
         generated = write_agent_outputs(self.generated_root / state.run_id, state)
         return self._response(state, generated)
 
@@ -719,6 +795,7 @@ class AgentLoop:
             "result_evidence_workspace": state.result_evidence_workspace.model_dump() if state.result_evidence_workspace else None,
             "result_gateway": state.result_gateway.model_dump() if state.result_gateway else None,
             "candidate_analysis": state.candidate_analysis.model_dump(mode="json") if state.candidate_analysis else None,
+            "integrated_analysis_workspace": state.integrated_analysis_workspace.model_dump(mode="json") if state.integrated_analysis_workspace else None,
             "specialist_agent_workspace": state.specialist_agent_workspace.model_dump() if state.specialist_agent_workspace else None,
             "jarvis_synthesis_report_workspace": state.jarvis_synthesis_report_workspace.model_dump() if state.jarvis_synthesis_report_workspace else None,
             "handoff_workspace": state.handoff_workspace.model_dump() if state.handoff_workspace else None,

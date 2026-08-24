@@ -22,6 +22,7 @@ from app.insilicopop.clinical.candidate_analysis_models import (
     CandidateAnalysisRequest,
     CandidateAnalysisResult,
 )
+from app.insilicopop.clinical.integrated_analysis_models import IntegratedAnalysisRequest
 
 
 SCHEMA_VERSION = "0.27"
@@ -201,6 +202,14 @@ class ClinicalCaseIntake(FrozenModel):
             "candidate_analysis",
             "candidate_prioritization",
             "v037_candidate_analysis",
+        ),
+    )
+    integrated_analysis: IntegratedAnalysisRequest | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "integrated_analysis",
+            "integrated_analysis_workspace",
+            "v038_integrated_analysis",
         ),
     )
 

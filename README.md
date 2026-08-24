@@ -60,6 +60,7 @@ Completed baseline:
 - v0.29 bounded deterministic pedigree and supplied-inheritance consistency auditing with mandatory human review.
 - v0.36 controlled clinical result and bioinformatics gateway (implemented locally and frozen as a release).
 - v0.37 explainable candidate analysis and prioritization over typed v0.36 records (implemented locally and frozen as a release).
+- v0.38 integrated evidence workspace with controlled scientific retrieval, an explicitly authorized pinned local BCFtools path, multimodal result review, India-specific context, and rendered-browser-verified accessible UI (implemented and release-frozen).
 
 Supported workflow families today:
 
@@ -121,6 +122,7 @@ Important generated files:
 - `reproducibility/clinical_case_intake.json` when structured clinical intake is supplied
 - `reproducibility/phenotype_hpo_curation.json` when bounded phenotype snippets are explicitly supplied
 - `reproducibility/pedigree_inheritance_audit.json` when an explicit typed v0.29 audit declaration is supplied
+- `reproducibility/integrated_analysis_workspace.json` when a valid v0.38 integrated-analysis request is supplied
 - `agent_state.json`
 - `agent_trace.json`
 - `command_previews.yaml`

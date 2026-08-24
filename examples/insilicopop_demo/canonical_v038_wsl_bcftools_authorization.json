@@ -1,0 +1,19 @@
+{
+  "authorization_id": "v038-wsl-bcftools-canonical-synthetic-20260823",
+  "authorization_version": "insilicopop-bcftools-wsl-authorization-0.38.0",
+  "approval_record": "human_authorized_local_maintenance",
+  "scope": "canonical_synthetic_vcf_only",
+  "runtime_binding_identity_sha256": "3509d1738704f4ef2410fba029dea8fa6e8a5240e3a9a63ae4f5120c5e5b3de2",
+  "authorized_input_relative_path": "examples/insilicopop_demo/canonical_v038_input.vcf",
+  "authorized_input_sha256": "e9f00e318859ebdef2e2e877bd6917c2a8a57328bf1b49397586dcfa93f7c839",
+  "authorized_operations": [
+    "version",
+    "validate",
+    "stats",
+    "sample_names",
+    "decompose_multiallelic"
+  ],
+  "issued_at_utc": "2026-08-23T00:00:00Z",
+  "expires_at_utc": "2099-01-01T00:00:00Z",
+  "reference_left_normalization_performed": false
+}
